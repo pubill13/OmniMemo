@@ -19,6 +19,11 @@ public partial class App : Application
     private System.Drawing.Icon? trayIcon;
     private Views.MainWindow? list;
     private SettingsWindow? settings;
+    private LayoutSettings layoutSettings = new();
+    private Forms.ToolStripMenuItem? autoArrangeMenu;
+    private bool arrangementQueued;
+    private bool arranging;
+    private bool arrangementPending;
     private bool busy;
     private bool shuttingDown;
     private bool backupInProgress;
@@ -45,6 +50,8 @@ public partial class App : Application
             bool firstRun = !File.Exists(database);
             store = new NoteStore(database);
             await store.InitializeAsync();
+            try { layoutSettings = LayoutSettings.Load(Path.Combine(dataDirectory, "layout.json")); }
+            catch (Exception ex) { Error("정렬 설정을 읽지 못했습니다. 이번 실행에는 자동 정렬을 끕니다.", ex); }
             CreateList();
             CreateTray();
             if (Environment.GetEnvironmentVariable("OMNIMEMO_DATA_DIR") is null
@@ -61,6 +68,7 @@ public partial class App : Application
                 if (windows.Count == 0) ShowList();
             }
             RefreshList();
+            QueueAutoArrange();
             SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
             _ = instance.ListenAsync(() => Dispatcher.BeginInvoke(() => { if (!busy) ShowList(); }),
                 ex => Dispatcher.BeginInvoke(() => Error("중복 실행 알림을 받을 수 없습니다.", ex)));
@@ -112,6 +120,14 @@ public partial class App : Application
         menu.Items.Add("메모 목록", null, (_, _) => { if (!busy) ShowList(); });
         menu.Items.Add("전체 숨기기", null, (_, _) => RunOperation(() => SetAllVisibleAsync(false)));
         menu.Items.Add("전체 보이기", null, (_, _) => RunOperation(() => SetAllVisibleAsync(true)));
+        var arrangeMenu = new Forms.ToolStripMenuItem("접힌 메모 정렬");
+        arrangeMenu.DropDownItems.Add("생성순으로 정렬", null, (_, _) => RunOperation(() => ArrangeTilesAsync(false)));
+        arrangeMenu.DropDownItems.Add("색상별로 정렬", null, (_, _) => RunOperation(() => ArrangeTilesAsync(true)));
+        arrangeMenu.DropDownItems.Add(new Forms.ToolStripSeparator());
+        autoArrangeMenu = new Forms.ToolStripMenuItem("자동 정렬") { Checked = layoutSettings.AutoArrange };
+        autoArrangeMenu.Click += (_, _) => RunOperation(() => SetAutoArrangeAsync(!layoutSettings.AutoArrange));
+        arrangeMenu.DropDownItems.Add(autoArrangeMenu);
+        menu.Items.Add(arrangeMenu);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("설정", null, (_, _) => { if (!busy) ShowSettings(); });
         menu.Items.Add("종료", null, (_, _) => RunOperation(ExitAsync));
@@ -124,16 +140,23 @@ public partial class App : Application
     {
         var vm = new NoteViewModel(note, store.SaveAsync, isNew);
         vm.Saved += OnNoteSaved;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(NoteViewModel.IsCollapsed) or nameof(NoteViewModel.Color)) QueueAutoArrange();
+        };
         notes.Add(note.Id, vm);
         return vm;
     }
 
-    private async Task NewNoteAsync()
+    private Task NewNoteAsync() => NewNoteAsync(null);
+
+    private async Task NewNoteAsync(NoteWindow? source)
     {
         int offset = windows.Count % 10 * 24;
-        var note = new Note { Left = 100 + offset, Top = 100 + offset };
+        var note = new Note { Left = source is null ? 100 + offset : source.Left + 28, Top = source is null ? 100 + offset : source.Top + 28 };
         var vm = AddModel(note, true);
         ShowNote(vm);
+        if (source is not null) WindowPlacement.Cascade(windows[note.Id], source);
         if (!await vm.FlushAsync()) Error("새 메모를 저장하지 못했습니다. 창의 내용을 복사해 보관하거나 저장을 다시 시도하세요.");
     }
 
@@ -143,7 +166,12 @@ public partial class App : Application
         {
             window = new NoteWindow(vm);
             var target = window;
-            window.NewNoteRequested += () => RunOperation(NewNoteAsync);
+            window.NewNoteRequested += () => RunOperation(() => NewNoteAsync(target));
+            window.SetAutoArrange(layoutSettings.AutoArrange);
+            window.ArrangeTilesRequested += byColor => RunOperation(() => ArrangeTilesAsync(byColor));
+            window.AutoArrangeChanged += enabled => RunOperation(() => SetAutoArrangeAsync(enabled));
+            window.TileDragCompleted += QueueAutoArrange;
+            window.IsVisibleChanged += (_, _) => QueueAutoArrange();
             window.SearchRequested += () => { if (!busy) ShowList(true); };
             window.HideRequested += (_, _) => RunOperation(async () =>
             {
@@ -174,6 +202,80 @@ public partial class App : Application
         window.Activate();
     }
 
+    private void SaveLayoutSettings(LayoutSettings value)
+    {
+        value.Save(Path.Combine(dataDirectory, "layout.json"));
+        layoutSettings = value;
+        if (autoArrangeMenu is not null) autoArrangeMenu.Checked = value.AutoArrange;
+        foreach (var window in windows.Values) window.SetAutoArrange(value.AutoArrange);
+    }
+
+    private async Task SetAutoArrangeAsync(bool enabled)
+    {
+        try
+        {
+            if (enabled) await ArrangeTilesAsync(layoutSettings.SortByColor);
+            SaveLayoutSettings(new LayoutSettings { AutoArrange = enabled, SortByColor = layoutSettings.SortByColor });
+        }
+        finally
+        {
+            foreach (var window in windows.Values) window.SetAutoArrange(layoutSettings.AutoArrange);
+        }
+    }
+
+    private async Task ArrangeTilesAsync(bool byColor)
+    {
+        // Calculate every monitor before moving any window, so an overfull screen leaves positions intact.
+        var moves = new Dictionary<Guid, Point>();
+        var candidates = windows.Where(p => p.Value.IsVisible && p.Value.IsCollapsed
+            && notes[p.Key].Snapshot.DeletedAt is null).ToArray();
+        foreach (var group in candidates.GroupBy(p => WindowPlacement.GetWorkArea(p.Value)))
+        {
+            double scale = group.Max(p => System.Windows.Media.VisualTreeHelper.GetDpi(p.Value).DpiScaleX);
+            foreach (var move in TileLayout.Arrange(group.Select(p => notes[p.Key].Snapshot), group.Key, 36 * scale, 8 * scale, byColor))
+                moves.Add(move.Key, move.Value);
+        }
+        if (layoutSettings.SortByColor != byColor)
+            SaveLayoutSettings(new LayoutSettings { AutoArrange = layoutSettings.AutoArrange, SortByColor = byColor });
+        foreach (var move in moves) WindowPlacement.Move(windows[move.Key], move.Value);
+        foreach (var id in moves.Keys)
+            if (!await notes[id].FlushAsync()) throw new IOException(notes[id].SaveStatus);
+    }
+
+    private void QueueAutoArrange()
+    {
+        if (!layoutSettings.AutoArrange || shuttingDown) return;
+        if (arranging) { arrangementPending = true; return; }
+        if (arrangementQueued) return;
+        arrangementQueued = true;
+        Dispatcher.BeginInvoke(async () =>
+        {
+            arrangementQueued = false;
+            if (!layoutSettings.AutoArrange || shuttingDown || busy) return;
+            arranging = true;
+            busy = true;
+            foreach (Window window in Windows) window.IsEnabled = false;
+            try { await ArrangeTilesAsync(layoutSettings.SortByColor); }
+            catch (Exception ex)
+            {
+                // Do not repeatedly move notes or show errors when a disk/screen is full.
+                layoutSettings = layoutSettings with { AutoArrange = false };
+                if (autoArrangeMenu is not null) autoArrangeMenu.Checked = false;
+                foreach (var window in windows.Values) window.SetAutoArrange(false);
+                string message = "자동 정렬을 중단했습니다. 정렬 메뉴에서 다시 켤 수 있습니다.";
+                try { SaveLayoutSettings(layoutSettings); }
+                catch (Exception settingsError) { message += "\n중단 설정을 저장하지 못했습니다: " + settingsError.Message; }
+                Error(message, ex);
+            }
+            finally
+            {
+                arranging = false;
+                busy = false;
+                if (!shuttingDown) foreach (Window window in Windows) window.IsEnabled = true;
+                if (arrangementPending) { arrangementPending = false; QueueAutoArrange(); }
+            }
+        }, DispatcherPriority.Background);
+    }
     private void ShowList(bool search = false)
     {
         if (list is null) return;
@@ -291,6 +393,7 @@ public partial class App : Application
             {
                 foreach (Window window in Windows) window.IsEnabled = true;
                 RefreshList();
+                QueueAutoArrange();
             }
         }
     }
@@ -298,6 +401,7 @@ public partial class App : Application
     private void OnDisplayChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(() =>
     {
         foreach (Window window in Windows) if (window.IsVisible) WindowPlacement.KeepOnScreen(window);
+        QueueAutoArrange();
     });
 
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)

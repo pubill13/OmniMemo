@@ -24,6 +24,11 @@ public partial class NoteWindow : Window
     public event Action? DeleteRequested;
     public event EventHandler? HideRequested;
     public event Action<Point>? TileMoveRequested;
+    public event Action<bool>? ArrangeTilesRequested;
+    public event Action<bool>? AutoArrangeChanged;
+    public event Action? TileDragCompleted;
+
+    public void SetAutoArrange(bool enabled) => AutoArrangeItem.IsChecked = enabled;
 
     public NoteWindow(NoteViewModel vm)
     {
@@ -105,11 +110,13 @@ public partial class NoteWindow : Window
     }
     private void OnTileUp(object sender, MouseButtonEventArgs e)
     {
+        bool wasDragging = draggingTile;
         bool clicked = tilePress.HasValue && !draggingTile;
         tilePress = null;
         CollapsedTile.ReleaseMouseCapture();
         draggingTile = false;
         if (clicked) ToggleCollapsed();
+        if (wasDragging) TileDragCompleted?.Invoke();
         e.Handled = true;
     }
     private void OnTileMove(object sender, MouseEventArgs e)
@@ -135,6 +142,9 @@ public partial class NoteWindow : Window
     private void OnDelete(object sender, RoutedEventArgs e) => DeleteRequested?.Invoke();
     private void OnHide(object sender, RoutedEventArgs e) => Close();
     private void OnCollapse(object sender, RoutedEventArgs e) => ToggleCollapsed();
+    private void OnArrangeByCreated(object sender, RoutedEventArgs e) => ArrangeTilesRequested?.Invoke(false);
+    private void OnArrangeByColor(object sender, RoutedEventArgs e) => ArrangeTilesRequested?.Invoke(true);
+    private void OnAutoArrange(object sender, RoutedEventArgs e) => AutoArrangeChanged?.Invoke(AutoArrangeItem.IsChecked);
     private void OnMenu(object sender, RoutedEventArgs e)
     {
         var button = (Button)sender; button.ContextMenu!.PlacementTarget = button; button.ContextMenu.IsOpen = true;

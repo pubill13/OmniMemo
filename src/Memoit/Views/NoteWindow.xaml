@@ -69,7 +69,17 @@
   </Grid>
   <Button x:Name="CollapsedTile" Visibility="Collapsed" Background="Transparent" ToolTip="{Binding Title}" PreviewMouseLeftButtonDown="OnTileDown" PreviewMouseLeftButtonUp="OnTileUp" PreviewMouseMove="OnTileMove" Click="OnTileClick" LostMouseCapture="OnTileLostCapture" Cursor="Hand" Padding="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" AutomationProperties.Name="접힌 메모, 클릭하여 펼치기">
    <Button.Template><ControlTemplate TargetType="Button"><Border Background="{TemplateBinding Background}"><ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/></Border></ControlTemplate></Button.Template>
-   <Button.ContextMenu><ContextMenu><MenuItem Header="펼치기" Click="OnCollapse"/><MenuItem Header="항상 위에 표시" IsCheckable="True" IsChecked="{Binding IsPinned}"/><MenuItem Header="메모 숨기기" Click="OnHide"/><Separator/><MenuItem Header="휴지통으로 이동" Click="OnDelete"/></ContextMenu></Button.ContextMenu>
+   <Button.ContextMenu><ContextMenu>
+    <MenuItem Header="펼치기" Click="OnCollapse"/>
+    <MenuItem Header="항상 위에 표시" IsCheckable="True" IsChecked="{Binding IsPinned}"/>
+    <MenuItem Header="접힌 메모 정렬" AutomationProperties.Name="접힌 메모 정렬">
+     <MenuItem Header="생성순으로 정렬" Click="OnArrangeByCreated"/>
+     <MenuItem Header="색상별로 정렬" Click="OnArrangeByColor"/>
+     <Separator/>
+     <MenuItem x:Name="AutoArrangeItem" Header="자동 정렬" IsCheckable="True" Click="OnAutoArrange" ToolTip="접힌 메모의 자동 정렬 켜기 또는 끄기"/>
+    </MenuItem>
+    <MenuItem Header="메모 숨기기" Click="OnHide"/><Separator/><MenuItem Header="휴지통으로 이동" Click="OnDelete"/>
+   </ContextMenu></Button.ContextMenu>
    <Grid>
    <TextBlock x:Name="TileTitle" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/>
    <Ellipse Style="{StaticResource StateDot}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,3,3"/>

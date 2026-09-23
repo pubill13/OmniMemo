@@ -22,6 +22,33 @@ public static class WindowPlacement
         return new Point(rect.Left, rect.Top);
     }
 
+    public static System.Windows.Rect GetWorkArea(Window window)
+    {
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (!GetMonitorInfo(MonitorFromWindow(new WindowInteropHelper(window).Handle, 2), ref info))
+            throw new System.ComponentModel.Win32Exception();
+        return new System.Windows.Rect(info.Work.Left, info.Work.Top,
+            info.Work.Right - info.Work.Left, info.Work.Bottom - info.Work.Top);
+    }
+
+    public static void Move(Window window, Point position)
+    {
+        if (!SetWindowPos(new WindowInteropHelper(window).Handle, IntPtr.Zero,
+            (int)Math.Round(position.X), (int)Math.Round(position.Y), 0, 0, 0x0015))
+            throw new System.ComponentModel.Win32Exception();
+    }
+
+    public static void Cascade(Window window, Window source)
+    {
+        if (!GetWindowRect(new WindowInteropHelper(window).Handle, out var targetRect)
+            || !GetWindowRect(new WindowInteropHelper(source).Handle, out var sourceRect))
+            throw new System.ComponentModel.Win32Exception();
+        var scale = System.Windows.Media.VisualTreeHelper.GetDpi(source).DpiScaleX;
+        Move(window, NotePlacement.Cascade(
+            new System.Windows.Rect(sourceRect.Left, sourceRect.Top, sourceRect.Right - sourceRect.Left, sourceRect.Bottom - sourceRect.Top),
+            new Size(targetRect.Right - targetRect.Left, targetRect.Bottom - targetRect.Top), GetWorkArea(source), 28 * scale));
+    }
+
     public static void KeepOnScreen(Window window)
     {
         var hwnd = new WindowInteropHelper(window).Handle;

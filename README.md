@@ -4,10 +4,12 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite로 �
 
 ## 실행과 사용
 
-`artifacts/OmniMemo-1.1.0/win-x64/OmniMemo.exe`를 실행하세요. 게시본에는 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다.
+`artifacts/OmniMemo-1.2.0/win-x64/OmniMemo.exe`를 실행하세요. 게시본에는 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다.
 
 - **트레이 전용:** 메모·목록·설정 창은 작업 표시줄에 표시되지 않습니다. 트레이의 OmniMemo 아이콘을 우클릭해 새 메모, 목록, 전체 숨기기·보이기, 설정, 종료를 선택합니다. 더블클릭하면 목록이 열립니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 - **접기:** 상단 ↙ 버튼으로 36×36 DIP 타일로 접습니다. 타일을 클릭하거나 Enter/Space를 누르면 펼칩니다. 타일은 앞 두 글자와 전체 제목 툴팁을 표시합니다. 오른쪽 메뉴에서 펼치기·고정·숨기기·삭제를 할 수 있습니다.
+- **새 메모 위치:** 메모의 + 또는 Ctrl+N으로 만들면 해당 메모에서 오른쪽 아래로 28 DIP 겹쳐 열립니다. 화면 끝에서는 반대 방향으로 옮기고 작업 영역 안에 배치합니다.
+- **접힌 메모 정렬:** 타일 우클릭 또는 트레이의 `접힌 메모 정렬`에서 생성순·색상별 정렬을 선택하세요. 각 모니터의 왼쪽 위부터 보이는 타일만 8 DIP 간격으로 배치합니다. 숨긴 메모와 펼친 메모는 이동하지 않습니다. 색상순은 노랑·분홍·초록·파랑·보라·흰색 순서입니다. `자동 정렬`을 켜면 접기·펼치기·표시·색상 변경과 타일 드래그 종료 뒤 다시 정리합니다. 기본값은 꺼짐이며 마지막 정렬 기준과 설정은 로컬에 저장합니다.
 - **이동과 정렬:** 상단의 빈 부분 또는 타일을 드래그하세요. 화면 작업 영역과 다른 메모에 약 10 DIP 이내로 접근하면 붙습니다. 마우스를 더 움직이면 떨어집니다. 접은 뒤 이동해도 펼쳤던 크기는 유지합니다. 화면 끝에서 펼치면 보이는 영역 안으로 이동합니다.
 - **편집:** 일반 텍스트, 한글, 실행 취소·다시 실행을 지원합니다. ⋯에서 여섯 글꼴과 10·12·14·16·18·20·24·28·32 크기를 선택합니다. 설치되지 않은 글꼴은 맑은 고딕으로 표시하되 저장된 선택은 보존합니다.
 - **저장 표시:** 하단 상태 바 대신 상단의 작은 점으로 표시합니다. 초록은 저장됨, 황색은 저장 중, 빨강은 저장 실패입니다. 점 위에 마우스를 올리면 상세 상태가 표시됩니다.
@@ -38,7 +40,7 @@ $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet build Memoit.slnx --no-restore
 dotnet test Memoit.slnx --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.1.0/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.2.0/win-x64
 ```
 
 개인 데이터와 분리해서 실행할 때는 `OMNIMEMO_DATA_DIR` 환경 변수에 검증용 폴더를 지정합니다. 이전 `MEMOIT_DATA_DIR`도 인식하지만 새 이름이 우선합니다. 격리 실행은 기존 자동 실행 등록을 갱신하지 않습니다. 테스트 렌더링은 `OMNIMEMO_VISUAL_DIR`를 지정하면 해당 폴더에 저장합니다.
@@ -48,8 +50,9 @@ dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained t
 게시본 검증 스크립트는 Windows PowerShell 5.1의 `-STA` 옵션으로 실행합니다. 모두 검증 전용 데이터 폴더를 사용하며, TraySmoke는 OmniMemo 트레이 메뉴 검증 중 마우스를 잠시 사용한 뒤 위치를 복원합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/SmokeTest.ps1 -Executable artifacts/OmniMemo-1.1.0/win-x64/OmniMemo.exe
-powershell.exe -NoProfile -STA -File scripts/TraySmoke.ps1 -Executable artifacts/OmniMemo-1.1.0/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/SmokeTest.ps1 -Executable artifacts/OmniMemo-1.2.0/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/TraySmoke.ps1 -Executable artifacts/OmniMemo-1.2.0/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/LayoutSmoke.ps1 -Executable artifacts/OmniMemo-1.2.0/win-x64/OmniMemo.exe
 ```
 
 동기화, 이미지, 일정 알림, 부분 글자 서식은 포함하지 않습니다. 소스의 Memoit 네임스페이스·프로젝트 경로는 호환성을 위해 유지하며 표시 이름과 실행 파일은 OmniMemo입니다.
