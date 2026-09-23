@@ -58,7 +58,18 @@ public sealed class NoteUiRegressionTests
         {
             window.Show(); Pump();
             var root = (Grid)window.FindName("Root");
-            Assert.Equal(28, root.RowDefinitions[0].ActualHeight);
+            Assert.Equal(22, root.RowDefinitions[0].ActualHeight);
+            Assert.Equal(new Thickness(8, 7, 8, 7), window.Editor.Padding);
+            var pin = Assert.Single(Descendants<ToggleButton>(root), button => button is not CheckBox);
+            var head = (System.Windows.Shapes.Path)pin.Template.FindName("PinHead", pin);
+            Assert.Equal(Colors.Transparent, ((SolidColorBrush)head.Fill).Color);
+            pin.IsChecked = true; Pump();
+            Assert.True(vm.IsPinned);
+            Assert.True(window.Topmost);
+            Assert.NotEqual(Colors.Transparent, ((SolidColorBrush)head.Fill).Color);
+            pin.IsChecked = false; Pump();
+            Assert.False(window.Topmost);
+            Assert.Empty(Descendants<CheckBox>(root));
             Assert.Equal(2, root.RowDefinitions.Count);
             var viewer = Descendants<ScrollViewer>(window.Editor).Single();
             var bar = Descendants<ScrollBar>(window.Editor).Single(b => b.Orientation == Orientation.Vertical);

@@ -19,6 +19,8 @@ public partial class NoteWindow : Window
     private Point tileOrigin;
     public bool AllowClose { get; set; }
     public bool IsCollapsed => vm.IsCollapsed;
+    public string CollapseGesture { get; set; } = "Ctrl+Shift+Space";
+    public event Action? LayoutOptionsRequested;
     public event Action? NewNoteRequested;
     public event Action? SearchRequested;
     public event Action? DeleteRequested;
@@ -142,6 +144,7 @@ public partial class NoteWindow : Window
     private void OnDelete(object sender, RoutedEventArgs e) => DeleteRequested?.Invoke();
     private void OnHide(object sender, RoutedEventArgs e) => Close();
     private void OnCollapse(object sender, RoutedEventArgs e) => ToggleCollapsed();
+    private void OnLayoutOptions(object sender, RoutedEventArgs e) => LayoutOptionsRequested?.Invoke();
     private void OnArrangeByCreated(object sender, RoutedEventArgs e) => ArrangeTilesRequested?.Invoke(false);
     private void OnArrangeByColor(object sender, RoutedEventArgs e) => ArrangeTilesRequested?.Invoke(true);
     private void OnAutoArrange(object sender, RoutedEventArgs e) => AutoArrangeChanged?.Invoke(AutoArrangeItem.IsChecked);
@@ -154,7 +157,9 @@ public partial class NoteWindow : Window
     private void OnFontFamily(object sender, RoutedEventArgs e) => vm.FontFamily = (string)((MenuItem)sender).Tag;
     private void OnKeyDown(object sender, KeyEventArgs e)
     {
-        if (IsCollapsed && e.Key is Key.Enter or Key.Space) { ToggleCollapsed(); e.Handled = true; return; }
+        if (HotkeyService.Matches(CollapseGesture, e.Key == Key.System ? e.SystemKey : e.Key, Keyboard.Modifiers))
+        { if (!e.IsRepeat) ToggleCollapsed(); e.Handled = true; return; }
+        if (IsCollapsed && Keyboard.Modifiers == ModifierKeys.None && e.Key is Key.Enter or Key.Space) { ToggleCollapsed(); e.Handled = true; return; }
         if (Keyboard.Modifiers != ModifierKeys.Control) return;
         if (e.Key == Key.N) { NewNoteRequested?.Invoke(); e.Handled = true; }
         if (e.Key == Key.F) { SearchRequested?.Invoke(); e.Handled = true; }

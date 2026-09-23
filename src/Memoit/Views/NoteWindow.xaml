@@ -10,30 +10,45 @@
  <Window.Resources>
   <local:ScrollbarColorConverter x:Key="ScrollbarColor"/><sys:Boolean x:Key="BooleanTrue">True</sys:Boolean>
   <Style TargetType="Button"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="5,0"/><Setter Property="FontSize" Value="13"/><Setter Property="Cursor" Value="Hand"/></Style>
+  <Style x:Key="PinButton" TargetType="ToggleButton">
+   <Setter Property="Foreground" Value="#595F5E"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/><Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
+    <Border x:Name="PinSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="3" Padding="5,3">
+     <Viewbox Width="11" Height="14"><Grid Width="12" Height="16"><Path x:Name="PinHead" Fill="Transparent" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.2" Data="M 3,1 L 9,1 8,6 10,9 2,9 4,6 Z"/><Path Stroke="{TemplateBinding Foreground}" StrokeThickness="1.2" Data="M 6,9 L 6,15"/></Grid></Viewbox>
+    </Border>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="PinSurface" Property="Background" Value="#14000000"/></Trigger>
+     <Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="#176B61"/><Setter TargetName="PinHead" Property="Fill" Value="#176B61"/><Setter TargetName="PinSurface" Property="Background" Value="#18176B61"/></Trigger>
+     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="PinSurface" Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"/></Trigger>
+     <DataTrigger Binding="{Binding Source={x:Static SystemParameters.HighContrast}}" Value="True"><Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"/><Setter TargetName="PinSurface" Property="Background" Value="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"/></DataTrigger>
+     <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Source={x:Static SystemParameters.HighContrast}}" Value="True"/><Condition Binding="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}" Value="True"/></MultiDataTrigger.Conditions><Setter TargetName="PinHead" Property="Fill" Value="{DynamicResource {x:Static SystemColors.HighlightTextBrushKey}}"/><Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.HighlightTextBrushKey}}"/><Setter TargetName="PinSurface" Property="Background" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"/></MultiDataTrigger>
+    </ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
   <Style x:Key="StateDot" TargetType="Ellipse"><Setter Property="Width" Value="5"/><Setter Property="Height" Value="5"/><Setter Property="Fill" Value="#579365"/><Setter Property="ToolTip" Value="{Binding SaveStatus}"/><Style.Triggers><DataTrigger Binding="{Binding SaveState}" Value="Saving"><Setter Property="Fill" Value="#B58220"/></DataTrigger><DataTrigger Binding="{Binding SaveState}" Value="Failed"><Setter Property="Fill" Value="#C13D3D"/></DataTrigger></Style.Triggers></Style>
  </Window.Resources>
  <Border BorderThickness="1" BorderBrush="#20000000">
   <Grid>
   <Grid x:Name="Root">
-   <Grid.RowDefinitions><RowDefinition Height="28"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+   <Grid.RowDefinitions><RowDefinition Height="22"/><RowDefinition Height="*"/></Grid.RowDefinitions>
    <Grid Background="#0C000000" MouseLeftButtonDown="OnDrag">
     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <Button Content="＋" ToolTip="새 메모 (Ctrl+N)" AutomationProperties.Name="새 메모" Click="OnNew" FontSize="13"/>
     <Button Grid.Column="1" Content="↙" ToolTip="작은 타일로 접기" AutomationProperties.Name="작은 타일로 접기" Click="OnCollapse"/>
     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"><TextBlock Text="OmniMemo" FontSize="10" IsHitTestVisible="False"/><Ellipse Style="{StaticResource StateDot}" Margin="6,0,0,0"/></StackPanel>
-    <CheckBox Grid.Column="3" Content="고정" IsChecked="{Binding IsPinned}" VerticalAlignment="Center" Margin="4" ToolTip="항상 위에 표시" AutomationProperties.Name="항상 위에 표시"/>
+    <ToggleButton Grid.Column="3" IsChecked="{Binding IsPinned}" Width="23" Style="{StaticResource PinButton}" ToolTip="항상 위에 표시" AutomationProperties.Name="항상 위에 표시"/>
     <Button Grid.Column="4" Content="⋯" ToolTip="색상, 글꼴, 글자 크기 및 삭제" AutomationProperties.Name="메모 설정" Click="OnMenu">
      <Button.ContextMenu><ContextMenu>
       <MenuItem Header="메모 색상">
        <MenuItem Header="노랑" Tag="#FFF2B3" Click="OnColor"/><MenuItem Header="분홍" Tag="#FFDDE7" Click="OnColor"/><MenuItem Header="초록" Tag="#DEF0D8" Click="OnColor"/><MenuItem Header="파랑" Tag="#DCEBFA" Click="OnColor"/><MenuItem Header="보라" Tag="#EAE0F7" Click="OnColor"/><MenuItem Header="흰색" Tag="#FAFAF5" Click="OnColor"/>
       </MenuItem>
       <MenuItem Header="글꼴"><MenuItem Header="맑은 고딕" Tag="Malgun Gothic" Click="OnFontFamily"/><MenuItem Header="굴림" Tag="Gulim" Click="OnFontFamily"/><MenuItem Header="Segoe UI" Tag="Segoe UI" Click="OnFontFamily"/><MenuItem Header="Arial" Tag="Arial" Click="OnFontFamily"/><MenuItem Header="Consolas" Tag="Consolas" Click="OnFontFamily"/><MenuItem Header="Times New Roman" Tag="Times New Roman" Click="OnFontFamily"/></MenuItem><MenuItem Header="글자 크기"><MenuItem Header="10" Tag="10" Click="OnFont"/><MenuItem Header="12" Tag="12" Click="OnFont"/><MenuItem Header="14" Tag="14" Click="OnFont"/><MenuItem Header="16" Tag="16" Click="OnFont"/><MenuItem Header="18" Tag="18" Click="OnFont"/><MenuItem Header="20" Tag="20" Click="OnFont"/><MenuItem Header="24" Tag="24" Click="OnFont"/><MenuItem Header="28" Tag="28" Click="OnFont"/><MenuItem Header="32" Tag="32" Click="OnFont"/></MenuItem>
-      <MenuItem Header="메모 목록 / 검색" InputGestureText="Ctrl+F" Click="OnSearch"/><Separator/><MenuItem Header="휴지통으로 이동" Click="OnDelete"/>
+      <MenuItem Header="메모 목록 / 검색" InputGestureText="Ctrl+F" Click="OnSearch"/><MenuItem Header="정렬 옵션…" Click="OnLayoutOptions"/><Separator/><MenuItem Header="휴지통으로 이동" Click="OnDelete"/>
      </ContextMenu></Button.ContextMenu>
     </Button>
     <Button Grid.Column="5" Content="×" ToolTip="메모 숨기기 (목록에서 다시 열 수 있습니다)" AutomationProperties.Name="메모 숨기기" Click="OnHide"/>
    </Grid>
-   <TextBox x:Name="Editor" x:FieldModifier="public" Grid.Row="1" Text="{Binding Body, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontFamily="{Binding EffectiveFontFamily}" FontSize="{Binding FontSize}" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" BorderThickness="0" Background="Transparent" Padding="17,15" IsUndoEnabled="True" SpellCheck.IsEnabled="False" AutomationProperties.Name="메모 내용">
+   <TextBox x:Name="Editor" x:FieldModifier="public" Grid.Row="1" Text="{Binding Body, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontFamily="{Binding EffectiveFontFamily}" FontSize="{Binding FontSize}" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" BorderThickness="0" Background="Transparent" Padding="8,7" IsUndoEnabled="True" SpellCheck.IsEnabled="False" AutomationProperties.Name="메모 내용">
     <TextBox.Resources>
      <Style TargetType="Thumb">
       <Setter Property="Tag" Value="{DynamicResource {x:Static SystemParameters.HighContrastKey}}"/>
@@ -70,7 +85,7 @@
   <Button x:Name="CollapsedTile" Visibility="Collapsed" Background="Transparent" ToolTip="{Binding Title}" PreviewMouseLeftButtonDown="OnTileDown" PreviewMouseLeftButtonUp="OnTileUp" PreviewMouseMove="OnTileMove" Click="OnTileClick" LostMouseCapture="OnTileLostCapture" Cursor="Hand" Padding="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" AutomationProperties.Name="접힌 메모, 클릭하여 펼치기">
    <Button.Template><ControlTemplate TargetType="Button"><Border Background="{TemplateBinding Background}"><ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/></Border></ControlTemplate></Button.Template>
    <Button.ContextMenu><ContextMenu>
-    <MenuItem Header="펼치기" Click="OnCollapse"/>
+    <MenuItem Header="펼치기" Click="OnCollapse"/><MenuItem Header="정렬 옵션…" Click="OnLayoutOptions"/>
     <MenuItem Header="항상 위에 표시" IsCheckable="True" IsChecked="{Binding IsPinned}"/>
     <MenuItem Header="접힌 메모 정렬" AutomationProperties.Name="접힌 메모 정렬">
      <MenuItem Header="생성순으로 정렬" Click="OnArrangeByCreated"/>
@@ -88,7 +103,3 @@
   </Grid>
  </Border>
 </Window>
-
-
-
-
