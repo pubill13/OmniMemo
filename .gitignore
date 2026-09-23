@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+.tools/
+.dotnet-home/
+artifacts/
+TestResults/
+.vs/
+*.user
+*.db
+*.db-*
+.env

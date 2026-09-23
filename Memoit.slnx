@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Memoit/Memoit.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Memoit.Tests/Memoit.Tests.csproj" />
+  </Folder>
+</Solution>

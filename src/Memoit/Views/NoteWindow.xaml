@@ -1,0 +1,84 @@
+<Window Icon="/OmniMemo;component/Assets/OmniMemo.ico" x:Class="Memoit.Views.NoteWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+ xmlns:local="clr-namespace:Memoit.Views" xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+ Title="{Binding Title}" Tag="{Binding IsCollapsed}" Width="340" Height="360" MinWidth="280" MinHeight="220"
+ ShowInTaskbar="False" WindowStyle="None" ResizeMode="CanResize" Background="{Binding Color}" Topmost="{Binding IsPinned}"
+ FontFamily="Malgun Gothic" Foreground="#292D35" PreviewKeyDown="OnKeyDown">
+ <shell:WindowChrome.WindowChrome><shell:WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0"/></shell:WindowChrome.WindowChrome>
+ <Window.Resources>
+  <local:ScrollbarColorConverter x:Key="ScrollbarColor"/><sys:Boolean x:Key="BooleanTrue">True</sys:Boolean>
+  <Style TargetType="Button"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="5,0"/><Setter Property="FontSize" Value="13"/><Setter Property="Cursor" Value="Hand"/></Style>
+  <Style x:Key="StateDot" TargetType="Ellipse"><Setter Property="Width" Value="5"/><Setter Property="Height" Value="5"/><Setter Property="Fill" Value="#579365"/><Setter Property="ToolTip" Value="{Binding SaveStatus}"/><Style.Triggers><DataTrigger Binding="{Binding SaveState}" Value="Saving"><Setter Property="Fill" Value="#B58220"/></DataTrigger><DataTrigger Binding="{Binding SaveState}" Value="Failed"><Setter Property="Fill" Value="#C13D3D"/></DataTrigger></Style.Triggers></Style>
+ </Window.Resources>
+ <Border BorderThickness="1" BorderBrush="#20000000">
+  <Grid>
+  <Grid x:Name="Root">
+   <Grid.RowDefinitions><RowDefinition Height="28"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+   <Grid Background="#0C000000" MouseLeftButtonDown="OnDrag">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <Button Content="＋" ToolTip="새 메모 (Ctrl+N)" AutomationProperties.Name="새 메모" Click="OnNew" FontSize="13"/>
+    <Button Grid.Column="1" Content="↙" ToolTip="작은 타일로 접기" AutomationProperties.Name="작은 타일로 접기" Click="OnCollapse"/>
+    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"><TextBlock Text="OmniMemo" FontSize="10" IsHitTestVisible="False"/><Ellipse Style="{StaticResource StateDot}" Margin="6,0,0,0"/></StackPanel>
+    <CheckBox Grid.Column="3" Content="고정" IsChecked="{Binding IsPinned}" VerticalAlignment="Center" Margin="4" ToolTip="항상 위에 표시" AutomationProperties.Name="항상 위에 표시"/>
+    <Button Grid.Column="4" Content="⋯" ToolTip="색상, 글꼴, 글자 크기 및 삭제" AutomationProperties.Name="메모 설정" Click="OnMenu">
+     <Button.ContextMenu><ContextMenu>
+      <MenuItem Header="메모 색상">
+       <MenuItem Header="노랑" Tag="#FFF2B3" Click="OnColor"/><MenuItem Header="분홍" Tag="#FFDDE7" Click="OnColor"/><MenuItem Header="초록" Tag="#DEF0D8" Click="OnColor"/><MenuItem Header="파랑" Tag="#DCEBFA" Click="OnColor"/><MenuItem Header="보라" Tag="#EAE0F7" Click="OnColor"/><MenuItem Header="흰색" Tag="#FAFAF5" Click="OnColor"/>
+      </MenuItem>
+      <MenuItem Header="글꼴"><MenuItem Header="맑은 고딕" Tag="Malgun Gothic" Click="OnFontFamily"/><MenuItem Header="굴림" Tag="Gulim" Click="OnFontFamily"/><MenuItem Header="Segoe UI" Tag="Segoe UI" Click="OnFontFamily"/><MenuItem Header="Arial" Tag="Arial" Click="OnFontFamily"/><MenuItem Header="Consolas" Tag="Consolas" Click="OnFontFamily"/><MenuItem Header="Times New Roman" Tag="Times New Roman" Click="OnFontFamily"/></MenuItem><MenuItem Header="글자 크기"><MenuItem Header="10" Tag="10" Click="OnFont"/><MenuItem Header="12" Tag="12" Click="OnFont"/><MenuItem Header="14" Tag="14" Click="OnFont"/><MenuItem Header="16" Tag="16" Click="OnFont"/><MenuItem Header="18" Tag="18" Click="OnFont"/><MenuItem Header="20" Tag="20" Click="OnFont"/><MenuItem Header="24" Tag="24" Click="OnFont"/><MenuItem Header="28" Tag="28" Click="OnFont"/><MenuItem Header="32" Tag="32" Click="OnFont"/></MenuItem>
+      <MenuItem Header="메모 목록 / 검색" InputGestureText="Ctrl+F" Click="OnSearch"/><Separator/><MenuItem Header="휴지통으로 이동" Click="OnDelete"/>
+     </ContextMenu></Button.ContextMenu>
+    </Button>
+    <Button Grid.Column="5" Content="×" ToolTip="메모 숨기기 (목록에서 다시 열 수 있습니다)" AutomationProperties.Name="메모 숨기기" Click="OnHide"/>
+   </Grid>
+   <TextBox x:Name="Editor" x:FieldModifier="public" Grid.Row="1" Text="{Binding Body, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontFamily="{Binding EffectiveFontFamily}" FontSize="{Binding FontSize}" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" BorderThickness="0" Background="Transparent" Padding="17,15" IsUndoEnabled="True" SpellCheck.IsEnabled="False" AutomationProperties.Name="메모 내용">
+    <TextBox.Resources>
+     <Style TargetType="Thumb">
+      <Setter Property="Tag" Value="{DynamicResource {x:Static SystemParameters.HighContrastKey}}"/>
+      <Setter Property="Background" Value="{Binding Color, Converter={StaticResource ScrollbarColor}}"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Thumb">
+       <Border x:Name="ThumbSurface" Margin="1,0" CornerRadius="2" Background="{TemplateBinding Background}" Opacity="0.3"/>
+       <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ThumbSurface" Property="Opacity" Value="0.65"/></Trigger>
+        <Trigger Property="IsDragging" Value="True"><Setter TargetName="ThumbSurface" Property="Opacity" Value="0.8"/></Trigger>
+        <Trigger Property="Tag" Value="{StaticResource BooleanTrue}"><Setter TargetName="ThumbSurface" Property="Background" Value="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"/><Setter TargetName="ThumbSurface" Property="Opacity" Value="1"/></Trigger>
+       </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+     </Style>
+     <Style x:Key="ThinScrollbar" TargetType="ScrollBar"><Setter Property="Width" Value="6"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Grid Background="Transparent"><Track x:Name="PART_Track" Orientation="Vertical" IsDirectionReversed="True"><Track.DecreaseRepeatButton><RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False"/></Track.DecreaseRepeatButton><Track.Thumb><Thumb MinHeight="18"/></Track.Thumb><Track.IncreaseRepeatButton><RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False"/></Track.IncreaseRepeatButton></Track></Grid></ControlTemplate></Setter.Value></Setter></Style>
+     <Style x:Key="NoteScrollViewer" TargetType="ScrollViewer">
+      <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+      <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollViewer">
+       <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Margin="{TemplateBinding Padding}" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" CanContentScroll="{TemplateBinding CanContentScroll}"/>
+        <ScrollBar x:Name="PART_VerticalScrollBar" Grid.Column="1" Orientation="Vertical" Width="6" MinWidth="0" MaxWidth="6" Margin="0,4,1,4" Style="{StaticResource ThinScrollbar}" Minimum="0" Maximum="{TemplateBinding ScrollableHeight}" ViewportSize="{TemplateBinding ViewportHeight}" Value="{Binding VerticalOffset, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}" Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+       </Grid>
+      </ControlTemplate></Setter.Value></Setter>
+     </Style>
+    </TextBox.Resources>
+    <TextBox.Template><ControlTemplate TargetType="TextBox">
+     <Border Background="{TemplateBinding Background}" BorderThickness="{TemplateBinding BorderThickness}" BorderBrush="{TemplateBinding BorderBrush}">
+      <ScrollViewer x:Name="PART_ContentHost" Focusable="False" Padding="{TemplateBinding Padding}" Style="{StaticResource NoteScrollViewer}"/>
+     </Border>
+    </ControlTemplate></TextBox.Template>
+   </TextBox>
+
+  </Grid>
+  <Button x:Name="CollapsedTile" Visibility="Collapsed" Background="Transparent" ToolTip="{Binding Title}" PreviewMouseLeftButtonDown="OnTileDown" PreviewMouseLeftButtonUp="OnTileUp" PreviewMouseMove="OnTileMove" Click="OnTileClick" LostMouseCapture="OnTileLostCapture" Cursor="Hand" Padding="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" AutomationProperties.Name="접힌 메모, 클릭하여 펼치기">
+   <Button.Template><ControlTemplate TargetType="Button"><Border Background="{TemplateBinding Background}"><ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/></Border></ControlTemplate></Button.Template>
+   <Button.ContextMenu><ContextMenu><MenuItem Header="펼치기" Click="OnCollapse"/><MenuItem Header="항상 위에 표시" IsCheckable="True" IsChecked="{Binding IsPinned}"/><MenuItem Header="메모 숨기기" Click="OnHide"/><Separator/><MenuItem Header="휴지통으로 이동" Click="OnDelete"/></ContextMenu></Button.ContextMenu>
+   <Grid>
+   <TextBlock x:Name="TileTitle" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/>
+   <Ellipse Style="{StaticResource StateDot}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,3,3"/>
+   </Grid>
+  </Button>
+  </Grid>
+ </Border>
+</Window>
+
+
+
+

@@ -1,0 +1,19 @@
+<Window Icon="/OmniMemo;component/Assets/OmniMemo.ico" ShowInTaskbar="False" x:Class="Memoit.Views.SettingsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="OmniMemo · 설정" Width="510" SizeToContent="Height" ResizeMode="NoResize" WindowStartupLocation="CenterOwner" Background="#F7F7F3" FontFamily="Malgun Gothic" Foreground="#292D35">
+ <Window.Resources><Style TargetType="Button"><Setter Property="Padding" Value="15,9"/><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#DDDFD7"/><Setter Property="Cursor" Value="Hand"/></Style></Window.Resources>
+ <StackPanel Margin="28">
+  <TextBlock Text="설정" FontSize="25" FontWeight="Bold"/>
+  <TextBlock Text="내 컴퓨터에 안전하게 보관하는 메모" Foreground="#727A69" Margin="0,6,0,25"/>
+  <CheckBox x:Name="AutoStartBox" Content="Windows 로그인 시 OmniMemo 실행" Checked="OnAutoStart" Unchecked="OnAutoStart"/>
+  <Separator Margin="0,24"/>
+  <TextBlock Text="백업과 복원" FontSize="16" FontWeight="SemiBold"/>
+  <TextBlock Text="매일 첫 저장 후 자동으로 백업하며 최근 7개를 보관합니다. 휴지통의 메모도 백업에 포함됩니다." TextWrapping="Wrap" Margin="0,9,0,16" Foreground="#646D5D"/>
+  <StackPanel Orientation="Horizontal"><Button Content="백업 파일 저장…" Click="OnBackup" Margin="0,0,10,0"/><Button Content="백업에서 복원…" Click="OnRestore"/></StackPanel>
+  <TextBlock Text="복원하면 현재 메모 전체가 백업 내용으로 바뀝니다. 현재 데이터는 교체 전에 안전 백업으로 보관합니다." TextWrapping="Wrap" FontSize="12" Margin="0,12,0,0" Foreground="#796645"/>
+  <Separator Margin="0,24"/>
+  <TextBlock Text="데이터 저장 위치" FontWeight="SemiBold"/>
+  <TextBox x:Name="DataPath" IsReadOnly="True" TextWrapping="Wrap" Background="Transparent" BorderThickness="0" Margin="0,7,0,20" Padding="0" Foreground="#646D5D" AutomationProperties.Name="데이터 저장 위치"/>
+  <Button Content="닫기" HorizontalAlignment="Right" Click="OnClose" IsCancel="True"/>
+ </StackPanel>
+</Window>
+
+

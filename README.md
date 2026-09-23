@@ -1,0 +1,55 @@
+# OmniMemo
+
+Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite로 만들었으며 계정이나 서버 없이 동작합니다.
+
+## 실행과 사용
+
+`artifacts/OmniMemo-1.1.0/win-x64/OmniMemo.exe`를 실행하세요. 게시본에는 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다.
+
+- **트레이 전용:** 메모·목록·설정 창은 작업 표시줄에 표시되지 않습니다. 트레이의 OmniMemo 아이콘을 우클릭해 새 메모, 목록, 전체 숨기기·보이기, 설정, 종료를 선택합니다. 더블클릭하면 목록이 열립니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
+- **접기:** 상단 ↙ 버튼으로 36×36 DIP 타일로 접습니다. 타일을 클릭하거나 Enter/Space를 누르면 펼칩니다. 타일은 앞 두 글자와 전체 제목 툴팁을 표시합니다. 오른쪽 메뉴에서 펼치기·고정·숨기기·삭제를 할 수 있습니다.
+- **이동과 정렬:** 상단의 빈 부분 또는 타일을 드래그하세요. 화면 작업 영역과 다른 메모에 약 10 DIP 이내로 접근하면 붙습니다. 마우스를 더 움직이면 떨어집니다. 접은 뒤 이동해도 펼쳤던 크기는 유지합니다. 화면 끝에서 펼치면 보이는 영역 안으로 이동합니다.
+- **편집:** 일반 텍스트, 한글, 실행 취소·다시 실행을 지원합니다. ⋯에서 여섯 글꼴과 10·12·14·16·18·20·24·28·32 크기를 선택합니다. 설치되지 않은 글꼴은 맑은 고딕으로 표시하되 저장된 선택은 보존합니다.
+- **저장 표시:** 하단 상태 바 대신 상단의 작은 점으로 표시합니다. 초록은 저장됨, 황색은 저장 중, 빨강은 저장 실패입니다. 점 위에 마우스를 올리면 상세 상태가 표시됩니다.
+- **닫기와 삭제:** ×는 메모를 숨깁니다. 삭제는 메뉴에서 휴지통으로 이동하며 목록의 휴지통에서 복원합니다. 휴지통은 자동으로 비우지 않습니다.
+- **단축키:** 앱 안에서 Ctrl+N은 새 메모, Ctrl+F는 목록 검색입니다.
+
+36 DIP는 100% Windows 배율에서 약 1cm에 해당하는 논리 크기입니다. 실제 길이는 모니터와 Windows 배율에 따라 달라집니다. 얇은 스크롤바는 메모 배경에 맞춰 색을 바꾸며 고대비 모드에서는 시스템 색을 사용합니다.
+
+## 데이터와 업데이트
+
+기존 메모잇 데이터와의 호환성을 위해 저장 위치는 `%LOCALAPPDATA%\MemoitPersonal\notes.db`를 유지합니다. 이름 변경만으로 메모를 옮기거나 삭제하지 않습니다. 중복 실행 식별자도 유지하여 구버전과 동시에 같은 데이터를 편집하지 않도록 합니다.
+
+버전 1.1.0은 접힘·글꼴 상태를 추가한 DB 형식 v2를 사용합니다. 처음 실행할 때 v1을 검사하고 `backups/before-migration-*.db` 안전 백업을 만든 뒤 트랜잭션으로 갱신합니다. v1 백업은 새 버전에서 복원할 수 있으며 백업 원본을 바꾸지 않습니다. 구버전 실행 파일은 v2 DB를 열 수 없습니다.
+
+입력이 멈춘 뒤 약 500ms, 계속 입력할 때 최대 2초 간격으로 저장합니다. 정상 종료 전에도 저장합니다. 강제 종료 직전의 미저장 입력까지 보장하지는 않습니다. 저장 실패 시 변경 내용을 메모리에 유지하고 빨간 점으로 알리며, 다음 편집이나 닫기·종료 때 저장을 다시 시도합니다. 저장이 실패하면 숨김·종료를 취소합니다.
+
+하루 첫 저장 뒤 자동 백업을 만들고 최근 7개를 보관합니다. 설정에서 다른 디스크 등 사용자 지정 위치로 전체 백업을 저장할 수 있습니다. 복원은 현재 데이터의 안전 백업을 만든 뒤 전체 교체합니다. SQLite 데이터와 백업은 암호화되지 않습니다.
+
+업데이트는 트레이에서 종료한 다음 새 게시 폴더를 사용하세요. 실행 파일 이름은 `OmniMemo.exe`입니다. 기존 자동 실행 등록이 있으면 새 실행 경로로 갱신하며 신규 사용자는 자동 실행이 기본적으로 꺼져 있습니다.
+
+## 개발과 검증
+
+Windows 11 x64와 .NET 10 SDK를 기준으로 개발합니다. 시스템 SDK 또는 프로젝트의 .tools/dotnet SDK를 사용합니다.
+
+```powershell
+$env:PATH="$PWD\.tools\dotnet;$env:PATH"
+$env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
+dotnet restore Memoit.slnx
+dotnet build Memoit.slnx --no-restore
+dotnet test Memoit.slnx --no-restore
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.1.0/win-x64
+```
+
+개인 데이터와 분리해서 실행할 때는 `OMNIMEMO_DATA_DIR` 환경 변수에 검증용 폴더를 지정합니다. 이전 `MEMOIT_DATA_DIR`도 인식하지만 새 이름이 우선합니다. 격리 실행은 기존 자동 실행 등록을 갱신하지 않습니다. 테스트 렌더링은 `OMNIMEMO_VISUAL_DIR`를 지정하면 해당 폴더에 저장합니다.
+
+자동 검증에는 SQLite 저장·실패 롤백·마이그레이션·백업, 저장 순서, 창 숨김 속성, 접힘 상태·크기 유지, 네이티브 이동 중 스냅, 스크롤바 실제 폭·스크롤 동작·상태 표시가 포함됩니다. 물리 모니터 교체, 실제 한글 IME 조합, Windows 고대비 설정 전환은 별도 수동 검증 항목입니다.
+
+게시본 검증 스크립트는 Windows PowerShell 5.1의 `-STA` 옵션으로 실행합니다. 모두 검증 전용 데이터 폴더를 사용하며, TraySmoke는 OmniMemo 트레이 메뉴 검증 중 마우스를 잠시 사용한 뒤 위치를 복원합니다.
+
+```powershell
+powershell.exe -NoProfile -STA -File scripts/SmokeTest.ps1 -Executable artifacts/OmniMemo-1.1.0/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/TraySmoke.ps1 -Executable artifacts/OmniMemo-1.1.0/win-x64/OmniMemo.exe
+```
+
+동기화, 이미지, 일정 알림, 부분 글자 서식은 포함하지 않습니다. 소스의 Memoit 네임스페이스·프로젝트 경로는 호환성을 위해 유지하며 표시 이름과 실행 파일은 OmniMemo입니다.
