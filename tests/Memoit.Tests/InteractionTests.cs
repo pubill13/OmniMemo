@@ -14,6 +14,17 @@ namespace Memoit.Tests;
 public sealed class InteractionTests
 {
     [Theory]
+    [InlineData(-9, 150, 0, 150)]
+    [InlineData(-11, 150, -11, 150)]
+    [InlineData(909, 150, 900, 150)]
+    [InlineData(911, 150, 911, 150)]
+    [InlineData(150, -11, 150, -11)]
+    [InlineData(150, 711, 150, 711)]
+    public void DragBeyondMagnetRangeAllowsPartialOffscreenPlacement(double x, double y, double expectedX, double expectedY)
+        => Assert.Equal(new Point(expectedX, expectedY), WindowSnapper.Snap(
+            new Rect(x, y, 100, 100), new Rect(0, 0, 1000, 800), [], clampToWorkArea: false));
+
+    [Theory]
     [InlineData(10, 150, 0, 150)]
     [InlineData(11, 150, 11, 150)]
     [InlineData(891, 150, 900, 150)]

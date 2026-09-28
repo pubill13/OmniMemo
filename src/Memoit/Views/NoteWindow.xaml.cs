@@ -98,7 +98,6 @@ public partial class NoteWindow : Window
     private void DragNote()
     {
         DragMove();
-        WindowPlacement.KeepOnScreen(this);
         SaveBounds();
         TileDragCompleted?.Invoke();
 
@@ -122,7 +121,6 @@ public partial class NoteWindow : Window
         if (clicked) ToggleCollapsed();
         if (wasDragging)
         {
-            WindowPlacement.KeepOnScreen(this);
             SaveBounds();
             TileDragCompleted?.Invoke();
         }
