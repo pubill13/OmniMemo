@@ -22,6 +22,13 @@ public static class WindowPlacement
         return new Point(rect.Left, rect.Top);
     }
 
+    public static Size GetSize(Window window)
+    {
+        if (!GetWindowRect(new WindowInteropHelper(window).Handle, out var rect))
+            throw new System.ComponentModel.Win32Exception();
+        return new Size(rect.Right - rect.Left, rect.Bottom - rect.Top);
+    }
+
     public static System.Windows.Rect GetWorkArea(Window window)
     {
         var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };

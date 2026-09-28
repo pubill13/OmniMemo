@@ -158,7 +158,7 @@ public partial class App : Application
         vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(NoteViewModel.IsCollapsed) or nameof(NoteViewModel.Color)
-                || e.PropertyName == nameof(NoteViewModel.Title) && vm.IsCollapsed) QueueAutoArrange();
+                || e.PropertyName == nameof(NoteViewModel.Title) && (vm.IsCollapsed || layoutSettings.Monitors.Values.Any(m => m.IncludeExpanded))) QueueAutoArrange();
         };
         notes.Add(note.Id, vm);
         return vm;

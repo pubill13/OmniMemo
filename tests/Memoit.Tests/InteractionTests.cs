@@ -36,6 +36,41 @@ public sealed class InteractionTests
     public void DistantPeerDoesNotAttract()
         => Assert.Equal(new Point(405, 150), WindowSnapper.Snap(new Rect(405, 150, 100, 100), new Rect(0, 0, 1000, 800), [new Rect(400, 500, 100, 100)]));
 
+    [Theory]
+    [InlineData(320, 300, 1, 0)]
+    [InlineData(320, 300, -1, 0)]
+    [InlineData(320, 300, 0, 1)]
+    [InlineData(320, 300, 0, -1)]
+    [InlineData(36, 36, 1, 0)]
+    [InlineData(36, 36, -1, 0)]
+    [InlineData(36, 36, 0, 1)]
+    [InlineData(36, 36, 0, -1)]
+    public void ActiveDragCanCrossEverySharedMonitorBoundary(double width, double height, int dx, int dy)
+    {
+        var origin = new Rect(-1000, -800, 1000, 800);
+        var destination = new Rect(origin.X + dx * 1000, origin.Y + dy * 800, 1000, 800);
+        var start = new Point(origin.X + 400, origin.Y + 300);
+        var end = new Point(destination.X + 400, destination.Y + 300);
+        bool crossed = false;
+        for (int i = 0; i <= 100; i++)
+        {
+            var proposed = new Rect(start + (end - start) * (i / 100.0), new Size(width, height));
+            var overlapOrigin = Rect.Intersect(proposed, origin);
+            var overlapDestination = Rect.Intersect(proposed, destination);
+            double originArea = overlapOrigin.IsEmpty ? 0 : overlapOrigin.Width * overlapOrigin.Height;
+            double destinationArea = overlapDestination.IsEmpty ? 0 : overlapDestination.Width * overlapDestination.Height;
+            var dominant = destinationArea > originArea ? destination : origin;
+            var snapped = WindowSnapper.Snap(proposed, dominant, [], clampToWorkArea: false);
+            // Resistance is limited to the magnetic threshold, even while straddling displays.
+            Assert.InRange(Math.Abs(snapped.X - proposed.X), 0, WindowSnapper.Distance);
+            Assert.InRange(Math.Abs(snapped.Y - proposed.Y), 0, WindowSnapper.Distance);
+            crossed |= destination.Contains(new Rect(snapped, proposed.Size));
+        }
+        Assert.True(crossed);
+        var released = WindowSnapper.Snap(new Rect(end, new Size(width, height)), destination, []);
+        Assert.True(destination.Contains(new Rect(released, new Size(width, height))));
+    }
+
     [Fact]
     public void NegativeMonitorCoordinatesAndOversizedWindowAreSafe()
     {
@@ -142,6 +177,14 @@ public sealed class InteractionTests
             Assert.Equal(monitor.Work.Left, snapped.Left);
             Assert.Equal(320, snapped.Right - snapped.Left);
             Assert.Equal(proposed.Top, snapped.Top);
+            // A proposed drag across the top-left edge must not be clamped to this monitor.
+            proposed = new NativeRect { Left = monitor.Work.Left - 80, Top = monitor.Work.Top - 80,
+                Right = monitor.Work.Left + 240, Bottom = monitor.Work.Top + 220 };
+            Marshal.StructureToPtr(proposed, memory, false);
+            SendMessage(hwnd, 0x0216, IntPtr.Zero, memory);
+            snapped = Marshal.PtrToStructure<NativeRect>(memory);
+            Assert.InRange(Math.Abs(snapped.Left - proposed.Left), 0, 30);
+            Assert.InRange(Math.Abs(snapped.Top - proposed.Top), 0, 30);
         }
         finally { Marshal.FreeHGlobal(memory); window.Close(); }
         return Task.CompletedTask;

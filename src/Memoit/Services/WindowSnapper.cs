@@ -6,7 +6,7 @@ public static class WindowSnapper
 {
     public const double Distance = 10;
 
-    public static Point Snap(Rect candidate, Rect workArea, IEnumerable<Rect> peers, double distance = Distance)
+    public static Point Snap(Rect candidate, Rect workArea, IEnumerable<Rect> peers, double distance = Distance, bool clampToWorkArea = true)
     {
         double x = candidate.Left, y = candidate.Top;
         var targetsX = new List<double> { workArea.Left, workArea.Right - candidate.Width };
@@ -23,8 +23,11 @@ public static class WindowSnapper
         var ty = targetsY.OrderBy(v => Math.Abs(v - y)).First();
         if (Math.Abs(tx - x) <= distance) x = tx;
         if (Math.Abs(ty - y) <= distance) y = ty;
-        x = Math.Clamp(x, workArea.Left, Math.Max(workArea.Left, workArea.Right - candidate.Width));
-        y = Math.Clamp(y, workArea.Top, Math.Max(workArea.Top, workArea.Bottom - candidate.Height));
+        if (clampToWorkArea)
+        {
+            x = Math.Clamp(x, workArea.Left, Math.Max(workArea.Left, workArea.Right - candidate.Width));
+            y = Math.Clamp(y, workArea.Top, Math.Max(workArea.Top, workArea.Bottom - candidate.Height));
+        }
         return new Point(x, y);
     }
 }

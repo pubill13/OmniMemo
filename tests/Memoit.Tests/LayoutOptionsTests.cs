@@ -21,10 +21,17 @@ public sealed class LayoutOptionsTests
             try
             {
                 Field<TextBox>(window, "x").Text = "123";
+                Assert.Equal(0, Field<ComboBox>(window, "target").SelectedIndex);
+                Assert.Equal("정렬 대상", System.Windows.Automation.AutomationProperties.GetName(Field<ComboBox>(window, "target")));
+                Field<ComboBox>(window, "target").SelectedIndex = 1;
                 Field<ComboBox>(window, "monitorBox").SelectedIndex = 1;
+                Assert.Equal(0, Field<ComboBox>(window, "target").SelectedIndex);
                 Field<TextBox>(window, "x").Text = "456";
                 Field<ComboBox>(window, "monitorBox").SelectedIndex = 0;
                 Assert.Equal("123", Field<TextBox>(window, "x").Text);
+                Assert.Equal(1, Field<ComboBox>(window, "target").SelectedIndex);
+                Assert.True(Field<LayoutSettings>(window, "draft").Monitors["A"].IncludeExpanded);
+                Assert.False(Field<LayoutSettings>(window, "draft").Monitors["B"].IncludeExpanded);
                 Assert.Empty(saved.Monitors);
             }
             finally { window.AllowClose = true; window.Close(); }

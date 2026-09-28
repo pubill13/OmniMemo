@@ -7,6 +7,47 @@ namespace Memoit.Tests;
 
 public sealed class TileLayoutTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public void VariedWindowSizesUseShelfRowsWithoutOverlap(int columns)
+    {
+        var notes = Enumerable.Range(0, 3).Select(i => new Note { CreatedAt = DateTimeOffset.UnixEpoch.AddSeconds(i) }).ToArray();
+        var sizes = new Dictionary<Guid, Size> { [notes[0].Id] = new(100, 180), [notes[1].Id] = new(80, 60), [notes[2].Id] = new(120, 70) };
+        var area = new Rect(-400, -100, 210, 300);
+        var positions = TileLayout.Arrange(notes, area, new MonitorLayout { IncludeExpanded = true, Columns = columns }, sizesPixels: sizes);
+        Assert.Equal(new Point(-392, -92), positions[notes[0].Id]);
+        Assert.Equal(new Point(-284, -92), positions[notes[1].Id]);
+        Assert.Equal(new Point(-392, 96), positions[notes[2].Id]);
+        var bounds = notes.Select(n => new Rect(positions[n.Id], sizes[n.Id])).ToArray();
+        Assert.All(bounds, r => Assert.True(area.Contains(r)));
+        for (int i = 0; i < bounds.Length; i++)
+            for (int j = i + 1; j < bounds.Length; j++) Assert.False(bounds[i].IntersectsWith(bounds[j]));
+    }
+
+    [Fact]
+    public void ExpandedFallbackScalesNoteSizeAndDefaultStillUsesTiles()
+    {
+        var first = new Note { Width = 300, Height = 250, CreatedAt = DateTimeOffset.UnixEpoch };
+        var tile = new Note { IsCollapsed = true, CreatedAt = DateTimeOffset.UnixEpoch.AddDays(1) };
+        var area = new Rect(0, 0, 1000, 1000);
+        var mixed = TileLayout.Arrange([first, tile], area, new MonitorLayout { IncludeExpanded = true }, 2);
+        Assert.Equal(new Point(632, 16), mixed[tile.Id]);
+        var compatible = TileLayout.Arrange([first, tile], area, new MonitorLayout(), 2);
+        Assert.Equal(new Point(104, 16), compatible[tile.Id]);
+    }
+
+    [Theory]
+    [InlineData(LayoutShape.Grid)]
+    [InlineData(LayoutShape.Horizontal)]
+    [InlineData(LayoutShape.Vertical)]
+    public void ExpandedOverflowFailsEveryShape(LayoutShape shape)
+    {
+        var notes = new[] { new Note { Width = 100, Height = 100 }, new Note { Width = 100, Height = 100 } };
+        Assert.Throws<InvalidOperationException>(() => TileLayout.Arrange(notes, new Rect(0, 0, 150, 150), new MonitorLayout { IncludeExpanded = true, Shape = shape }));
+        Assert.Throws<ArgumentException>(() => TileLayout.Arrange(notes, new Rect(0, 0, 500, 500), new MonitorLayout(), sizesPixels: new Dictionary<Guid, Size>()));
+    }
+
     [Fact]
     public void ArrangesOldestFirstWithinNegativeMonitorBounds()
     {
@@ -123,7 +164,8 @@ public sealed class TileLayoutTests
             var legacy = LayoutSettings.Load(file);
             Assert.Equal(2, legacy.Version);
             Assert.Equal(LayoutSort.Color, legacy.GetMonitor("new-monitor").Sort);
-            var options = new MonitorLayout { X = 18, Gap = 12, Shape = LayoutShape.Vertical, Sort = LayoutSort.Title };
+            Assert.False(legacy.GetMonitor("new-monitor").IncludeExpanded);
+            var options = new MonitorLayout { X = 18, Gap = 12, Shape = LayoutShape.Vertical, Sort = LayoutSort.Title, IncludeExpanded = true };
             var settings = legacy with { Monitors = new() { ["monitor-a"] = options }, SelectedMonitor = "monitor-a", PanelLeft = -100, PanelTop = 50 };
             settings.Save(file);
             var loaded = LayoutSettings.Load(file);

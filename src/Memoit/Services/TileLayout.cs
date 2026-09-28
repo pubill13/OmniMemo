@@ -9,7 +9,7 @@ public static class TileLayout
     private static readonly string[] Colors = ["#FFF2B3", "#FFF2B2", "#FFDDE7", "#DEF0D8", "#DCEBFA", "#EAE0F7", "#FAFAF5"];
 
     public static IReadOnlyDictionary<Guid, Point> Arrange(IEnumerable<Note> notes, Rect workAreaPixels,
-        MonitorLayout options, double scale = 1)
+        MonitorLayout options, double scale = 1, IReadOnlyDictionary<Guid, Size>? sizesPixels = null)
     {
         ArgumentNullException.ThrowIfNull(notes);
         ArgumentNullException.ThrowIfNull(options);
@@ -26,24 +26,35 @@ public static class TileLayout
             .ThenBy(n => n.CreatedAt).ThenBy(n => n.Id).ToArray();
         if (ordered.Select(n => n.Id).Distinct().Count() != ordered.Length)
             throw new ArgumentException("중복된 메모 ID가 있습니다.", nameof(notes));
-        double size = 36 * scale, step = (36 + options.Gap) * scale;
+        double gap = options.Gap * scale;
         double x = workAreaPixels.X + options.X * scale, y = workAreaPixels.Y + options.Y * scale;
-        if (!double.IsFinite(size) || !double.IsFinite(step) || !double.IsFinite(x) || !double.IsFinite(y))
+        if (!double.IsFinite(gap) || !double.IsFinite(x) || !double.IsFinite(y))
             throw new ArgumentException("타일 위치 또는 배율이 올바르지 않습니다.");
-        double availableColumns = Math.Max(0, Math.Floor((workAreaPixels.Right - x + options.Gap * scale) / step));
-        double columns = options.Shape switch
-        {
-            LayoutShape.Horizontal => Math.Max(1, ordered.Length),
-            LayoutShape.Vertical => 1,
-            _ => options.Columns == 0 ? Math.Max(1, availableColumns) : options.Columns
-        };
+        double originX = x, rowHeight = 0;
+        int inRow = 0;
         var positions = new Dictionary<Guid, Point>();
-        for (int i = 0; i < ordered.Length; i++)
+        foreach (var note in ordered)
         {
-            var point = new Point(x + i % columns * step, y + Math.Floor(i / columns) * step);
-            if (!workAreaPixels.Contains(new Rect(point, new Size(size, size))))
-                throw new InvalidOperationException("화면에 모든 타일을 겹치지 않게 배치할 공간이 없습니다.");
-            positions.Add(ordered[i].Id, point);
+            Size size;
+            if (sizesPixels is not null)
+            {
+                if (!sizesPixels.TryGetValue(note.Id, out size))
+                    throw new ArgumentException("메모의 실제 창 크기가 누락되었습니다.", nameof(sizesPixels));
+            }
+            else size = options.IncludeExpanded && !note.IsCollapsed
+                ? new Size(note.Width * scale, note.Height * scale) : new Size(36 * scale, 36 * scale);
+            if (size.IsEmpty || !double.IsFinite(size.Width) || !double.IsFinite(size.Height) || size.Width <= 0 || size.Height <= 0)
+                throw new ArgumentException("메모의 창 크기가 올바르지 않습니다.", nameof(sizesPixels));
+            bool wrap = inRow > 0 && (options.Shape == LayoutShape.Vertical
+                || options.Shape == LayoutShape.Grid && (options.Columns > 0 ? inRow >= options.Columns : x + size.Width > workAreaPixels.Right));
+            if (wrap) { x = originX; y += rowHeight + gap; rowHeight = 0; inRow = 0; }
+            var point = new Point(x, y);
+            if (!double.IsFinite(x) || !double.IsFinite(y) || !workAreaPixels.Contains(new Rect(point, size)))
+                throw new InvalidOperationException("화면에 모든 메모를 겹치지 않게 배치할 공간이 없습니다.");
+            positions.Add(note.Id, point);
+            x += size.Width + gap;
+            rowHeight = Math.Max(rowHeight, size.Height);
+            inRow++;
         }
         return positions;
     }

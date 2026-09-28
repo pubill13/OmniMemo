@@ -12,6 +12,7 @@ public sealed record MonitorLayout
     public double Y { get; init; } = 8;
     public double Gap { get; init; } = 8;
     public int Columns { get; init; }
+    public bool IncludeExpanded { get; init; }
     public LayoutShape Shape { get; init; } = LayoutShape.Grid;
     public LayoutSort Sort { get; init; } = LayoutSort.Created;
 

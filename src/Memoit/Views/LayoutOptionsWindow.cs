@@ -14,6 +14,7 @@ public sealed class LayoutOptionsWindow : Window
     private readonly ComboBox monitorBox = new() { DisplayMemberPath = "Name", Margin = new Thickness(0, 4, 0, 10) };
     private readonly ComboBox shape = new() { ItemsSource = new[] { "격자", "가로 한 줄", "세로 한 줄" } };
     private readonly ComboBox sort = new() { ItemsSource = new[] { "생성순", "색상순", "제목순" } };
+    private readonly ComboBox target = new() { ItemsSource = new[] { "접힌 메모만", "펼친 메모 포함" } };
     private readonly TextBox x = new(), y = new(), gap = new(), columns = new();
     private readonly CheckBox auto = new() { Content = "자동 정렬", Margin = new Thickness(0, 10, 0, 5) };
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 4) };
@@ -35,7 +36,7 @@ public sealed class LayoutOptionsWindow : Window
     {
         Title = "OmniMemo · 정렬 옵션"; Width = 340; Height = 570; MinWidth = 340; MinHeight = 450;
         Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/OmniMemo;component/Assets/OmniMemo.ico"));
-        foreach (var (control, name) in new (DependencyObject, string)[] { (x, "시작 X"), (y, "시작 Y"), (gap, "간격"), (columns, "열 수"), (shape, "배치 형태"), (sort, "정렬 기준"), (monitorBox, "모니터") })
+        foreach (var (control, name) in new (DependencyObject, string)[] { (x, "시작 X"), (y, "시작 Y"), (gap, "간격"), (columns, "열 수"), (shape, "배치 형태"), (sort, "정렬 기준"), (monitorBox, "모니터"), (target, "정렬 대상") })
             System.Windows.Automation.AutomationProperties.SetName(control, name);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         if (settings.PanelLeft is double left && settings.PanelTop is double top)
@@ -49,6 +50,7 @@ public sealed class LayoutOptionsWindow : Window
         var tabs = new TabControl(); root.Children.Add(tabs);
         var layout = new StackPanel { Margin = new Thickness(10) };
         layout.Children.Add(Label("모니터")); layout.Children.Add(monitorBox);
+        layout.Children.Add(Label("정렬 대상")); layout.Children.Add(target);
         layout.Children.Add(Label("배치 형태")); layout.Children.Add(shape); layout.Children.Add(Label("정렬 기준")); layout.Children.Add(sort);
         layout.Children.Add(Label("시작 위치 X / Y (DIP)"));
         var coords = new UniformGridShim(); coords.Children.Add(x); coords.Children.Add(y); layout.Children.Add(coords);
@@ -96,6 +98,7 @@ public sealed class LayoutOptionsWindow : Window
         x.Text = value.X.ToString(CultureInfo.InvariantCulture); y.Text = value.Y.ToString(CultureInfo.InvariantCulture);
         gap.Text = value.Gap.ToString(CultureInfo.InvariantCulture); columns.Text = value.Columns.ToString(CultureInfo.InvariantCulture);
         shape.SelectedIndex = (int)value.Shape; sort.SelectedIndex = (int)value.Sort;
+        target.SelectedIndex = value.IncludeExpanded ? 1 : 0;
     }
     private bool StoreMonitor()
     {
@@ -104,7 +107,7 @@ public sealed class LayoutOptionsWindow : Window
             || !double.TryParse(gap.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var spacing) || !int.TryParse(columns.Text, out var count)
             || !double.IsFinite(px) || !double.IsFinite(py) || !double.IsFinite(spacing) || px < 0 || py < 0 || spacing < 0 || spacing > 24 || count < 0 || count > 30)
         { ShowError("위치와 간격은 0 이상의 숫자, 열 수는 0 이상의 정수를 입력하세요."); return false; }
-        draft.Monitors[selectedId] = new MonitorLayout { X = px, Y = py, Gap = spacing, Columns = count, Shape = (LayoutShape)shape.SelectedIndex, Sort = (LayoutSort)sort.SelectedIndex };
+        draft.Monitors[selectedId] = new MonitorLayout { X = px, Y = py, Gap = spacing, Columns = count, Shape = (LayoutShape)shape.SelectedIndex, Sort = (LayoutSort)sort.SelectedIndex, IncludeExpanded = target.SelectedIndex == 1 };
         return true;
     }
     private void BuildRecorders()

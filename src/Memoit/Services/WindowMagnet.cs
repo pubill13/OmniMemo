@@ -65,7 +65,7 @@ public sealed class WindowMagnet : IDisposable
             if (handle != hwnd && handle != IntPtr.Zero && GetWindowRect(handle, out var rect)) others.Add(rect.ToRect());
         }
         var point = WindowSnapper.Snap(proposed.ToRect(), monitor.Work.ToRect(), others,
-            WindowSnapper.Distance * Math.Max(96, GetDpiForWindow(hwnd)) / 96.0);
+            WindowSnapper.Distance * Math.Max(96, GetDpiForWindow(hwnd)) / 96.0, clampToWorkArea: false);
         int dx = (int)Math.Round(point.X) - proposed.Left, dy = (int)Math.Round(point.Y) - proposed.Top;
         proposed.Left += dx; proposed.Right += dx; proposed.Top += dy; proposed.Bottom += dy;
         return proposed;

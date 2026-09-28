@@ -98,7 +98,9 @@ public partial class NoteWindow : Window
     private void DragNote()
     {
         DragMove();
+        WindowPlacement.KeepOnScreen(this);
         SaveBounds();
+        TileDragCompleted?.Invoke();
 
     }
     private void OnTileDown(object sender, MouseButtonEventArgs e)
@@ -118,7 +120,12 @@ public partial class NoteWindow : Window
         CollapsedTile.ReleaseMouseCapture();
         draggingTile = false;
         if (clicked) ToggleCollapsed();
-        if (wasDragging) TileDragCompleted?.Invoke();
+        if (wasDragging)
+        {
+            WindowPlacement.KeepOnScreen(this);
+            SaveBounds();
+            TileDragCompleted?.Invoke();
+        }
         e.Handled = true;
     }
     private void OnTileMove(object sender, MouseEventArgs e)

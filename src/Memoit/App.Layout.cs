@@ -75,13 +75,17 @@ public partial class App
     private Dictionary<Guid, Point> CalculateTileMoves(LayoutSettings settings)
     {
         var result = new Dictionary<Guid, Point>();
-        var candidates = windows.Where(p => p.Value.IsVisible && p.Value.IsCollapsed
+        var candidates = windows.Where(p => p.Value.IsVisible
             && notes[p.Key].Snapshot.DeletedAt is null).Select(p => (p.Key, Window: p.Value, Monitor: MonitorCatalog.ForWindow(p.Value))).ToArray();
         foreach (var group in candidates.GroupBy(p => p.Monitor.Id))
         {
             var monitor = group.First().Monitor;
-            foreach (var move in TileLayout.Arrange(group.Select(p => notes[p.Key].Snapshot), monitor.WorkArea,
-                settings.GetMonitor(group.Key), group.Max(p => p.Monitor.Scale))) result.Add(move.Key, move.Value);
+            var options = settings.GetMonitor(group.Key);
+            var selected = group.Where(p => p.Window.IsCollapsed || options.IncludeExpanded).ToArray();
+            if (selected.Length == 0) continue;
+            var sizes = selected.ToDictionary(p => p.Key, p => WindowPlacement.GetSize(p.Window));
+            foreach (var move in TileLayout.Arrange(selected.Select(p => notes[p.Key].Snapshot), monitor.WorkArea,
+                options, group.Max(p => p.Monitor.Scale), sizes)) result.Add(move.Key, move.Value);
         }
         return result;
     }
