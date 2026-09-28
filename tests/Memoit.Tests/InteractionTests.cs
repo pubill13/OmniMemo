@@ -202,6 +202,58 @@ public sealed class InteractionTests
     });
 
     [Fact]
+    public Task RepeatedNativeSnapFeedbackDoesNotShiftOriginalCursorGrip() => OnDispatcher(() =>
+    {
+        using var vm = new NoteViewModel(new Note(), _ => Task.CompletedTask);
+        var window = new NoteWindow(vm) { AllowClose = true, ShowActivated = false };
+        IntPtr memory = Marshal.AllocHGlobal(Marshal.SizeOf<NativeRect>());
+        try
+        {
+            window.Show();
+            var hwnd = new WindowInteropHelper(window).Handle;
+            Assert.True(GetWindowRect(hwnd, out var initial));
+            var area = WindowPlacement.GetWorkArea(window);
+            var grip = new Vector(100, 11);
+            var cursor = new Point(initial.Left, initial.Top) + grip;
+            using var magnet = new WindowMagnet(window, () => [window], () => cursor);
+            SendMessage(hwnd, 0x0231, IntPtr.Zero, IntPtr.Zero);
+            var proposed = initial;
+            // Feed each adjusted rectangle back into the next native proposal, as the
+            // Windows move loop may do. The cursor must release in either direction.
+            foreach (int x in Enumerable.Range(-40, 81).Concat(Enumerable.Range(-40, 81).Reverse()))
+            {
+                cursor = new Point(area.Left + x, area.Top + 200) + grip;
+                Marshal.StructureToPtr(proposed, memory, false);
+                SendMessage(hwnd, 0x0216, IntPtr.Zero, memory);
+                proposed = Marshal.PtrToStructure<NativeRect>(memory);
+                var expected = WindowSnapper.Snap(new Rect(cursor - grip,
+                    new Size(initial.Right - initial.Left, initial.Bottom - initial.Top)), area, [],
+                    WindowSnapper.Distance * System.Windows.Media.VisualTreeHelper.GetDpi(window).DpiScaleX,
+                    clampToWorkArea: false);
+                Assert.Equal((int)Math.Round(expected.X), proposed.Left);
+                Assert.Equal((int)Math.Round(expected.Y), proposed.Top);
+            }
+            SendMessage(hwnd, 0x0232, IntPtr.Zero, IntPtr.Zero);
+            // A second drag must establish a new grip rather than retaining the old one.
+            cursor = new Point(initial.Left + 20, initial.Top + 15);
+            SendMessage(hwnd, 0x0231, IntPtr.Zero, IntPtr.Zero);
+            cursor += new Vector(60, 80);
+            Marshal.StructureToPtr(initial, memory, false);
+            SendMessage(hwnd, 0x0216, IntPtr.Zero, memory);
+            proposed = Marshal.PtrToStructure<NativeRect>(memory);
+            var secondExpected = WindowSnapper.Snap(new Rect(initial.Left + 60, initial.Top + 80,
+                initial.Right - initial.Left, initial.Bottom - initial.Top), area, [],
+                WindowSnapper.Distance * System.Windows.Media.VisualTreeHelper.GetDpi(window).DpiScaleX,
+                clampToWorkArea: false);
+            Assert.Equal((int)Math.Round(secondExpected.X), proposed.Left);
+            Assert.Equal((int)Math.Round(secondExpected.Y), proposed.Top);
+            SendMessage(hwnd, 0x0232, IntPtr.Zero, IntPtr.Zero);
+        }
+        finally { Marshal.FreeHGlobal(memory); window.Close(); }
+        return Task.CompletedTask;
+    });
+
+    [Fact]
     public Task CollapsedPhysicalMoveSnapsBesidePeerWithoutResizingEitherSnapshot() => OnDispatcher(async () =>
     {
         using var vm = new NoteViewModel(new Note { IsCollapsed = true, Width = 480, Height = 360 }, _ => Task.CompletedTask);

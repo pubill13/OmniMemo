@@ -106,7 +106,7 @@ public partial class NoteWindow : Window
     {
         CollapsedTile.Focus();
         CollapsedTile.CaptureMouse();
-        tilePress = PointToScreen(e.GetPosition(this));
+        tilePress = WindowMagnet.GetCursorPosition();
         tileOrigin = WindowPlacement.GetPosition(this);
         draggingTile = false;
         e.Handled = true;
@@ -129,7 +129,7 @@ public partial class NoteWindow : Window
     private void OnTileMove(object sender, MouseEventArgs e)
     {
         if (tilePress is not Point start || e.LeftButton != MouseButtonState.Pressed) return;
-        var point = PointToScreen(e.GetPosition(this));
+        var point = WindowMagnet.GetCursorPosition();
         var delta = point - start;
         var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
         if (!draggingTile && Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance * dpi.DpiScaleX && Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance * dpi.DpiScaleY) return;

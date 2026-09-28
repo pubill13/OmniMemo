@@ -10,10 +10,14 @@ public partial class App
     {
         if (busy || shuttingDown) return;
         if (command == "TogglePanel") { ToggleLayoutPanel(); return; }
+        if (command == "ToggleOverlay") { ToggleOverlayPanel(); return; }
+        if (command == "ShowList") { ShowList(); return; }
+        if (command == "Search") { ShowList(true); return; }
         RunOperation(async () =>
         {
             switch (command)
             {
+                case "NewNote": await NewNoteAsync(); break;
                 case "ToggleVisibility": await SetAllVisibleAsync(!windows.Values.Any(w => w.IsVisible)); break;
                 case "HideAll": await SetAllVisibleAsync(false); break;
                 case "ShowAll": await SetAllVisibleAsync(true); break;
@@ -164,6 +168,12 @@ public partial class App
 
     private void ApplyPanelSettings(LayoutSettings candidate, bool arrange)
     {
+        candidate = candidate with
+        {
+            OverlayLeft = layoutSettings.OverlayLeft, OverlayTop = layoutSettings.OverlayTop,
+            OverlayOpacity = layoutSettings.OverlayOpacity, OverlayTopmost = layoutSettings.OverlayTopmost,
+            OverlayColor = layoutSettings.OverlayColor, OverlayVisible = layoutSettings.OverlayVisible
+        };
         RunOperation(async () =>
         {
             try

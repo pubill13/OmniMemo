@@ -7,6 +7,24 @@ namespace Memoit.Tests;
 [Collection("WPF")]
 public sealed class HotkeyTests
 {
+    [Fact]
+    public void UpgradedSettingsAddCommandsWithoutOverwritingCustomizedOrDisabledBindings()
+    {
+        string file = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            new LayoutSettings { Hotkeys = new() { ["TogglePanel"] = "Ctrl+Alt+Shift+P", ["NewNote"] = "" } }.Save(file);
+            var loaded = LayoutSettings.Load(file);
+            Assert.Equal("", loaded.Hotkeys["NewNote"]);
+            Assert.Equal("Ctrl+Alt+Shift+P", loaded.Hotkeys["TogglePanel"]);
+            Assert.Equal("", loaded.Hotkeys["ToggleOverlay"]);
+            Assert.Equal("Ctrl+Alt+Shift+L", loaded.Hotkeys["ShowList"]);
+            Assert.Equal("Ctrl+Alt+Shift+F", loaded.Hotkeys["Search"]);
+            HotkeyService.Validate(loaded.Hotkeys);
+        }
+        finally { File.Delete(file); }
+    }
+
     [Theory]
     [InlineData(" shift + control + alt + h ", "Ctrl+Alt+Shift+H")]
     [InlineData("Alt+Ctrl+D1", "Ctrl+Alt+1")]
@@ -20,7 +38,9 @@ public sealed class HotkeyTests
     {
         var defaults = HotkeyDefaults.Create();
         HotkeyService.Validate(defaults);
-        Assert.Equal(16, defaults.Count);
+        Assert.Equal(20, defaults.Count);
+        Assert.Equal("Ctrl+Alt+Shift+N", defaults["NewNote"]);
+        Assert.Equal("Ctrl+Alt+Shift+F", defaults["Search"]);
         Assert.True(HotkeyService.Matches(defaults["ToggleCurrent"], Key.Space, ModifierKeys.Control | ModifierKeys.Shift));
         Assert.False(HotkeyService.Matches(defaults["ToggleCurrent"], Key.Space, ModifierKeys.Control));
         Assert.False(HotkeyService.Matches("", Key.Space, ModifierKeys.Control));

@@ -80,6 +80,7 @@ public partial class App : Application
             }
             RefreshList();
             QueueAutoArrange();
+            RestoreOverlayPanel();
             SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
             _ = instance.ListenAsync(() => Dispatcher.BeginInvoke(() => { if (!busy) ShowList(); }),
                 ex => Dispatcher.BeginInvoke(() => Error("중복 실행 알림을 받을 수 없습니다.", ex)));
@@ -134,6 +135,7 @@ public partial class App : Application
         menu.Items.Add("전체 접기", null, (_, _) => ExecuteCommand("CollapseAll"));
         menu.Items.Add("전체 펼치기", null, (_, _) => ExecuteCommand("ExpandAll"));
         menu.Items.Add("정렬 옵션…", null, (_, _) => ExecuteCommand("TogglePanel"));
+        menu.Items.Add("미니 패널", null, (_, _) => ExecuteCommand("ToggleOverlay"));
         var arrangeMenu = new Forms.ToolStripMenuItem("접힌 메모 정렬");
         arrangeMenu.DropDownItems.Add("생성순으로 정렬", null, (_, _) => ExecuteCommand("SortCreated"));
         arrangeMenu.DropDownItems.Add("색상별로 정렬", null, (_, _) => ExecuteCommand("SortColor"));
@@ -352,6 +354,7 @@ public partial class App : Application
         if (list is not null) { list.AllowClose = true; list.Close(); }
         settings?.Close();
         if (layoutPanel is not null) { layoutPanel.AllowClose = true; layoutPanel.Close(); }
+        CloseOverlayPanel();
         Shutdown();
     }
 

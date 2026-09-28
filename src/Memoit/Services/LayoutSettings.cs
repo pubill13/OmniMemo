@@ -35,12 +35,23 @@ public sealed record LayoutSettings
     public string? SelectedMonitor { get; init; }
     public double? PanelLeft { get; init; }
     public double? PanelTop { get; init; }
+    public double? OverlayLeft { get; init; }
+    public double? OverlayTop { get; init; }
+    public double OverlayOpacity { get; init; } = .85;
+    public bool OverlayTopmost { get; init; }
+    public string? OverlayColor { get; init; }
+    public bool OverlayVisible { get; init; }
 
     public MonitorLayout GetMonitor(string id) => Monitors.TryGetValue(id, out var layout)
         ? layout : new MonitorLayout { Sort = SortByColor ? LayoutSort.Color : LayoutSort.Created };
 
     public void Validate()
     {
+        if (!double.IsFinite(OverlayOpacity) || OverlayOpacity < .3 || OverlayOpacity > 1
+            || OverlayLeft.HasValue && !double.IsFinite(OverlayLeft.Value)
+            || OverlayTop.HasValue && !double.IsFinite(OverlayTop.Value)
+            || OverlayColor is not null && !NoteColors.Values.Any(c => NoteColors.Matches(c, OverlayColor)))
+            throw new InvalidDataException("미니 패널 위치 또는 투명도가 올바르지 않습니다.");
         if (Version != 2) throw new InvalidDataException("지원하지 않는 타일 설정 버전입니다.");
         if (Monitors is null || Hotkeys is null || PanelLeft.HasValue && !double.IsFinite(PanelLeft.Value)
             || PanelTop.HasValue && !double.IsFinite(PanelTop.Value))
@@ -72,6 +83,15 @@ public sealed record LayoutSettings
             ?? throw new InvalidDataException("타일 설정을 읽지 못했습니다.");
         if (settings.Version == 1) settings = settings with { Version = 2 };
         settings.Validate();
+        // New commands must not replace a user's existing assignment or explicit disabled value.
+        var used = settings.Hotkeys.Values.Select(HotkeyService.Normalize).ToHashSet(StringComparer.Ordinal);
+        foreach (var pair in HotkeyDefaults.Create())
+            if (!settings.Hotkeys.ContainsKey(pair.Key))
+            {
+                var gesture = used.Contains(pair.Value) ? "" : pair.Value;
+                settings.Hotkeys.Add(pair.Key, gesture);
+                used.Add(gesture);
+            }
         return settings;
     }
 
