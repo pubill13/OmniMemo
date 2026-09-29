@@ -284,7 +284,7 @@ public partial class App : Application
                 busy = false;
                 if (!shuttingDown) foreach (Window window in Windows) window.IsEnabled = true;
                 if (!shuttingDown && focusedEditor is not null)
-                    Dispatcher.BeginInvoke(() => focusedEditor.RestoreEditorFocus(editorSelection), DispatcherPriority.Input);
+                    _ = Dispatcher.BeginInvoke(() => focusedEditor.RestoreEditorFocus(editorSelection), DispatcherPriority.Input);
                 if (arrangementPending) { arrangementPending = false; QueueAutoArrange(); }
             }
         }, DispatcherPriority.Background);
