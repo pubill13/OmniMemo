@@ -19,7 +19,12 @@ public partial class MainWindow : Window
     public event Action<Guid>? OpenNoteRequested;
     public event Action<Guid>? RestoreNoteRequested;
     public event Action<Guid>? PermanentDeleteRequested;
+    public event Action<Guid>? DeleteRequested;
+    public event Action<Guid>? HideRequested;
+    public event Action<IReadOnlyList<Guid>>? DeleteSelectedRequested;
     public event Action? SearchChanged;
+    private readonly HashSet<Guid> selected = [];
+    public IReadOnlyList<Guid> SelectedIds => selected.ToArray();
 
     public MainWindow()
     {
@@ -31,6 +36,7 @@ public partial class MainWindow : Window
     {
         _notes = notes.ToList();
         ShowingTrash = trash;
+        selected.RemoveWhere(id => !_notes.Any(n => n.Id == id && (n.DeletedAt != null) == trash));
         RefreshList();
     }
 
@@ -41,13 +47,14 @@ public partial class MainWindow : Window
         if (NoteList is null) return;
         var query = SearchText.Trim();
         var items = _notes.Where(n => (n.DeletedAt != null) == ShowingTrash && n.Body.Contains(query, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(n => n.UpdatedAt).Select(n => new NoteRow(n, ShowingTrash)).ToList();
+            .OrderByDescending(n => n.UpdatedAt).Select(n => new NoteRow(n, ShowingTrash, selected.Contains(n.Id))).ToList();
         NoteList.ItemsSource = items;
         SectionLabel.Text = $"{(ShowingTrash ? "휴지통" : "전체 메모")} · {items.Count}개";
         EmptyLabel.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         EmptyLabel.Text = query.Length > 0 ? "검색 결과가 없습니다." : ShowingTrash ? "휴지통이 비어 있습니다." : "메모가 없습니다. 새 메모로 시작하세요.";
         ActiveButton.FontWeight = ShowingTrash ? FontWeights.Normal : FontWeights.Bold;
         TrashButton.FontWeight = ShowingTrash ? FontWeights.Bold : FontWeights.Normal;
+        DeleteSelectedButton.IsEnabled = !ShowingTrash && selected.Count > 0;
     }
 
     private void OnSearchTextChanged(object sender, TextChangedEventArgs e) { RefreshList(); SearchChanged?.Invoke(); }
@@ -59,6 +66,17 @@ public partial class MainWindow : Window
     private void OnOpenButton(object sender, RoutedEventArgs e) => OpenNoteRequested?.Invoke((Guid)((Button)sender).Tag);
     private void OnRestore(object sender, RoutedEventArgs e) => RestoreNoteRequested?.Invoke((Guid)((Button)sender).Tag);
     private void OnPermanentDelete(object sender, RoutedEventArgs e) => PermanentDeleteRequested?.Invoke((Guid)((Button)sender).Tag);
+    private void OnDeleteSelected(object sender, RoutedEventArgs e) => DeleteSelectedRequested?.Invoke(SelectedIds);
+    private void OnCheckSelection(object sender, RoutedEventArgs e)
+    { if (sender is CheckBox box && box.Tag is Guid id) { if (box.IsChecked == true) selected.Add(id); else selected.Remove(id); DeleteSelectedButton.IsEnabled = !ShowingTrash && selected.Count > 0; } }
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    { foreach (NoteRow row in e.AddedItems) selected.Add(row.Id); foreach (NoteRow row in e.RemovedItems) selected.Remove(row.Id); DeleteSelectedButton.IsEnabled = !ShowingTrash && selected.Count > 0; }
+    private void OnRowRightClick(object sender, MouseButtonEventArgs e)
+    { if (sender is FrameworkElement element && element.Tag is Guid id && !selected.Contains(id)) { selected.Clear(); selected.Add(id); RefreshList(); } }
+    private void OnContextOpen(object sender, RoutedEventArgs e) => OpenNoteRequested?.Invoke(ContextId(sender));
+    private void OnContextHide(object sender, RoutedEventArgs e) => HideRequested?.Invoke(ContextId(sender));
+    private void OnContextDelete(object sender, RoutedEventArgs e) => DeleteRequested?.Invoke(ContextId(sender));
+    private static Guid ContextId(object sender) => ((NoteRow)((MenuItem)sender).DataContext).Id;
     private void OnListKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter && !ShowingTrash && NoteList.SelectedItem is NoteRow row) { OpenNoteRequested?.Invoke(row.Id); e.Handled = true; } }
     private void OnKeyDown(object sender, KeyEventArgs e)
     {
@@ -67,7 +85,7 @@ public partial class MainWindow : Window
         if (e.Key == Key.F) { FocusSearch(); e.Handled = true; }
     }
 
-    private sealed class NoteRow(Note note, bool trash)
+    private sealed class NoteRow(Note note, bool trash, bool selected)
     {
         public Guid Id => note.Id;
         public string Title => note.Title;
@@ -76,5 +94,6 @@ public partial class MainWindow : Window
         public string Modified => note.UpdatedAt.ToLocalTime().ToString("yyyy.MM.dd HH:mm");
         public Visibility TrashVisibility => trash ? Visibility.Visible : Visibility.Collapsed;
         public Visibility ActiveVisibility => trash ? Visibility.Collapsed : Visibility.Visible;
+        public bool IsSelected { get; set; } = selected;
     }
 }

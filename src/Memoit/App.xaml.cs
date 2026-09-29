@@ -118,7 +118,35 @@ public partial class App : Application
             if (windows.Remove(id, out var deletedWindow)) { deletedWindow.AllowClose = true; deletedWindow.Close(); }
             vm.Dispose(); notes.Remove(id);
         });
+        list.DeleteRequested += id => RunOperation(() => DeleteSelectedAsync([id]));
+        list.DeleteSelectedRequested += ids => RunOperation(() => DeleteSelectedAsync(ids));
+        list.HideRequested += id => RunOperation(async () =>
+        {
+            if (!notes.TryGetValue(id, out var vm)) return;
+            vm.SetVisible(false);
+            if (await vm.FlushAsync() && windows.Remove(id, out var window)) { window.Hide(); windows[id] = window; }
+        });
         list.SettingsRequested += () => { if (!busy) ShowSettings(); };
+    }
+
+    private async Task DeleteSelectedAsync(IReadOnlyList<Guid> ids)
+    {
+        var targets = ids.Distinct().Where(id => notes.TryGetValue(id, out var vm) && vm.Snapshot.DeletedAt is null).ToArray();
+        if (targets.Length == 0) return;
+        string summary = string.Join(", ", targets.Take(3).Select(id => notes[id].Title));
+        if (targets.Length > 3) summary += $" 외 {targets.Length - 3}개";
+        if (MessageBox.Show(list, $"선택한 {targets.Length}개 메모를 휴지통으로 이동할까요?\n{summary}", "선택 삭제", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        var changed = new List<NoteViewModel>();
+        foreach (var id in targets) { var vm = notes[id]; vm.SetDeleted(true); changed.Add(vm); }
+        bool success = true;
+        foreach (var vm in changed) success &= await vm.FlushAsync();
+        if (!success)
+        {
+            foreach (var vm in changed.Where(vm => vm.IsDirty || vm.Snapshot.DeletedAt is not null)) vm.SetDeleted(false);
+            foreach (var vm in changed) await vm.FlushAsync();
+            throw new IOException("일부 메모를 휴지통으로 이동하지 못했습니다. 변경 내용을 원래 상태로 복구했습니다.");
+        }
+        foreach (var id in targets) if (windows.Remove(id, out var window)) { window.AllowClose = true; window.Close(); }
     }
 
     private void CreateTray()
@@ -217,9 +245,10 @@ public partial class App : Application
             };
             windows.Add(vm.Snapshot.Id, window);
         }
+        bool wasVisible = window.IsVisible;
         window.Show();
         WindowPlacement.KeepOnScreen(window);
-        window.Activate();
+        if (!wasVisible) window.Activate();
     }
 
     private void QueueAutoArrange()
@@ -234,6 +263,8 @@ public partial class App : Application
             if (!layoutSettings.AutoArrange || shuttingDown || busy) return;
             arranging = true;
             busy = true;
+            var focusedEditor = windows.Values.FirstOrDefault(w => w.EditorHasFocus);
+            var editorSelection = focusedEditor is null ? (0, 0) : focusedEditor.CaptureEditorSelection();
             foreach (Window window in Windows) window.IsEnabled = false;
             try { await ArrangeTilesAsync(); }
             catch (Exception ex)
@@ -252,6 +283,8 @@ public partial class App : Application
                 arranging = false;
                 busy = false;
                 if (!shuttingDown) foreach (Window window in Windows) window.IsEnabled = true;
+                if (!shuttingDown && focusedEditor is not null)
+                    Dispatcher.BeginInvoke(() => focusedEditor.RestoreEditorFocus(editorSelection), DispatcherPriority.Input);
                 if (arrangementPending) { arrangementPending = false; QueueAutoArrange(); }
             }
         }, DispatcherPriority.Background);

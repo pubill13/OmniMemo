@@ -31,6 +31,14 @@ public partial class NoteWindow : Window
     public event Action? TileDragCompleted;
 
     public void SetAutoArrange(bool enabled) => AutoArrangeItem.IsChecked = enabled;
+    public bool EditorHasFocus => Editor.IsKeyboardFocusWithin;
+    public (int Start, int Length) CaptureEditorSelection() => (Editor.SelectionStart, Editor.SelectionLength);
+    public void RestoreEditorFocus((int Start, int Length) selection)
+    {
+        if (!IsVisible || IsCollapsed) return;
+        Editor.Focus();
+        Editor.Select(Math.Clamp(selection.Start, 0, Editor.Text.Length), Math.Clamp(selection.Length, 0, Math.Max(0, Editor.Text.Length - selection.Start)));
+    }
 
     public NoteWindow(NoteViewModel vm)
     {
