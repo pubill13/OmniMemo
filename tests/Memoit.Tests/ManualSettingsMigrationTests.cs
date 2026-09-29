@@ -15,7 +15,7 @@ public sealed class ManualSettingsMigrationTests
         {
             File.WriteAllText(file, "{\"Version\":" + version + ",\"AutoArrange\":true,\"Hotkeys\":{\"ToggleAuto\":\"Ctrl+Alt+Shift+Z\",\"Arrange\":\"Ctrl+Alt+Shift+G\"},\"Monitors\":{\"old\":{\"X\":120,\"Columns\":3}}}");
             var loaded = LayoutSettings.Load(file);
-            Assert.Equal(3, loaded.Version);
+            Assert.Equal(4, loaded.Version);
             Assert.False(loaded.AutoArrange);
             Assert.True(loaded.NeedsManualArrangementNotice);
             Assert.DoesNotContain("ToggleAuto", loaded.Hotkeys.Keys);

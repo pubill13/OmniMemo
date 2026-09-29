@@ -28,11 +28,12 @@ public sealed record MonitorLayout
 
 public sealed record LayoutSettings
 {
-    public int Version { get; init; } = 3;
+    public int Version { get; init; } = 4;
     public bool AutoArrange { get; init; }
     public bool NeedsManualArrangementNotice { get; init; }
     public bool SortByColor { get; init; }
     public Dictionary<string, MonitorLayout> Monitors { get; init; } = [];
+    public Dictionary<string, List<Guid>> ArrangementOrder { get; init; } = [];
     public Dictionary<string, string> Hotkeys { get; init; } = HotkeyDefaults.Create();
     public string? SelectedMonitor { get; init; }
     public double? PanelLeft { get; init; }
@@ -54,8 +55,8 @@ public sealed record LayoutSettings
             || OverlayTop.HasValue && !double.IsFinite(OverlayTop.Value)
             || OverlayColor is not null && !NoteColors.Values.Any(c => NoteColors.Matches(c, OverlayColor)))
             throw new InvalidDataException("미니 패널 위치 또는 투명도가 올바르지 않습니다.");
-        if (Version != 3) throw new InvalidDataException("지원하지 않는 타일 설정 버전입니다.");
-        if (Monitors is null || Hotkeys is null || PanelLeft.HasValue && !double.IsFinite(PanelLeft.Value)
+        if (Version != 4) throw new InvalidDataException("지원하지 않는 타일 설정 버전입니다.");
+        if (Monitors is null || Hotkeys is null || ArrangementOrder is null || PanelLeft.HasValue && !double.IsFinite(PanelLeft.Value)
             || PanelTop.HasValue && !double.IsFinite(PanelTop.Value))
             throw new InvalidDataException("타일 설정 값이 올바르지 않습니다.");
         foreach (var pair in Monitors)
@@ -65,6 +66,10 @@ public sealed record LayoutSettings
         }
         foreach (var pair in Hotkeys)
             if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value is null) throw new InvalidDataException("단축키 설정이 올바르지 않습니다.");
+        foreach (var pair in ArrangementOrder)
+            if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value is null || pair.Value.Contains(Guid.Empty)
+                || pair.Value.Distinct().Count() != pair.Value.Count)
+                throw new InvalidDataException("모니터별 메모 순서가 올바르지 않습니다.");
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -83,15 +88,27 @@ public sealed record LayoutSettings
         ValidateJsonNames(document.RootElement);
         var settings = JsonSerializer.Deserialize<LayoutSettings>(json, JsonOptions)
             ?? throw new InvalidDataException("타일 설정을 읽지 못했습니다.");
+        var retiredGestures = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string command in new[] { "ToggleAuto", "ArrangeCollapsed", "ArrangeExpanded", "UndoArrange" })
+            if (settings.Hotkeys?.TryGetValue(command, out var gesture) == true && gesture is not null)
+                retiredGestures.Add(HotkeyService.Normalize(gesture));
         if (!document.RootElement.TryGetProperty("Version", out _) || settings.Version is 1 or 2)
         {
             settings.Hotkeys?.Remove("ToggleAuto");
             settings = settings with { Version = 3, AutoArrange = false, NeedsManualArrangementNotice = true };
         }
+        if (settings.Version == 3)
+        {
+            settings.Hotkeys?.Remove("ArrangeCollapsed");
+            settings.Hotkeys?.Remove("ArrangeExpanded");
+            settings.Hotkeys?.Remove("UndoArrange");
+            settings = settings with { Version = 4 };
+        }
         settings = settings with { AutoArrange = false };
         settings.Validate();
         // New commands must not replace a user's existing assignment or explicit disabled value.
-        var used = settings.Hotkeys.Values.Select(HotkeyService.Normalize).ToHashSet(StringComparer.Ordinal);
+        var used = settings.Hotkeys!.Values.Select(HotkeyService.Normalize).ToHashSet(StringComparer.Ordinal);
+        used.UnionWith(retiredGestures);
         foreach (var pair in HotkeyDefaults.Create())
             if (!settings.Hotkeys.ContainsKey(pair.Key))
             {

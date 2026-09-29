@@ -59,8 +59,8 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
                 ? note with { CollapsedLeft = note.Left, CollapsedTop = note.Top }
                 : note with { ExpandedLeft = note.Left, ExpandedTop = note.Top };
             note = note with { IsCollapsed = value,
-                Left = (value ? note.CollapsedLeft : note.ExpandedLeft) ?? note.Left,
-                Top = (value ? note.CollapsedTop : note.ExpandedTop) ?? note.Top };
+                Left = value ? note.CollapsedLeft ?? note.Left : note.Left,
+                Top = value ? note.CollapsedTop ?? note.Top : note.Top };
             Changed(false); Notify();
         }
     }

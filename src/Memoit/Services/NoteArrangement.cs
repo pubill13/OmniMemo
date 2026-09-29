@@ -17,7 +17,7 @@ public static class NoteArrangement
         MonitorLayout options, double scale = 1, IReadOnlyDictionary<Guid, Size>? sizesPixels = null)
     {
         Validate(areaPixels, options, scale);
-        var ordered = Order(notes, options.Sort, true);
+        var ordered = OrderNotes(notes, options.Sort).Where(n => n.IsCollapsed).ToArray();
         var result = new Dictionary<Guid, Rect>();
         double x = options.X * scale, y = options.Y * scale, rowHeight = 0;
         double gap = options.Gap * scale;
@@ -41,11 +41,16 @@ public static class NoteArrangement
 
     public static ArrangementResult ArrangeExpanded(IEnumerable<Note> notes, Rect areaPixels,
         MonitorLayout options, ExpandedCorner corner = ExpandedCorner.TopRight, double scale = 1,
-        IReadOnlyDictionary<Guid, Size>? sizesPixels = null)
+        IReadOnlyDictionary<Guid, Size>? sizesPixels = null, IReadOnlyList<Guid>? orderedIds = null)
     {
         Validate(areaPixels, options, scale);
         if (!Enum.IsDefined(corner)) throw new ArgumentOutOfRangeException(nameof(corner));
-        var ordered = Order(notes, options.Sort, false);
+        var ordered = OrderNotes(notes, options.Sort).Where(n => !n.IsCollapsed).ToArray();
+        if (orderedIds is not null)
+        {
+            var ranks = orderedIds.Select((id, index) => (id, index)).ToDictionary(pair => pair.id, pair => pair.index);
+            ordered = ordered.OrderBy(n => ranks.GetValueOrDefault(n.Id, int.MaxValue)).ToArray();
+        }
         var sizes = ordered.ToDictionary(n => n.Id, n =>
         {
             var size = GetSize(n, scale, sizesPixels);
@@ -92,10 +97,11 @@ public static class NoteArrangement
             bottom ? area.Bottom - y - size.Height : area.Top + y, size.Width, size.Height);
     }
 
-    private static Note[] Order(IEnumerable<Note> notes, LayoutSort sort, bool collapsed)
+    public static Note[] OrderNotes(IEnumerable<Note> notes, LayoutSort sort)
     {
         ArgumentNullException.ThrowIfNull(notes);
-        var ordered = notes.Where(n => n.IsVisible && n.DeletedAt is null && n.IsCollapsed == collapsed)
+        if (!Enum.IsDefined(sort)) throw new ArgumentOutOfRangeException(nameof(sort));
+        var ordered = notes.Where(n => n.IsVisible && n.DeletedAt is null)
             .OrderBy(n => sort == LayoutSort.Color ? ColorOrder(n.Color) : 0)
             .ThenBy(n => sort == LayoutSort.Color && ColorOrder(n.Color) == int.MaxValue ? n.Color : "", StringComparer.OrdinalIgnoreCase)
             .ThenBy(n => sort == LayoutSort.Title ? n.Title : "", StringComparer.Create(CultureInfo.GetCultureInfo("ko-KR"), false))

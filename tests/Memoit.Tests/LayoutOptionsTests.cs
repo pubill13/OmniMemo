@@ -69,6 +69,10 @@ public sealed class LayoutOptionsTests
                 window.SetAutoStart(false); Assert.Equal(0, events);
                 Field<CheckBox>(window, "autoStart").IsChecked = true; Assert.Equal(1, events);
                 Assert.DoesNotContain("ToggleAuto", Field<Dictionary<string, TextBox>>(window, "recorders").Keys);
+                LayoutSettings? candidate = null; window.ApplyRequested += value => candidate = value;
+                Field<Slider>(window, "opacity").Value = 55; window.Left = 0; window.Top = 0;
+                typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, [false]);
+                Assert.NotNull(candidate); Assert.Equal(.55, candidate.OverlayOpacity);
             }
             finally { window.AllowClose = true; window.Close(); }
         });

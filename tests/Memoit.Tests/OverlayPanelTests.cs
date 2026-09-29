@@ -31,6 +31,11 @@ public sealed class OverlayPanelTests
         finally { File.Delete(file); }
     }
 
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        { yield return child; foreach (var descendant in Descendants(child)) yield return descendant; }
+    }
     [Theory]
     [InlineData("#FFF2B2", "#FFF2B3", true)]
     [InlineData("#fff2b3", "#FFF2B3", true)]
@@ -55,12 +60,25 @@ public sealed class OverlayPanelTests
                     bool? collapsed = null; string? selected = null;
                     panel.CollapseRequested += (value, color) => { collapsed = value; selected = color; };
                     var content = (StackPanel)((Border)panel.Content).Child;
-                    var buttons = content.Children.OfType<StackPanel>().SelectMany(row => row.Children.OfType<Button>()).ToArray();
-                    buttons.Single(b => Equals(b.Content, "펼치기")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    var buttons = Descendants(panel).OfType<Button>().ToArray();
+                    var expander = Descendants(panel).OfType<Expander>().Single(); Assert.False(expander.IsExpanded);
+                    Assert.Equal(280, panel.Width);
+                    var root = (FrameworkElement)panel.Content; root.Measure(new Size(280, double.PositiveInfinity)); root.Arrange(new Rect(0, 0, 280, root.DesiredSize.Height));
+                    var arrange = buttons.Single(b => Equals(b.Content, "접어서 정돈"));
+                    var expand = buttons.Single(b => Equals(b.Content, "모두 펼치기"));
+                    Assert.Equal(arrange.ActualWidth, expand.ActualWidth);
+                    Assert.True(arrange.ActualWidth >= 110);
+                    buttons.Single(b => Equals(b.Content, "선택 색상 펼치기")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Assert.False(collapsed); Assert.Equal("#FFF2B3", selected);
                     string? command = null; panel.CommandRequested += value => command = value;
-                    buttons.Single(b => Equals(b.Content, "가로")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                    Assert.Equal("ShapeHorizontal", command);
+                    buttons.Single(b => Equals(b.Content, "접어서 정돈")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Assert.Equal("Arrange", command);
+                    buttons.Single(b => Equals(b.Content, "모두 펼치기")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Assert.Equal("ExpandAll", command);
+                    panel.SetHasVisibleNotes(false); Assert.Contains(buttons, b => Equals(b.Content, "모두 보이기"));
+                    panel.SetHasVisibleNotes(true); Assert.Contains(buttons, b => Equals(b.Content, "모두 숨기기"));
+                    Assert.DoesNotContain(buttons, b => Equals(b.Content, "이전 배치로"));
+                    Assert.Empty(Descendants(panel).OfType<Slider>());
+                    panel.ShowStatus("저장 실패", true); Assert.Contains(Descendants(panel).OfType<TextBlock>(), b => b.Text == "저장 실패");
                     int changes = 0; panel.PreferencesChanged += () => changes++;
                     panel.RefreshSettings(new LayoutSettings { OverlayOpacity = .3, OverlayTopmost = false });
                     Assert.Equal(0, changes); Assert.Equal(.3, panel.Opacity); Assert.False(panel.Topmost); Assert.Null(panel.SelectedColor);

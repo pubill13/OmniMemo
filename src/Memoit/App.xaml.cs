@@ -155,13 +155,9 @@ public partial class App : Application
         menu.Items.Add("메모 목록", null, (_, _) => { if (!busy) ShowList(); });
         menu.Items.Add("전체 숨기기", null, (_, _) => ExecuteCommand("HideAll"));
         menu.Items.Add("전체 보이기", null, (_, _) => ExecuteCommand("ShowAll"));
-        menu.Items.Add("전체 접기", null, (_, _) => ExecuteCommand("CollapseAll"));
-        menu.Items.Add("전체 펼치기", null, (_, _) => ExecuteCommand("ExpandAll"));
+        menu.Items.Add("접어서 정돈", null, (_, _) => ExecuteCommand("CollapseAll"));
+        menu.Items.Add("모두 펼치기", null, (_, _) => ExecuteCommand("ExpandAll"));
         menu.Items.Add("미니 패널", null, (_, _) => ExecuteCommand("ToggleOverlay"));
-        menu.Items.Add("접힌 메모 정돈", null, (_, _) => ExecuteCommand("ArrangeCollapsed"));
-        menu.Items.Add("펼친 메모 정돈", null, (_, _) => ExecuteCommand("ArrangeExpanded"));
-        menu.Items.Add("모두 정돈", null, (_, _) => ExecuteCommand("Arrange"));
-        menu.Items.Add("이전 배치로", null, (_, _) => ExecuteCommand("UndoArrange"));
         menu.Items.Add("미저장 메모 다시 저장", null, (_, _) => ExecuteCommand("RetrySave"));
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("설정", null, (_, _) => { if (!busy) ShowSettings(); });
@@ -241,7 +237,11 @@ public partial class App : Application
         if (search) list.FocusSearch();
     }
 
-    private void RefreshList() => list?.SetNotes(notes.Values.Select(n => n.Snapshot), list.ShowingTrash);
+    private void RefreshList()
+    {
+        list?.SetNotes(notes.Values.Select(n => n.Snapshot), list.ShowingTrash);
+        overlayPanel?.SetHasVisibleNotes(windows.Values.Any(w => w.IsVisible));
+    }
 
     private async void OnNoteSaved()
     {
@@ -287,7 +287,7 @@ public partial class App : Application
         if (Dialogs.Show("현재 메모 전체를 선택한 백업으로 교체합니다. 현재 데이터는 안전 백업으로 보관합니다.\n계속할까요?", "백업 복원", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         if (!await FlushAllAsync()) throw new IOException("저장하지 못한 변경이 있어 복원을 중단했습니다.");
         await store.RestoreAsync(dialog.FileName);
-        arrangementHistory.Clear();
+
         CloseNoteWindows();
         foreach (var vm in notes.Values) vm.Dispose();
         notes.Clear();

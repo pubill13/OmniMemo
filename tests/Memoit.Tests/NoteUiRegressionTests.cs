@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using Memoit.Models;
 using Memoit.ViewModels;
 using Memoit.Views;
+using Memoit.Services;
 using Xunit;
 
 namespace Memoit.Tests;
@@ -15,6 +16,77 @@ namespace Memoit.Tests;
 [Collection("WPF")]
 public sealed class NoteUiRegressionTests
 {
+    [Fact]
+    public void IndividualExpandUsesClickedTileAndCollapseReturnsToTile() => Sta(() =>
+    {
+        using var vm = new NoteViewModel(new Note { Left = 160, Top = 170, IsCollapsed = true,
+            ExpandedLeft = 600, ExpandedTop = 500, Width = 300, Height = 220 }, _ => Task.CompletedTask);
+        var window = new NoteWindow(vm);
+        try
+        {
+            window.Show(); Pump();
+            var tile = WindowPlacement.GetPosition(window);
+            window.ToggleCollapsed(false); Pump();
+            Assert.Equal(tile, WindowPlacement.GetPosition(window));
+            window.Left += 100; window.Top += 80; Pump();
+            window.ToggleCollapsed(false); Pump();
+            Assert.Equal(tile, WindowPlacement.GetPosition(window));
+        }
+        finally { window.AllowClose = true; window.Close(); }
+    });
+
+    [Fact]
+    public void EdgeTileExpandsInsideItsMonitorAndReturnsToItsOriginalSpot() => Sta(() =>
+    {
+        using var vm = new NoteViewModel(new Note { IsCollapsed = true, Width = 310, Height = 230 }, _ => Task.CompletedTask);
+        var window = new NoteWindow(vm);
+        try
+        {
+            window.Show(); Pump();
+            var work = WindowPlacement.GetWorkArea(window);
+            var tileSize = WindowPlacement.GetSize(window);
+            var tile = new Point(work.Right - tileSize.Width, work.Bottom - tileSize.Height);
+            WindowPlacement.Move(window, tile); Pump();
+            window.ToggleCollapsed(false); Pump();
+            Assert.True(work.Contains(WindowPlacement.GetBounds(window)));
+            window.ToggleCollapsed(false); Pump();
+            Assert.Equal(tile, WindowPlacement.GetPosition(window));
+        }
+        finally { window.AllowClose = true; window.Close(); }
+    });
+
+    [Fact]
+    public void BatchStateWaitsForFinalNativeBoundsAndDoesNotFocusEditor() => Sta(() =>
+    {
+        using var vm = new NoteViewModel(new Note { Left = 160, Top = 170, IsCollapsed = true,
+            ExpandedLeft = 700, ExpandedTop = 500, Width = 400, Height = 300 }, _ => Task.CompletedTask);
+        var window = new NoteWindow(vm);
+        try
+        {
+            window.Show(); Pump();
+            ((UIElement)window.FindName("CollapsedTile")).Focus();
+            var original = WindowPlacement.GetPosition(window);
+            var originalBounds = WindowPlacement.GetBounds(window);
+            int sizeChanges = 0;
+            window.SizeChanged += (_, _) => sizeChanges++;
+            var dpi = VisualTreeHelper.GetDpi(window);
+            var target = new Rect(original.X + 40, original.Y + 50, 380 * dpi.DpiScaleX, 280 * dpi.DpiScaleY);
+            window.PrepareState(false, target);
+            Assert.Equal(original, WindowPlacement.GetPosition(window));
+            Assert.Equal(originalBounds, WindowPlacement.GetBounds(window));
+            Assert.False(window.EditorHasFocus);
+            WindowPlacement.MoveTogether([(window, target)]);
+            window.EndArrangement(); Pump();
+            Assert.Equal(target, WindowPlacement.GetBounds(window));
+            Assert.Equal(380, window.Width); Assert.Equal(280, window.Height);
+            Assert.Equal(window.Left, vm.Snapshot.Left); Assert.Equal(window.Top, vm.Snapshot.Top);
+            Assert.Equal(380, vm.Snapshot.Width); Assert.Equal(280, vm.Snapshot.Height);
+            Assert.True(window.IsEnabled); Assert.False(window.EditorHasFocus);
+            Assert.Equal(1, sizeChanges);
+        }
+        finally { window.AllowClose = true; window.Close(); }
+    });
+
     [Fact]
     public void CollapsedMoveReopenAndExpandKeepActualSizeAndContent() => Sta(() =>
     {

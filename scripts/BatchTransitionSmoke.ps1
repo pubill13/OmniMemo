@@ -84,42 +84,70 @@ using System.Windows.Automation;
 public static class EnabledRecorder {
  public static int Disabled;
  private static AutomationPropertyChangedEventHandler handler = (s,e) => { if(e.Property==AutomationElement.IsEnabledProperty && Equals(e.NewValue,false)) Interlocked.Increment(ref Disabled); };
- public static void Start(AutomationElement element) { Disabled=0; Automation.AddAutomationPropertyChangedEventHandler(element,TreeScope.Subtree,handler,AutomationElement.IsEnabledProperty); }
+ public static void Start(AutomationElement element) { Disabled=0; Automation.AddAutomationPropertyChangedEventHandler(element,TreeScope.Element,handler,AutomationElement.IsEnabledProperty); }
  public static void Stop(AutomationElement element) { Automation.RemoveAutomationPropertyChangedEventHandler(element,handler); }
 }
 "@
+function Send-Chord([byte]$key,[bool]$global=$true) {
+ if($global) {
+  $helper.Show(); $helper.Activate(); [void][HotkeySmokeNative]::SetForegroundWindow($helper.Handle)
+  [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 200
+  if([HotkeySmokeNative]::GetForegroundWindow() -ne $helper.Handle) { throw 'Cannot focus isolated external helper; refusing keyboard input.' }
+ }
+ $keys=if($global) { @(0x11,0x12,0x10) } else { @(0x11,0x10) }
+ try { foreach($k in $keys) { [HotkeySmokeNative]::keybd_event([byte]$k,0,0,[UIntPtr]::Zero) }; [HotkeySmokeNative]::keybd_event($key,0,0,[UIntPtr]::Zero); Start-Sleep -Milliseconds 60 }
+ finally { [HotkeySmokeNative]::keybd_event($key,0,2,[UIntPtr]::Zero); [array]::Reverse($keys); foreach($k in $keys) { [HotkeySmokeNative]::keybd_event([byte]$k,0,2,[UIntPtr]::Zero) } }
+ Start-Sleep -Milliseconds 650
+}
 try {
  New-Item -ItemType Directory -Path $env:OMNIMEMO_DATA_DIR | Out-Null
- @{OverlayVisible=[bool]$ShowOverlay} | ConvertTo-Json | Set-Content (Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json') -Encoding UTF8
+ @{OverlayVisible=[bool]$ShowOverlay; Version=4} | ConvertTo-Json | Set-Content (Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json') -Encoding UTF8
  $process=Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden -PassThru
  $first=Wait-For { foreach($w in (Notes)) { return $w } } 'first note'
- Drag-Note $first 140 12
- $editor=Named $first '메모 내용'; $editor.SetFocus()
- [EnabledRecorder]::Start($first)
- foreach($v in @('a','ab','abc','abcd')) { Set-Text $first '메모 내용' $v; Start-Sleep -Milliseconds 130; Check $editor.Current.HasKeyboardFocus ('Editor retains focus after '+$v.Length+' characters') }
- Start-Sleep -Milliseconds 750
- Check $editor.Current.HasKeyboardFocus 'Editor retains focus after autosave'
- Set-Text $first '메모 내용' ''
- foreach($character in 'abcdefghijkl'.ToCharArray()) {
-  Check ($editor.Current.HasKeyboardFocus -and [HotkeySmokeNative]::GetForegroundWindow() -eq [IntPtr]$first.Current.NativeWindowHandle) 'Target focused before keyboard input'
-  [System.Windows.Forms.SendKeys]::SendWait([string]$character)
-  Start-Sleep -Milliseconds 220
+ for($i=1;$i -lt 5;$i++) { Send-Chord 0x4E }
+ $all=@(Notes); Check ($all.Count -eq 5) 'Five notes created by global shortcut'
+ foreach($w in $all) { [EnabledRecorder]::Start($w) }
+ for($i=0;$i -lt 3;$i++) {
+  Send-Chord 0x52
+  Check (@(Notes | Where-Object { -not (Is-Tile $_) }).Count -eq 0) 'Arrange collapses every visible note'
+  Check ([HotkeySmokeNative]::GetForegroundWindow() -eq $helper.Handle) 'Batch collapse preserves external focus'
+  Send-Chord 0x43
+  Check (@(Notes | Where-Object { Is-Tile $_ }).Count -eq 0) 'Expand restores all visible notes'
+  Check ([HotkeySmokeNative]::GetForegroundWindow() -eq $helper.Handle) 'Batch expand preserves external focus'
  }
+ Check ([EnabledRecorder]::Disabled -eq 0) 'Batch commands never disable note windows'
+ foreach($w in $all) { [EnabledRecorder]::Stop($w) }
+ Send-Chord 0x52
+ $tile=@(Notes)[0]; $before=Rect $tile
+ [void][HotkeySmokeNative]::SetForegroundWindow([IntPtr]$tile.Current.NativeWindowHandle)
+ Start-Sleep -Milliseconds 150
+ if([HotkeySmokeNative]::GetForegroundWindow() -ne [IntPtr]$tile.Current.NativeWindowHandle) { throw 'Cannot focus isolated tile' }
+ [void][HotkeySmokeNative]::SetCursorPos($before.Left+18,$before.Top+18)
+ [HotkeySmokeNative]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+ [HotkeySmokeNative]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+ Start-Sleep -Milliseconds 350
+ $expanded=Rect $tile
+ Check (-not (Is-Tile $tile)) 'Individual click expands tile'
+ Check ([Math]::Abs($before.Left-$expanded.Left) -le 1 -and [Math]::Abs($before.Top-$expanded.Top) -le 1) 'Individual expansion stays at clicked tile origin'
+ $editor=Named $tile '메모 내용'; $editor.SetFocus()
+ foreach($char in 'abcdef'.ToCharArray()) { [System.Windows.Forms.SendKeys]::SendWait([string]$char); Start-Sleep -Milliseconds 120 }
  Start-Sleep -Milliseconds 750
- $value=$editor.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
- Check ($value -eq 'abcdefghijkl') 'Continuous keyboard typing survives max-delay and idle autosave without lost or reordered characters'
- Check $editor.Current.HasKeyboardFocus 'Keyboard focus stays in editor after continuous typing'
- Check ([EnabledRecorder]::Disabled -eq 0) 'Typing never disables the note'
- [EnabledRecorder]::Stop($first)
- Drag-Note $first 140 12
- $title=Named $first 'OmniMemo'
- $scale=[HotkeySmokeNative]::GetDpiForWindow([IntPtr]$first.Current.NativeWindowHandle)/96.0
- $dotX=[int](($title.Current.BoundingRectangle.Right-(Rect $first).Left)/$scale+8)
- Drag-Note $first $dotX 12
+ Check ($editor.Current.HasKeyboardFocus) 'Typing after batch and individual expansion keeps focus through save'
+ Check ($editor.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'abcdef') 'Typed characters are retained'
+ if($ShowOverlay) {
+  $overlay=Wait-For { foreach($w in (Roots)) { if($w.Current.Name -eq 'OmniMemo · 데스크톱 패널') { return $w } } } 'overlay'
+  Check ($null -ne (Named $overlay '접어서 정돈') -and $null -ne (Named $overlay '모두 펼치기')) 'Panel exposes two core actions'
+  Check ($null -eq (Named $overlay '이전 배치로')) 'Removed action absent'
+  Capture-Window $overlay 'panel.png'
+ }
+ Send-Chord 0x48
+ Check (@(Notes).Count -eq 0) 'Global visibility hides notes'
+ Send-Chord 0x48
+ Check (@(Notes).Count -eq 5) 'Global visibility restores notes'
 } finally {
  if($process) { if(-not $process.HasExited) { Stop-Process -Id $process.Id }; $process.Dispose() }
  [void][HotkeySmokeNative]::SetCursorPos($cursor.X,$cursor.Y)
  $helper.Dispose(); $env:OMNIMEMO_DATA_DIR=$previous
  $log | Set-Content -LiteralPath (Join-Path $directory 'results.txt') -Encoding UTF8
- Write-Output ('Input drag artifacts: '+$directory)
+ Write-Output ('Batch transition artifacts: '+$directory)
 }

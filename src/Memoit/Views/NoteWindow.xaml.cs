@@ -54,7 +54,7 @@ public partial class NoteWindow : Window
     }
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(NoteViewModel.IsCollapsed)) ApplyLayout();
+        if (e.PropertyName == nameof(NoteViewModel.IsCollapsed) && !applyingLayout) ApplyLayout();
         if (e.PropertyName == nameof(NoteViewModel.Title)) UpdateTileTitle();
     }
     private void UpdateTileTitle()
@@ -89,21 +89,55 @@ public partial class NoteWindow : Window
     public void BeginArrangement(Rect bounds)
     {
         applyingLayout = true;
-        var dpi = VisualTreeHelper.GetDpi(this);
-        MinWidth = IsCollapsed ? 36 : Math.Min(280, bounds.Width / dpi.DpiScaleX);
-        MinHeight = IsCollapsed ? 36 : Math.Min(220, bounds.Height / dpi.DpiScaleY);
+        // Lower constraints before native resizing; raising them here would resize a tile twice.
+        MinWidth = 36; MinHeight = 36;
+    }
+    public void PrepareState(bool collapsed, Rect physicalFinalBounds)
+    {
+        SaveBounds();
+        BeginArrangement(physicalFinalBounds);
+        vm.IsCollapsed = collapsed;
+        ResizeMode = collapsed ? ResizeMode.NoResize : ResizeMode.CanResize;
+        WindowChrome.GetWindowChrome(this).ResizeBorderThickness = new Thickness(collapsed ? 0 : 5);
+        Root.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        CollapsedTile.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
     }
     public void EndArrangement()
     {
-        applyingLayout = false;
+        try
+        {
+            var bounds = WindowPlacement.GetBounds(this);
+            var dpi = VisualTreeHelper.GetDpi(this);
+            Width = bounds.Width / dpi.DpiScaleX;
+            Height = bounds.Height / dpi.DpiScaleY;
+            MinWidth = IsCollapsed ? 36 : Math.Min(200, Width);
+            MinHeight = IsCollapsed ? 36 : Math.Min(150, Height);
+        }
+        finally { applyingLayout = false; }
         SaveBounds();
     }
-    public void ToggleCollapsed()
+    public void ToggleCollapsed(bool focusEditor = true)
     {
         SaveBounds();
-        vm.IsCollapsed = !vm.IsCollapsed;
-        if (IsLoaded) { WindowPlacement.KeepVisible(this); SaveBounds(); }
-        if (!IsCollapsed) Editor.Focus();
+        if (!IsLoaded) { vm.IsCollapsed = !vm.IsCollapsed; return; }
+        bool collapse = !IsCollapsed;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var current = WindowPlacement.GetBounds(this);
+        var work = WindowPlacement.GetWorkArea(this);
+        var note = vm.Snapshot;
+        var target = collapse
+            ? new Rect((note.CollapsedLeft ?? Left) * dpi.DpiScaleX,
+                (note.CollapsedTop ?? Top) * dpi.DpiScaleY, 36 * dpi.DpiScaleX, 36 * dpi.DpiScaleY)
+            : new Rect(current.Left, current.Top, Math.Min(note.Width * dpi.DpiScaleX, work.Width),
+                Math.Min(note.Height * dpi.DpiScaleY, work.Height));
+        if (!collapse)
+            target.Location = new Point(Math.Clamp(target.Left, work.Left, work.Right - target.Width),
+                Math.Clamp(target.Top, work.Top, work.Bottom - target.Height));
+        PrepareState(collapse, target);
+        try { WindowPlacement.MoveTogether([(this, target)]); }
+        finally { EndArrangement(); }
+        if (collapse) { WindowPlacement.KeepVisible(this); SaveBounds(); }
+        if (!collapse && focusEditor) Editor.Focus();
     }
     private void OnClosing(object? sender, CancelEventArgs e)
     {

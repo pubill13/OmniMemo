@@ -50,6 +50,15 @@ public static class WindowPlacement
         KeepOnScreen(window);
     }
 
+    public static void StackInOrder(IReadOnlyList<Window> windows)
+    {
+        // Bring the last item first, then work towards the first. HWND_TOP preserves the window's
+        // topmost band; SWP_NOACTIVATE keeps the user's keyboard focus on its current control.
+        for (int i = windows.Count - 1; i >= 0; i--)
+            if (!SetWindowPos(new WindowInteropHelper(windows[i]).Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0013))
+                throw new System.ComponentModel.Win32Exception();
+    }
+
     public static Point GetPosition(Window window)
     {
         if (!GetWindowRect(new WindowInteropHelper(window).Handle, out var rect))

@@ -15,8 +15,7 @@ public sealed class LayoutOptionsWindow : Window
     private readonly ComboBox shape = new() { ItemsSource = new[] { "격자", "가로 한 줄", "세로 한 줄" } };
     private readonly ComboBox sort = new() { ItemsSource = new[] { "생성순", "색상순", "제목순" } };
     private readonly ComboBox corner = new() { ItemsSource = Enum.GetValues<ExpandedCorner>() };
-    // Kept as a compact compatibility control for existing automation/tests; it selects the note group.
-    private readonly ComboBox target = new() { ItemsSource = new[] { "접힌 메모", "펼친 메모" }, SelectedIndex = 0 };
+    private readonly Slider opacity = new() { Minimum = 30, Maximum = 100, TickFrequency = 5, IsSnapToTickEnabled = true };
     private readonly TabControl tabs = new();
     private readonly CheckBox autoStart = new() { Content = "Windows 로그인 시 OmniMemo 실행" };
     private readonly TextBox x = new(), y = new(), gap = new(), columns = new();
@@ -52,12 +51,11 @@ public sealed class LayoutOptionsWindow : Window
         var footer = new StackPanel(); DockPanel.SetDock(footer, Dock.Bottom);
         footer.Children.Add(status);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Children.Add(Button("적용", () => Dispatch(false))); actions.Children.Add(Button("모두 정돈", () => Dispatch(true))); footer.Children.Add(actions); root.Children.Add(footer);
+        actions.Children.Add(Button("적용", () => Dispatch(false))); actions.Children.Add(Button("접어서 정돈", () => Dispatch(true))); footer.Children.Add(actions); root.Children.Add(footer);
         root.Children.Add(tabs);
         var layout = new StackPanel { Margin = new Thickness(10) };
         layout.Children.Add(Label("모니터")); layout.Children.Add(monitorBox);
         layout.Children.Add(Label("접힌 메모"));
-        layout.Children.Add(Label("정렬 대상")); layout.Children.Add(target);
         layout.Children.Add(Label("배치 형태")); layout.Children.Add(shape); layout.Children.Add(Label("정렬 기준")); layout.Children.Add(sort);
         layout.Children.Add(Label("타일 시작점 X / Y (DIP)"));
         var coords = new UniformGridShim(); coords.Children.Add(x); coords.Children.Add(y); layout.Children.Add(coords);
@@ -66,7 +64,7 @@ public sealed class LayoutOptionsWindow : Window
         layout.Children.Add(Label("열 수 (0 = 자동, 최대 30)")); layout.Children.Add(columns);
         layout.Children.Add(Label("펼친 메모 시작 방향")); layout.Children.Add(corner);
         corner.ItemTemplate = CornerTemplate();
-        layout.Children.Add(new TextBlock { Text = "접기·펼치기와 위치 이동은 정돈하지 않습니다. 필요할 때 정돈을 실행하세요.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), Foreground = Brushes.DimGray });
+        layout.Children.Add(new TextBlock { Text = "접어서 정돈하면 타일 시작점에 모입니다. 모두 펼치면 선택한 모서리에서 같은 순서로 배치합니다.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), Foreground = Brushes.DimGray });
         tabs.Items.Add(new TabItem { Header = "배치", Content = new ScrollViewer { Content = layout, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
         var hotkeys = new DockPanel { Margin = new Thickness(8) };
         var reset = Button("모든 단축키 기본값", ResetAll); DockPanel.SetDock(reset, Dock.Bottom); hotkeys.Children.Add(reset);
@@ -91,6 +89,9 @@ public sealed class LayoutOptionsWindow : Window
     {
         var content = new StackPanel { Margin = new Thickness(10) };
         content.Children.Add(autoStart);
+        content.Children.Add(Label("미니 패널 불투명도 (30–100%)"));
+        content.Children.Add(opacity);
+        System.Windows.Automation.AutomationProperties.SetName(opacity, "패널 불투명도");
         content.Children.Add(Label("백업과 복원"));
         content.Children.Add(new TextBlock { Text = "매일 첫 저장 후 자동 백업하며 최근 7개를 보관합니다. 휴지통 메모도 포함됩니다.", TextWrapping = TextWrapping.Wrap });
         content.Children.Add(Button("백업 파일 저장…", () => BackupRequested?.Invoke()));
@@ -129,6 +130,7 @@ public sealed class LayoutOptionsWindow : Window
         EndCapture();
         refreshing = true;
         draft = settings with { Monitors = new(settings.Monitors), Hotkeys = new(settings.Hotkeys) };
+        opacity.Value = settings.OverlayOpacity * 100;
         monitors = available; selectedId = null;
         monitorBox.ItemsSource = monitors;
         monitorBox.SelectedItem = monitors.FirstOrDefault(m => m.Id == settings.SelectedMonitor) ?? monitors.FirstOrDefault();
@@ -147,7 +149,6 @@ public sealed class LayoutOptionsWindow : Window
         x.Text = value.X.ToString(CultureInfo.InvariantCulture); y.Text = value.Y.ToString(CultureInfo.InvariantCulture);
         gap.Text = value.Gap.ToString(CultureInfo.InvariantCulture); columns.Text = value.Columns.ToString(CultureInfo.InvariantCulture);
         shape.SelectedIndex = (int)value.Shape; sort.SelectedIndex = (int)value.Sort;
-        target.SelectedIndex = value.IncludeExpanded ? 1 : 0;
         corner.SelectedItem = value.ExpandedCorner;
     }
     private bool StoreMonitor()
@@ -157,7 +158,7 @@ public sealed class LayoutOptionsWindow : Window
             || !double.TryParse(gap.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var spacing) || !int.TryParse(columns.Text, out var count)
             || !double.IsFinite(px) || !double.IsFinite(py) || !double.IsFinite(spacing) || px < 0 || py < 0 || spacing < 0 || spacing > 24 || count < 0 || count > 30)
         { ShowError("위치와 간격은 0 이상의 숫자, 열 수는 0 이상의 정수를 입력하세요."); return false; }
-        draft.Monitors[selectedId] = new MonitorLayout { X = px, Y = py, Gap = spacing, Columns = count, IncludeExpanded = target.SelectedIndex == 1, Shape = (LayoutShape)shape.SelectedIndex, Sort = (LayoutSort)sort.SelectedIndex, ExpandedCorner = corner.SelectedItem is ExpandedCorner direction ? direction : ExpandedCorner.TopRight };
+        draft.Monitors[selectedId] = new MonitorLayout { X = px, Y = py, Gap = spacing, Columns = count, Shape = (LayoutShape)shape.SelectedIndex, Sort = (LayoutSort)sort.SelectedIndex, ExpandedCorner = corner.SelectedItem is ExpandedCorner direction ? direction : ExpandedCorner.TopRight };
         return true;
     }
     private void BuildRecorders()
@@ -204,7 +205,7 @@ public sealed class LayoutOptionsWindow : Window
         try
         {
             HotkeyService.Validate(draft.Hotkeys);
-            var candidate = draft with { AutoArrange = false, SelectedMonitor = selectedId, PanelLeft = Left, PanelTop = Top, Monitors = new(draft.Monitors), Hotkeys = new(draft.Hotkeys) };
+            var candidate = draft with { AutoArrange = false, OverlayOpacity = opacity.Value / 100, SelectedMonitor = selectedId, PanelLeft = Left, PanelTop = Top, Monitors = new(draft.Monitors), Hotkeys = new(draft.Hotkeys) };
             candidate.Validate();
             if (arrange) ArrangeRequested?.Invoke(candidate); else ApplyRequested?.Invoke(candidate);
         }

@@ -9,14 +9,14 @@ namespace Memoit.Tests;
 public sealed class NoteViewModelTests
 {
     [Fact]
-    public Task CollapseAndExpandRememberIndependentPositions() => OnDispatcher(() =>
+    public Task ExpandUsesTilePositionAndCollapseRemembersTilePosition() => OnDispatcher(() =>
     {
         using var vm = new NoteViewModel(new Note { Left = 100, Top = 200 }, _ => Task.CompletedTask);
         vm.SetCollapsed(true); vm.UpdatePosition(400, 500); vm.SetCollapsed(false);
-        Assert.Equal(100, vm.Snapshot.Left); Assert.Equal(200, vm.Snapshot.Top);
+        Assert.Equal(400, vm.Snapshot.Left); Assert.Equal(500, vm.Snapshot.Top);
         vm.UpdateBounds(600, 700, 400, 300); vm.SetCollapsed(true);
         Assert.Equal(400, vm.Snapshot.Left); Assert.Equal(500, vm.Snapshot.Top);
-        vm.SetCollapsed(false); Assert.Equal(600, vm.Snapshot.Left); Assert.Equal(400, vm.Snapshot.Width);
+        vm.SetCollapsed(false); Assert.Equal(400, vm.Snapshot.Left); Assert.Equal(400, vm.Snapshot.Width);
         return Task.CompletedTask;
     });
 

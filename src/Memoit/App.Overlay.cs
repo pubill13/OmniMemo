@@ -1,6 +1,7 @@
 using System.Windows;
 using Memoit.Services;
 using Memoit.Views;
+using Memoit.ViewModels;
 
 namespace Memoit;
 
@@ -25,13 +26,14 @@ public partial class App
         {
             overlayPanel = new OverlayPanelWindow(layoutSettings);
             overlayPanel.CommandRequested += ExecuteCommand;
-            overlayPanel.CollapseRequested += (collapsed, color) => RunOperation(() => SetFilteredCollapsedAsync(collapsed, color));
+            overlayPanel.CollapseRequested += (collapsed, color) => RunFilteredCollapsed(collapsed, color);
             overlayPanel.PreferencesChanged += SaveOverlayPreferences;
             overlayPanel.Hidden += SaveOverlayPreferences;
             overlayPanel.Left = layoutSettings.OverlayLeft ?? SystemParameters.WorkArea.Right - overlayPanel.Width - 16;
             overlayPanel.Top = layoutSettings.OverlayTop ?? SystemParameters.WorkArea.Top + 16;
         }
         overlayPanel.RefreshSettings(layoutSettings);
+        overlayPanel.SetHasVisibleNotes(windows.Values.Any(w => w.IsVisible));
         overlayPanel.Show();
         WindowPlacement.KeepOnScreen(overlayPanel);
         SaveOverlayPreferences();
@@ -45,7 +47,7 @@ public partial class App
             SaveLayoutSettings(layoutSettings with
             {
                 OverlayLeft = overlayPanel.Left, OverlayTop = overlayPanel.Top,
-                OverlayOpacity = overlayPanel.SelectedOpacity, OverlayTopmost = overlayPanel.SelectedTopmost,
+                OverlayTopmost = overlayPanel.SelectedTopmost,
                 OverlayColor = overlayPanel.SelectedColor, OverlayVisible = overlayPanel.IsVisible
             });
         }
@@ -59,14 +61,21 @@ public partial class App
         overlayPanel.AllowClose = true; overlayPanel.Close();
     }
 
+    private async void RunFilteredCollapsed(bool collapsed, string? color)
+    {
+        if (arranging || busy || shuttingDown) return;
+        arranging = true;
+        try { await SetFilteredCollapsedAsync(collapsed, color); ArrangementNotice("선택 색상 메모를 변경했습니다."); }
+        catch (Exception ex) { ArrangementNotice(ex.Message, true); }
+        finally { arranging = false; RefreshList(); }
+    }
     private async Task SetFilteredCollapsedAsync(bool collapsed, string? color)
     {
         var selected = windows.Where(p => p.Value.IsVisible && notes[p.Key].Snapshot.DeletedAt is null
             && NoteColors.Matches(notes[p.Key].Snapshot.Color, color)).ToArray();
         foreach (var pair in selected)
-            if (pair.Value.IsCollapsed != collapsed) pair.Value.ToggleCollapsed();
-        bool saved = true;
-        foreach (var pair in selected) saved &= await notes[pair.Key].FlushAsync();
+            if (pair.Value.IsCollapsed != collapsed) pair.Value.ToggleCollapsed(false);
+        bool saved = await NoteViewModel.FlushManyAsync(selected.Select(p => notes[p.Key]), store.SaveManyAsync);
         if (!saved) throw new IOException("일부 메모를 저장하지 못했습니다. 변경 내용은 유지되며 다음 편집 또는 종료 때 다시 저장합니다.");
     }
 }
