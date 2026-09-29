@@ -96,7 +96,9 @@ public partial class App
 
     private async Task ApplyTileMovesAsync(Dictionary<Guid, Point> moves)
     {
-        foreach (var move in moves) WindowPlacement.Move(windows[move.Key], move.Value);
+        foreach (var move in moves)
+            if (WindowPlacement.GetPosition(windows[move.Key]) != move.Value)
+                WindowPlacement.Move(windows[move.Key], move.Value);
         bool saved = true;
         foreach (var id in moves.Keys) saved &= await notes[id].FlushAsync();
         if (!saved) throw new IOException("정렬한 위치를 일부 저장하지 못했습니다. 창의 변경 내용은 유지됩니다.");

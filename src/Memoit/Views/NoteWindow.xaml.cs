@@ -3,7 +3,9 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Shell;
 using Memoit.ViewModels;
 using Memoit.Services;
@@ -17,6 +19,9 @@ public partial class NoteWindow : Window
     private Point? tilePress;
     private bool draggingTile;
     private Point tileOrigin;
+    private bool draggingHeader;
+    public bool IsDragging => draggingHeader || tilePress.HasValue;
+    public event Action? InteractionFinished;
     public bool AllowClose { get; set; }
     public bool IsCollapsed => vm.IsCollapsed;
     public string CollapseGesture { get; set; } = "Ctrl+Shift+Space";
@@ -32,13 +37,6 @@ public partial class NoteWindow : Window
 
     public void SetAutoArrange(bool enabled) => AutoArrangeItem.IsChecked = enabled;
     public bool EditorHasFocus => Editor.IsKeyboardFocusWithin;
-    public (int Start, int Length) CaptureEditorSelection() => (Editor.SelectionStart, Editor.SelectionLength);
-    public void RestoreEditorFocus((int Start, int Length) selection)
-    {
-        if (!IsVisible || IsCollapsed) return;
-        Editor.Focus();
-        Editor.Select(Math.Clamp(selection.Start, 0, Editor.Text.Length), Math.Clamp(selection.Length, 0, Math.Max(0, Editor.Text.Length - selection.Start)));
-    }
 
     public NoteWindow(NoteViewModel vm)
     {
@@ -53,6 +51,8 @@ public partial class NoteWindow : Window
         LocationChanged += (_, _) => SaveBounds();
         SizeChanged += (_, _) => SaveBounds();
         Loaded += (_, _) => { if (!IsCollapsed) Editor.Focus(); };
+        Editor.LostKeyboardFocus += (_, _) =>
+            _ = Dispatcher.BeginInvoke(() => InteractionFinished?.Invoke());
     }
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -101,14 +101,25 @@ public partial class NoteWindow : Window
     }
     private void OnDrag(object sender, MouseButtonEventArgs e)
     {
-        if ((e.OriginalSource is Grid || e.OriginalSource is StackPanel || e.OriginalSource is TextBlock) && e.LeftButton == MouseButtonState.Pressed) DragNote();
+        if (e.LeftButton != MouseButtonState.Pressed) return;
+        // Template visuals and the status dot are draggable; actual buttons keep their actions.
+        for (var source = e.OriginalSource as DependencyObject; source is not null && source != sender;
+            source = source is Visual ? VisualTreeHelper.GetParent(source) : LogicalTreeHelper.GetParent(source))
+            if (source is ButtonBase) return;
+        e.Handled = true;
+        DragNote();
     }
     private void DragNote()
     {
-        DragMove();
-        SaveBounds();
-        TileDragCompleted?.Invoke();
-
+        draggingHeader = true;
+        try { DragMove(); }
+        finally
+        {
+            draggingHeader = false;
+            SaveBounds();
+            TileDragCompleted?.Invoke();
+            InteractionFinished?.Invoke();
+        }
     }
     private void OnTileDown(object sender, MouseButtonEventArgs e)
     {
@@ -132,6 +143,7 @@ public partial class NoteWindow : Window
             SaveBounds();
             TileDragCompleted?.Invoke();
         }
+        InteractionFinished?.Invoke();
         e.Handled = true;
     }
     private void OnTileMove(object sender, MouseEventArgs e)
@@ -151,7 +163,11 @@ public partial class NoteWindow : Window
         if (!draggingTile) ToggleCollapsed();
         e.Handled = true;
     }
-    private void OnTileLostCapture(object sender, MouseEventArgs e) { tilePress = null; draggingTile = false; }
+    private void OnTileLostCapture(object sender, MouseEventArgs e)
+    {
+        tilePress = null; draggingTile = false;
+        InteractionFinished?.Invoke();
+    }
     private void OnNew(object sender, RoutedEventArgs e) => NewNoteRequested?.Invoke();
     private void OnSearch(object sender, RoutedEventArgs e) => SearchRequested?.Invoke();
     private void OnDelete(object sender, RoutedEventArgs e) => DeleteRequested?.Invoke();

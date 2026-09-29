@@ -33,7 +33,18 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
 
     public Note Snapshot => note;
     public string Title => note.Title;
-    public string Body { get => note.Body; set { if (value != note.Body) { note = note with { Body = value }; Changed(); Notify(); Notify(nameof(Title)); } } }
+    public string Body
+    {
+        get => note.Body;
+        set
+        {
+            if (value == note.Body) return;
+            string previousTitle = note.Title;
+            note = note with { Body = value };
+            Changed(); Notify();
+            if (note.Title != previousTitle) Notify(nameof(Title));
+        }
+    }
     public string Color { get => note.Color; set { if (value != note.Color) { note = note with { Color = value }; Changed(); Notify(); } } }
     public double FontSize { get => note.FontSize; set { if (value != note.FontSize) { note = note with { FontSize = value }; Changed(); Notify(); } } }
     public string FontFamily { get => note.FontFamily; set { if (!string.IsNullOrWhiteSpace(value) && value.Length <= 100 && value != note.FontFamily) { note = note with { FontFamily = value }; Changed(); Notify(); Notify(nameof(EffectiveFontFamily)); } } }

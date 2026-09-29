@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite로 �
 
 ## 실행과 사용
 
-`artifacts/OmniMemo-1.5.0/win-x64/OmniMemo.exe`를 실행하세요. 게시본에는 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다.
+`artifacts/OmniMemo-1.5.1/win-x64/OmniMemo.exe`를 실행하세요. 게시본에는 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다.
 
 - **트레이 전용:** 메모·목록·설정 창은 작업 표시줄에 표시되지 않습니다. 트레이의 OmniMemo 아이콘을 우클릭해 새 메모, 목록, 전체 숨기기·보이기, 설정, 종료를 선택합니다. 더블클릭하면 목록이 열립니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 - **접기:** 상단 ↙ 버튼으로 36×36 DIP 타일로 접습니다. 타일을 클릭하거나 Enter/Space를 누르면 펼칩니다. 타일은 앞 두 글자와 전체 제목 툴팁을 표시합니다. 오른쪽 메뉴에서 펼치기·고정·숨기기·삭제를 할 수 있습니다.
@@ -19,6 +19,10 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite로 �
 - **단축키:** 앱 안에서 Ctrl+N은 새 메모, Ctrl+F는 목록 검색입니다.
 
 36 DIP는 100% Windows 배율에서 약 1cm에 해당하는 논리 크기입니다. 실제 길이는 모니터와 Windows 배율에 따라 달라집니다. 얇은 스크롤바는 메모 배경에 맞춰 색을 바꾸며 고대비 모드에서는 시스템 색을 사용합니다.
+
+## 입력과 자동 정렬
+
+1.5.1에서는 자동 정렬 중 전체 창을 비활성화하거나 이전 캐럿 위치를 강제로 복원하던 동작을 제거했습니다. 메모 본문에 포커스가 있거나 드래그 중이면 자동 정렬을 보류하고, 편집기를 벗어나면 필요한 정렬을 한 번 실행합니다. 제목순 배치에서 실제 제목이 바뀐 경우에만 제목 정렬을 예약합니다. 펼친 메모를 직접 드래그하면 놓은 위치를 유지하며 즉시 자동 정렬로 되돌리지 않습니다. 타일 자동 정렬과 명시적인 지금 정렬은 기존대로 사용할 수 있습니다.
 
 ## 목록 관리
 
@@ -70,7 +74,7 @@ $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet build Memoit.slnx --no-restore
 dotnet test Memoit.slnx --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.5.0/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.5.1/win-x64
 ```
 
 개인 데이터와 분리해서 실행할 때는 `OMNIMEMO_DATA_DIR` 환경 변수에 검증용 폴더를 지정합니다. 이전 `MEMOIT_DATA_DIR`도 인식하지만 새 이름이 우선합니다. 격리 실행은 기존 자동 실행 등록을 갱신하지 않습니다. 테스트 렌더링은 `OMNIMEMO_VISUAL_DIR`를 지정하면 해당 폴더에 저장합니다.
@@ -80,9 +84,9 @@ dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained t
 게시본 검증 스크립트는 Windows PowerShell 5.1의 `-STA` 옵션으로 실행합니다. 모두 검증 전용 데이터 폴더를 사용하며, TraySmoke는 OmniMemo 트레이 메뉴 검증 중 마우스를 잠시 사용한 뒤 위치를 복원합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/SmokeTest.ps1 -Executable artifacts/OmniMemo-1.5.0/win-x64/OmniMemo.exe
-powershell.exe -NoProfile -STA -File scripts/TraySmoke.ps1 -Executable artifacts/OmniMemo-1.5.0/win-x64/OmniMemo.exe
-powershell.exe -NoProfile -STA -File scripts/HotkeySmoke.ps1 -Executable artifacts/OmniMemo-1.5.0/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/SmokeTest.ps1 -Executable artifacts/OmniMemo-1.5.1/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/TraySmoke.ps1 -Executable artifacts/OmniMemo-1.5.1/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/HotkeySmoke.ps1 -Executable artifacts/OmniMemo-1.5.1/win-x64/OmniMemo.exe
 ```
 
 동기화, 이미지, 일정 알림, 부분 글자 서식은 포함하지 않습니다. 소스의 Memoit 네임스페이스·프로젝트 경로는 호환성을 위해 유지하며 표시 이름과 실행 파일은 OmniMemo입니다.

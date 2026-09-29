@@ -23,9 +23,7 @@ public partial class App : Application
     private HotkeyService? hotkeys;
     private LayoutSettings layoutSettings = new();
     private Forms.ToolStripMenuItem? autoArrangeMenu;
-    private bool arrangementQueued;
-    private bool arranging;
-    private bool arrangementPending;
+    private AutoArrangeQueue? autoArrangeQueue;
     private bool busy;
     private bool shuttingDown;
     private bool backupInProgress;
@@ -187,8 +185,13 @@ public partial class App : Application
         vm.Saved += OnNoteSaved;
         vm.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(NoteViewModel.IsCollapsed) or nameof(NoteViewModel.Color)
-                || e.PropertyName == nameof(NoteViewModel.Title) && (vm.IsCollapsed || layoutSettings.Monitors.Values.Any(m => m.IncludeExpanded))) QueueAutoArrange();
+            if (e.PropertyName is nameof(NoteViewModel.IsCollapsed) or nameof(NoteViewModel.Color)) QueueAutoArrange();
+            else if (e.PropertyName == nameof(NoteViewModel.Title)
+                && windows.TryGetValue(vm.Snapshot.Id, out var window) && window.IsVisible)
+            {
+                var options = layoutSettings.GetMonitor(MonitorCatalog.ForWindow(window).Id);
+                if (options.Sort == LayoutSort.Title && (vm.IsCollapsed || options.IncludeExpanded)) QueueAutoArrange();
+            }
         };
         notes.Add(note.Id, vm);
         return vm;
@@ -218,7 +221,12 @@ public partial class App : Application
             window.LayoutOptionsRequested += () => ExecuteCommand("TogglePanel");
             window.ArrangeTilesRequested += byColor => ExecuteCommand(byColor ? "SortColor" : "SortCreated");
             window.AutoArrangeChanged += enabled => RunOperation(() => SetAutoArrangeAsync(enabled), false);
-            window.TileDragCompleted += QueueAutoArrange;
+            window.TileDragCompleted += () =>
+            {
+                if (target.IsCollapsed) QueueAutoArrange();
+                else autoArrangeQueue?.CancelPending(); // A deliberate move takes precedence over an outstanding title sort.
+            };
+            window.InteractionFinished += () => autoArrangeQueue?.Resume();
             window.IsVisibleChanged += (_, _) => QueueAutoArrange();
             window.SearchRequested += () => { if (!busy) ShowList(true); };
             window.HideRequested += (_, _) => RunOperation(async () =>
@@ -254,21 +262,16 @@ public partial class App : Application
     private void QueueAutoArrange()
     {
         if (!layoutSettings.AutoArrange || shuttingDown) return;
-        if (arranging) { arrangementPending = true; return; }
-        if (arrangementQueued) return;
-        arrangementQueued = true;
-        Dispatcher.BeginInvoke(async () =>
+        autoArrangeQueue ??= new AutoArrangeQueue(Dispatcher,
+            () => layoutSettings.AutoArrange && !shuttingDown && !busy
+                && !windows.Values.Any(w => w.IsVisible && (w.EditorHasFocus || w.IsDragging)),
+            async () =>
         {
-            arrangementQueued = false;
-            if (!layoutSettings.AutoArrange || shuttingDown || busy) return;
-            arranging = true;
             busy = true;
-            var focusedEditor = windows.Values.FirstOrDefault(w => w.EditorHasFocus);
-            var editorSelection = focusedEditor is null ? (0, 0) : focusedEditor.CaptureEditorSelection();
-            foreach (Window window in Windows) window.IsEnabled = false;
             try { await ArrangeTilesAsync(); }
-            catch (Exception ex)
-            {
+            finally { busy = false; }
+        }, ex =>
+        {
                 // Do not repeatedly move notes or show errors when a disk/screen is full.
                 layoutSettings = layoutSettings with { AutoArrange = false };
                 if (autoArrangeMenu is not null) autoArrangeMenu.Checked = false;
@@ -277,17 +280,8 @@ public partial class App : Application
                 try { SaveLayoutSettings(layoutSettings); }
                 catch (Exception settingsError) { message += "\n중단 설정을 저장하지 못했습니다: " + settingsError.Message; }
                 Error(message, ex);
-            }
-            finally
-            {
-                arranging = false;
-                busy = false;
-                if (!shuttingDown) foreach (Window window in Windows) window.IsEnabled = true;
-                if (!shuttingDown && focusedEditor is not null)
-                    _ = Dispatcher.BeginInvoke(() => focusedEditor.RestoreEditorFocus(editorSelection), DispatcherPriority.Input);
-                if (arrangementPending) { arrangementPending = false; QueueAutoArrange(); }
-            }
-        }, DispatcherPriority.Background);
+        });
+        autoArrangeQueue.Request();
     }
     private void ShowList(bool search = false)
     {
@@ -412,6 +406,7 @@ public partial class App : Application
                 foreach (Window window in Windows) window.IsEnabled = true;
                 RefreshList();
                 if (queueAutoArrange) QueueAutoArrange();
+                else autoArrangeQueue?.Resume();
             }
         }
     }
