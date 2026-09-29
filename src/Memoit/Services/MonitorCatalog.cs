@@ -27,6 +27,18 @@ public static class MonitorCatalog
 
     public static IReadOnlyList<MonitorDescriptor> All() => Forms.Screen.AllScreens.Select(Describe).ToArray();
 
+    public static MonitorDescriptor Nearest(Rect bounds, IReadOnlyList<MonitorDescriptor> monitors)
+        => monitors.OrderByDescending(m =>
+        {
+            var overlap = Rect.Intersect(bounds, m.WorkArea);
+            return overlap.IsEmpty ? 0 : overlap.Width * overlap.Height;
+        }).ThenBy(m =>
+        {
+            double dx = Math.Max(0, Math.Max(m.WorkArea.Left - bounds.Right, bounds.Left - m.WorkArea.Right));
+            double dy = Math.Max(0, Math.Max(m.WorkArea.Top - bounds.Bottom, bounds.Top - m.WorkArea.Bottom));
+            return dx * dx + dy * dy;
+        }).First();
+
     public static MonitorDescriptor ForWindow(Window window)
         => Describe(Forms.Screen.FromHandle(new WindowInteropHelper(window).Handle)) with
         { Scale = System.Windows.Media.VisualTreeHelper.GetDpi(window).DpiScaleX };

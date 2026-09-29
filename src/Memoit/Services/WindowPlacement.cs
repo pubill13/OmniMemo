@@ -14,6 +14,41 @@ public static class WindowPlacement
     [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr BeginDeferWindowPos(int count);
+    [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr DeferWindowPos(IntPtr batch, IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    [DllImport("user32.dll", SetLastError = true)] private static extern bool EndDeferWindowPos(IntPtr batch);
+
+    public static System.Windows.Rect GetBounds(Window window)
+    {
+        if (!GetWindowRect(new WindowInteropHelper(window).Handle, out var rect))
+            throw new System.ComponentModel.Win32Exception();
+        return new(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+    }
+
+    public static void MoveTogether(IReadOnlyList<(Window Window, System.Windows.Rect Bounds)> moves)
+    {
+        if (moves.Count == 0) return;
+        var batch = BeginDeferWindowPos(moves.Count);
+        if (batch == IntPtr.Zero) throw new System.ComponentModel.Win32Exception();
+        foreach (var (window, bounds) in moves)
+        {
+            batch = DeferWindowPos(batch, new WindowInteropHelper(window).Handle, IntPtr.Zero,
+                (int)Math.Round(bounds.X), (int)Math.Round(bounds.Y),
+                (int)Math.Round(bounds.Width), (int)Math.Round(bounds.Height), 0x0014);
+            if (batch == IntPtr.Zero) throw new System.ComponentModel.Win32Exception();
+        }
+        if (!EndDeferWindowPos(batch)) throw new System.ComponentModel.Win32Exception();
+    }
+
+    public static void KeepVisible(Window window)
+    {
+        if (new WindowInteropHelper(window).Handle == IntPtr.Zero) return;
+        var bounds = GetBounds(window);
+        if (System.Windows.Forms.Screen.AllScreens.Any(screen =>
+            bounds.IntersectsWith(new System.Windows.Rect(screen.WorkingArea.X, screen.WorkingArea.Y,
+                screen.WorkingArea.Width, screen.WorkingArea.Height)))) return;
+        KeepOnScreen(window);
+    }
 
     public static Point GetPosition(Window window)
     {

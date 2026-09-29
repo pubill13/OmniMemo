@@ -8,11 +8,12 @@ namespace Memoit.Services;
 public sealed class NoteStore(string databasePath) : IDisposable
 {
     private const int ApplicationId = 0x4D454D49;
-    private const int SchemaVersion = 2;
+    private const int SchemaVersion = 3;
     private readonly string path = Path.GetFullPath(databasePath);
     private readonly SemaphoreSlim gate = new(1, 1);
     private bool disposed;
-    private const string Columns = "id, body, color, font_size, font_family, is_collapsed, left_pos, top_pos, width, height, is_visible, is_pinned, created_at, updated_at, deleted_at";
+    private const string LegacyColumns = "id, body, color, font_size, font_family, is_collapsed, left_pos, top_pos, width, height, is_visible, is_pinned, created_at, updated_at, deleted_at";
+    private const string Columns = LegacyColumns + ", collapsed_left, collapsed_top, expanded_left, expanded_top";
 
     public Task InitializeAsync() => Run(() =>
     {
@@ -23,20 +24,25 @@ public sealed class NoteStore(string databasePath) : IDisposable
             && Scalar(db, "PRAGMA application_id") == 0)
         {
             using var tx = db.BeginTransaction();
-            Execute(db, "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL, color TEXT NOT NULL, font_size REAL NOT NULL, font_family TEXT NOT NULL DEFAULT 'Malgun Gothic', is_collapsed INTEGER NOT NULL DEFAULT 0, left_pos REAL NOT NULL, top_pos REAL NOT NULL, width REAL NOT NULL, height REAL NOT NULL, is_visible INTEGER NOT NULL, is_pinned INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT)", tx);
+            Execute(db, "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL, color TEXT NOT NULL, font_size REAL NOT NULL, font_family TEXT NOT NULL DEFAULT 'Malgun Gothic', is_collapsed INTEGER NOT NULL DEFAULT 0, left_pos REAL NOT NULL, top_pos REAL NOT NULL, width REAL NOT NULL, height REAL NOT NULL, is_visible INTEGER NOT NULL, is_pinned INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT, collapsed_left REAL, collapsed_top REAL, expanded_left REAL, expanded_top REAL)", tx);
             Execute(db, $"PRAGMA application_id={ApplicationId}; PRAGMA user_version={SchemaVersion}", tx);
             tx.Commit();
         }
         if (version > SchemaVersion) throw new InvalidDataException("지원하지 않는 데이터베이스 버전입니다. 파일을 변경하지 않았습니다.");
-        if (version == 1)
+        if (version is 1 or 2)
         {
             ValidateApplicationId(db);
             ValidateQuickCheck(db);
-            _ = ReadNotesV1(db); // validate every row before any mutation
+            _ = version == 1 ? ReadNotesV1(db) : ReadNotes(db, true); // validate before mutation
             BackupRaw(db, Path.Combine(Path.GetDirectoryName(path)!, "backups", $"before-migration-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.db"));
             using var tx = db.BeginTransaction();
-            Execute(db, "ALTER TABLE notes ADD COLUMN font_family TEXT NOT NULL DEFAULT 'Malgun Gothic'", tx);
-            Execute(db, "ALTER TABLE notes ADD COLUMN is_collapsed INTEGER NOT NULL DEFAULT 0", tx);
+            if (version == 1)
+            {
+                Execute(db, "ALTER TABLE notes ADD COLUMN font_family TEXT NOT NULL DEFAULT 'Malgun Gothic'", tx);
+                Execute(db, "ALTER TABLE notes ADD COLUMN is_collapsed INTEGER NOT NULL DEFAULT 0", tx);
+            }
+            Execute(db, "ALTER TABLE notes ADD COLUMN collapsed_left REAL; ALTER TABLE notes ADD COLUMN collapsed_top REAL; ALTER TABLE notes ADD COLUMN expanded_left REAL; ALTER TABLE notes ADD COLUMN expanded_top REAL", tx);
+            Execute(db, "UPDATE notes SET collapsed_left=CASE WHEN is_collapsed=1 THEN left_pos END, collapsed_top=CASE WHEN is_collapsed=1 THEN top_pos END, expanded_left=CASE WHEN is_collapsed=0 THEN left_pos END, expanded_top=CASE WHEN is_collapsed=0 THEN top_pos END", tx);
             Execute(db, $"PRAGMA user_version={SchemaVersion}", tx);
             tx.Commit();
         }
@@ -50,15 +56,21 @@ public sealed class NoteStore(string databasePath) : IDisposable
         return ReadNotes(db);
     });
 
-    public Task SaveAsync(Note note) => Run(() =>
+    public Task SaveAsync(Note note) => SaveManyAsync([note]);
+
+    public Task SaveManyAsync(IReadOnlyList<Note> notes)
     {
-        ValidateNote(note);
-        using var db = Open(path);
-        ValidateHeader(db);
-        using var tx = db.BeginTransaction();
-        WriteNote(db, tx, note);
-        tx.Commit();
-    });
+        var snapshots = notes.ToArray();
+        return Run(() =>
+        {
+            foreach (var note in snapshots) ValidateNote(note);
+            using var db = Open(path);
+            ValidateHeader(db);
+            using var tx = db.BeginTransaction();
+            foreach (var note in snapshots) WriteNote(db, tx, note);
+            tx.Commit();
+        });
+    }
 
     public Task DeletePermanentlyAsync(Guid id) => Run(() =>
     {
@@ -92,6 +104,7 @@ public sealed class NoteStore(string databasePath) : IDisposable
         {
             long version = Scalar(incoming, "PRAGMA user_version");
             if (version == 1) { ValidateApplicationId(incoming); ValidateQuickCheck(incoming); notes = ReadNotesV1(incoming); }
+            else if (version == 2) { ValidateApplicationId(incoming); ValidateQuickCheck(incoming); notes = ReadNotes(incoming, true); }
             else { ValidateDatabase(incoming); notes = ReadNotes(incoming); }
         }
         BackupCore(Path.Combine(Path.GetDirectoryName(path)!, "backups", $"before-restore-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.db"));
@@ -134,7 +147,7 @@ public sealed class NoteStore(string databasePath) : IDisposable
                 original.BackupDatabase(backup);
                 ValidateApplicationId(backup);
                 ValidateQuickCheck(backup);
-                _ = ReadNotesV1(backup);
+                _ = Scalar(backup, "PRAGMA user_version") == 1 ? ReadNotesV1(backup) : ReadNotes(backup, true);
             }
             File.Move(temporary, destination, true);
         }
@@ -172,15 +185,16 @@ public sealed class NoteStore(string databasePath) : IDisposable
         {
             if (reader.GetInt32(8) is not (0 or 1) || reader.GetInt32(9) is not (0 or 1)) throw new InvalidDataException("메모 표시 상태가 올바르지 않습니다.");
             var n = new Note { Id=Guid.Parse(reader.GetString(0)), Body=reader.GetString(1), Color=reader.GetString(2), FontSize=reader.GetDouble(3), Left=reader.GetDouble(4), Top=reader.GetDouble(5), Width=reader.GetDouble(6), Height=reader.GetDouble(7), IsVisible=reader.GetBoolean(8), IsPinned=reader.GetBoolean(9), CreatedAt=ParseTime(reader.GetString(10)), UpdatedAt=ParseTime(reader.GetString(11)), DeletedAt=reader.IsDBNull(12)?null:ParseTime(reader.GetString(12)) };
+            n = n with { ExpandedLeft = n.Left, ExpandedTop = n.Top };
             ValidateNote(n); notes.Add(n);
         }
         return notes.OrderByDescending(n => n.UpdatedAt).ToList();
     }
 
-    private static List<Note> ReadNotes(SqliteConnection db)
+    private static List<Note> ReadNotes(SqliteConnection db, bool legacy = false)
     {
         using var command = db.CreateCommand();
-        command.CommandText = $"SELECT {Columns} FROM notes ORDER BY updated_at DESC";
+        command.CommandText = $"SELECT {(legacy ? LegacyColumns : Columns)} FROM notes ORDER BY updated_at DESC";
         using var reader = command.ExecuteReader();
         var notes = new List<Note>();
         while (reader.Read())
@@ -193,6 +207,9 @@ public sealed class NoteStore(string databasePath) : IDisposable
                 IsVisible = reader.GetBoolean(10), IsPinned = reader.GetBoolean(11), CreatedAt = ParseTime(reader.GetString(12)),
                 UpdatedAt = ParseTime(reader.GetString(13)), DeletedAt = reader.IsDBNull(14) ? null : ParseTime(reader.GetString(14))
             };
+            note = legacy
+                ? note.IsCollapsed ? note with { CollapsedLeft = note.Left, CollapsedTop = note.Top } : note with { ExpandedLeft = note.Left, ExpandedTop = note.Top }
+                : note with { CollapsedLeft = reader.IsDBNull(15) ? null : reader.GetDouble(15), CollapsedTop = reader.IsDBNull(16) ? null : reader.GetDouble(16), ExpandedLeft = reader.IsDBNull(17) ? null : reader.GetDouble(17), ExpandedTop = reader.IsDBNull(18) ? null : reader.GetDouble(18) };
             ValidateNote(note);
             notes.Add(note);
         }
@@ -204,18 +221,21 @@ public sealed class NoteStore(string databasePath) : IDisposable
     {
         if (note.Id == Guid.Empty || note.Body is null || note.Color is null || !Regex.IsMatch(note.Color, "^#[0-9a-fA-F]{6}$")
             || !double.IsFinite(note.Left) || !double.IsFinite(note.Top) || !double.IsFinite(note.Width) || !double.IsFinite(note.Height)
-            || !double.IsFinite(note.FontSize) || note.Width < 200 || note.Height < 150 || note.FontSize < 10 || note.FontSize > 72
+            || !double.IsFinite(note.FontSize) || note.Width < 36 || note.Height < 36 || note.FontSize < 10 || note.FontSize > 72
+            || !ValidPosition(note.CollapsedLeft, note.CollapsedTop) || !ValidPosition(note.ExpandedLeft, note.ExpandedTop)
             || string.IsNullOrWhiteSpace(note.FontFamily) || note.FontFamily.Length > 100)
             throw new InvalidDataException("메모의 내용 또는 창 설정이 올바르지 않습니다.");
     }
+
+    private static bool ValidPosition(double? x, double? y) => x.HasValue == y.HasValue && (!x.HasValue || (double.IsFinite(x.Value) && double.IsFinite(y!.Value)));
 
     private static void WriteNote(SqliteConnection db, SqliteTransaction tx, Note note)
     {
         using var cmd = db.CreateCommand();
         cmd.Transaction = tx;
-        cmd.CommandText = $"INSERT OR REPLACE INTO notes ({Columns}) VALUES ($id,$body,$color,$font,$family,$collapsed,$left,$top,$width,$height,$visible,$pinned,$created,$updated,$deleted)";
-        object[] values = [note.Id.ToString(), note.Body, note.Color, note.FontSize, note.FontFamily, note.IsCollapsed, note.Left, note.Top, note.Width, note.Height, note.IsVisible, note.IsPinned, note.CreatedAt.ToString("O"), note.UpdatedAt.ToString("O"), (object?)note.DeletedAt?.ToString("O") ?? DBNull.Value];
-        string[] names = ["id", "body", "color", "font", "family", "collapsed", "left", "top", "width", "height", "visible", "pinned", "created", "updated", "deleted"];
+        cmd.CommandText = $"INSERT OR REPLACE INTO notes ({Columns}) VALUES ($id,$body,$color,$font,$family,$collapsed,$left,$top,$width,$height,$visible,$pinned,$created,$updated,$deleted,$cl,$ct,$el,$et)";
+        object[] values = [note.Id.ToString(), note.Body, note.Color, note.FontSize, note.FontFamily, note.IsCollapsed, note.Left, note.Top, note.Width, note.Height, note.IsVisible, note.IsPinned, note.CreatedAt.ToString("O"), note.UpdatedAt.ToString("O"), (object?)note.DeletedAt?.ToString("O") ?? DBNull.Value, (object?)note.CollapsedLeft ?? DBNull.Value, (object?)note.CollapsedTop ?? DBNull.Value, (object?)note.ExpandedLeft ?? DBNull.Value, (object?)note.ExpandedTop ?? DBNull.Value];
+        string[] names = ["id", "body", "color", "font", "family", "collapsed", "left", "top", "width", "height", "visible", "pinned", "created", "updated", "deleted", "cl", "ct", "el", "et"];
         for (int i = 0; i < values.Length; i++) cmd.Parameters.AddWithValue("$" + names[i], values[i]);
         cmd.ExecuteNonQuery();
     }

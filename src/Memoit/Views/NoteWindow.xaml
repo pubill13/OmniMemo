@@ -43,7 +43,7 @@
        <MenuItem Header="노랑" Tag="#FFF2B3" Click="OnColor"/><MenuItem Header="분홍" Tag="#FFDDE7" Click="OnColor"/><MenuItem Header="초록" Tag="#DEF0D8" Click="OnColor"/><MenuItem Header="파랑" Tag="#DCEBFA" Click="OnColor"/><MenuItem Header="보라" Tag="#EAE0F7" Click="OnColor"/><MenuItem Header="흰색" Tag="#FAFAF5" Click="OnColor"/>
       </MenuItem>
       <MenuItem Header="글꼴"><MenuItem Header="맑은 고딕" Tag="Malgun Gothic" Click="OnFontFamily"/><MenuItem Header="굴림" Tag="Gulim" Click="OnFontFamily"/><MenuItem Header="Segoe UI" Tag="Segoe UI" Click="OnFontFamily"/><MenuItem Header="Arial" Tag="Arial" Click="OnFontFamily"/><MenuItem Header="Consolas" Tag="Consolas" Click="OnFontFamily"/><MenuItem Header="Times New Roman" Tag="Times New Roman" Click="OnFontFamily"/></MenuItem><MenuItem Header="글자 크기"><MenuItem Header="10" Tag="10" Click="OnFont"/><MenuItem Header="12" Tag="12" Click="OnFont"/><MenuItem Header="14" Tag="14" Click="OnFont"/><MenuItem Header="16" Tag="16" Click="OnFont"/><MenuItem Header="18" Tag="18" Click="OnFont"/><MenuItem Header="20" Tag="20" Click="OnFont"/><MenuItem Header="24" Tag="24" Click="OnFont"/><MenuItem Header="28" Tag="28" Click="OnFont"/><MenuItem Header="32" Tag="32" Click="OnFont"/></MenuItem>
-      <MenuItem Header="메모 목록 / 검색" InputGestureText="Ctrl+F" Click="OnSearch"/><MenuItem Header="정렬 옵션…" Click="OnLayoutOptions"/><Separator/><MenuItem Header="휴지통으로 이동" Click="OnDelete"/>
+      <MenuItem Header="메모 목록 / 검색" InputGestureText="Ctrl+F" Click="OnSearch"/><MenuItem Header="설정…" Click="OnLayoutOptions"/><Separator/><MenuItem Header="휴지통으로 이동" Click="OnDelete"/>
      </ContextMenu></Button.ContextMenu>
     </Button>
     <Button Grid.Column="5" Content="×" ToolTip="메모 숨기기 (목록에서 다시 열 수 있습니다)" AutomationProperties.Name="메모 숨기기" Click="OnHide"/>
@@ -85,13 +85,12 @@
   <Button x:Name="CollapsedTile" Visibility="Collapsed" Background="Transparent" ToolTip="{Binding Title}" PreviewMouseLeftButtonDown="OnTileDown" PreviewMouseLeftButtonUp="OnTileUp" PreviewMouseMove="OnTileMove" Click="OnTileClick" LostMouseCapture="OnTileLostCapture" Cursor="Hand" Padding="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" AutomationProperties.Name="접힌 메모, 클릭하여 펼치기">
    <Button.Template><ControlTemplate TargetType="Button"><Border Background="{TemplateBinding Background}"><ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/></Border></ControlTemplate></Button.Template>
    <Button.ContextMenu><ContextMenu>
-    <MenuItem Header="펼치기" Click="OnCollapse"/><MenuItem Header="정렬 옵션…" Click="OnLayoutOptions"/>
+    <MenuItem Header="펼치기" Click="OnCollapse"/><MenuItem Header="설정…" Click="OnLayoutOptions"/>
     <MenuItem Header="항상 위에 표시" IsCheckable="True" IsChecked="{Binding IsPinned}"/>
-    <MenuItem Header="접힌 메모 정렬" AutomationProperties.Name="접힌 메모 정렬">
-     <MenuItem Header="생성순으로 정렬" Click="OnArrangeByCreated"/>
-     <MenuItem Header="색상별로 정렬" Click="OnArrangeByColor"/>
+    <MenuItem Header="메모 정돈" AutomationProperties.Name="메모 정돈">
+     <MenuItem Header="생성순으로 정돈" Click="OnArrangeByCreated"/>
+     <MenuItem Header="색상별로 정돈" Click="OnArrangeByColor"/>
      <Separator/>
-     <MenuItem x:Name="AutoArrangeItem" Header="자동 정렬" IsCheckable="True" Click="OnAutoArrange" ToolTip="접힌 메모의 자동 정렬 켜기 또는 끄기"/>
     </MenuItem>
     <MenuItem Header="메모 숨기기" Click="OnHide"/><Separator/><MenuItem Header="휴지통으로 이동" Click="OnDelete"/>
    </ContextMenu></Button.ContextMenu>

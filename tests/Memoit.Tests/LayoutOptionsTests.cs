@@ -21,17 +21,17 @@ public sealed class LayoutOptionsTests
             try
             {
                 Field<TextBox>(window, "x").Text = "123";
-                Assert.Equal(0, Field<ComboBox>(window, "target").SelectedIndex);
-                Assert.Equal("정렬 대상", System.Windows.Automation.AutomationProperties.GetName(Field<ComboBox>(window, "target")));
-                Field<ComboBox>(window, "target").SelectedIndex = 1;
+                Assert.Equal(ExpandedCorner.TopRight, Field<ComboBox>(window, "corner").SelectedItem);
+                Assert.Equal("펼친 메모 시작 방향", System.Windows.Automation.AutomationProperties.GetName(Field<ComboBox>(window, "corner")));
+                Field<ComboBox>(window, "corner").SelectedItem = ExpandedCorner.BottomLeft;
                 Field<ComboBox>(window, "monitorBox").SelectedIndex = 1;
-                Assert.Equal(0, Field<ComboBox>(window, "target").SelectedIndex);
+                Assert.Equal(ExpandedCorner.TopRight, Field<ComboBox>(window, "corner").SelectedItem);
                 Field<TextBox>(window, "x").Text = "456";
                 Field<ComboBox>(window, "monitorBox").SelectedIndex = 0;
                 Assert.Equal("123", Field<TextBox>(window, "x").Text);
-                Assert.Equal(1, Field<ComboBox>(window, "target").SelectedIndex);
-                Assert.True(Field<LayoutSettings>(window, "draft").Monitors["A"].IncludeExpanded);
-                Assert.False(Field<LayoutSettings>(window, "draft").Monitors["B"].IncludeExpanded);
+                Assert.Equal(ExpandedCorner.BottomLeft, Field<ComboBox>(window, "corner").SelectedItem);
+                Assert.Equal(ExpandedCorner.BottomLeft, Field<LayoutSettings>(window, "draft").Monitors["A"].ExpandedCorner);
+                Assert.Equal(ExpandedCorner.TopRight, Field<LayoutSettings>(window, "draft").Monitors["B"].ExpandedCorner);
                 Assert.Empty(saved.Monitors);
             }
             finally { window.AllowClose = true; window.Close(); }
@@ -50,6 +50,25 @@ public sealed class LayoutOptionsTests
                 typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, [false]);
                 Assert.False(called);
                 Assert.NotEmpty(Field<TextBlock>(window, "status").Text);
+            }
+            finally { window.AllowClose = true; window.Close(); }
+        });
+    }
+    [Fact]
+    public void UnifiedSettingsExposeThreeTabsAndStartupWithoutRecursiveEvents()
+    {
+        Sta(() =>
+        {
+            var window = new LayoutOptionsWindow(new LayoutSettings(), [], "C:/data", true);
+            try
+            {
+                var tabs = Field<TabControl>(window, "tabs");
+                Assert.Equal(new[] { "배치", "단축키", "일반·백업" }, tabs.Items.Cast<TabItem>().Select(t => t.Header));
+                window.SelectTab(2); Assert.Equal(2, tabs.SelectedIndex);
+                int events = 0; window.AutoStartChanged += _ => events++;
+                window.SetAutoStart(false); Assert.Equal(0, events);
+                Field<CheckBox>(window, "autoStart").IsChecked = true; Assert.Equal(1, events);
+                Assert.DoesNotContain("ToggleAuto", Field<Dictionary<string, TextBox>>(window, "recorders").Keys);
             }
             finally { window.AllowClose = true; window.Close(); }
         });

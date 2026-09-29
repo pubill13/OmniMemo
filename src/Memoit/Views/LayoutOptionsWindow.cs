@@ -14,9 +14,12 @@ public sealed class LayoutOptionsWindow : Window
     private readonly ComboBox monitorBox = new() { DisplayMemberPath = "Name", Margin = new Thickness(0, 4, 0, 10) };
     private readonly ComboBox shape = new() { ItemsSource = new[] { "격자", "가로 한 줄", "세로 한 줄" } };
     private readonly ComboBox sort = new() { ItemsSource = new[] { "생성순", "색상순", "제목순" } };
-    private readonly ComboBox target = new() { ItemsSource = new[] { "접힌 메모만", "펼친 메모 포함" } };
+    private readonly ComboBox corner = new() { ItemsSource = Enum.GetValues<ExpandedCorner>() };
+    // Kept as a compact compatibility control for existing automation/tests; it selects the note group.
+    private readonly ComboBox target = new() { ItemsSource = new[] { "접힌 메모", "펼친 메모" }, SelectedIndex = 0 };
+    private readonly TabControl tabs = new();
+    private readonly CheckBox autoStart = new() { Content = "Windows 로그인 시 OmniMemo 실행" };
     private readonly TextBox x = new(), y = new(), gap = new(), columns = new();
-    private readonly CheckBox auto = new() { Content = "자동 정렬", Margin = new Thickness(0, 10, 0, 5) };
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 4) };
     private readonly StackPanel hotkeyRows = new();
     private readonly Dictionary<string, TextBox> recorders = [];
@@ -31,12 +34,15 @@ public sealed class LayoutOptionsWindow : Window
     public event Action<LayoutSettings>? ArrangeRequested;
     public event Action<bool>? CaptureChanged;
     public event Action? Hidden;
+    public event Action<bool>? AutoStartChanged;
+    public event Action? BackupRequested;
+    public event Action? RestoreRequested;
 
-    public LayoutOptionsWindow(LayoutSettings settings, IReadOnlyList<MonitorDescriptor> monitors)
+    public LayoutOptionsWindow(LayoutSettings settings, IReadOnlyList<MonitorDescriptor> monitors, string dataPath = "", bool autoStart = false)
     {
-        Title = "OmniMemo · 정렬 옵션"; Width = 340; Height = 570; MinWidth = 340; MinHeight = 450;
+        Title = "OmniMemo · 설정"; Width = 340; Height = 570; MinWidth = 340; MinHeight = 450;
         Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/OmniMemo;component/Assets/OmniMemo.ico"));
-        foreach (var (control, name) in new (DependencyObject, string)[] { (x, "시작 X"), (y, "시작 Y"), (gap, "간격"), (columns, "열 수"), (shape, "배치 형태"), (sort, "정렬 기준"), (monitorBox, "모니터"), (target, "정렬 대상") })
+        foreach (var (control, name) in new (DependencyObject, string)[] { (x, "시작 X"), (y, "시작 Y"), (gap, "간격"), (columns, "열 수"), (shape, "배치 형태"), (sort, "정렬 기준"), (monitorBox, "모니터"), (corner, "펼친 메모 시작 방향") })
             System.Windows.Automation.AutomationProperties.SetName(control, name);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         if (settings.PanelLeft is double left && settings.PanelTop is double top)
@@ -46,26 +52,70 @@ public sealed class LayoutOptionsWindow : Window
         var footer = new StackPanel(); DockPanel.SetDock(footer, Dock.Bottom);
         footer.Children.Add(status);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Children.Add(Button("적용", () => Dispatch(false))); actions.Children.Add(Button("지금 정렬", () => Dispatch(true))); footer.Children.Add(actions); root.Children.Add(footer);
-        var tabs = new TabControl(); root.Children.Add(tabs);
+        actions.Children.Add(Button("적용", () => Dispatch(false))); actions.Children.Add(Button("모두 정돈", () => Dispatch(true))); footer.Children.Add(actions); root.Children.Add(footer);
+        root.Children.Add(tabs);
         var layout = new StackPanel { Margin = new Thickness(10) };
         layout.Children.Add(Label("모니터")); layout.Children.Add(monitorBox);
+        layout.Children.Add(Label("접힌 메모"));
         layout.Children.Add(Label("정렬 대상")); layout.Children.Add(target);
         layout.Children.Add(Label("배치 형태")); layout.Children.Add(shape); layout.Children.Add(Label("정렬 기준")); layout.Children.Add(sort);
-        layout.Children.Add(Label("시작 위치 X / Y (DIP)"));
+        layout.Children.Add(Label("타일 시작점 X / Y (DIP)"));
         var coords = new UniformGridShim(); coords.Children.Add(x); coords.Children.Add(y); layout.Children.Add(coords);
         layout.Children.Add(Button("화면에서 위치 선택…", PickAnchor));
         layout.Children.Add(Label("메모 사이 간격 (0–24 DIP)")); layout.Children.Add(gap);
-        layout.Children.Add(Label("열 수 (0 = 자동, 최대 30)")); layout.Children.Add(columns); layout.Children.Add(auto);
+        layout.Children.Add(Label("열 수 (0 = 자동, 최대 30)")); layout.Children.Add(columns);
+        layout.Children.Add(Label("펼친 메모 시작 방향")); layout.Children.Add(corner);
+        corner.ItemTemplate = CornerTemplate();
+        layout.Children.Add(new TextBlock { Text = "접기·펼치기와 위치 이동은 정돈하지 않습니다. 필요할 때 정돈을 실행하세요.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), Foreground = Brushes.DimGray });
         tabs.Items.Add(new TabItem { Header = "배치", Content = new ScrollViewer { Content = layout, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
         var hotkeys = new DockPanel { Margin = new Thickness(8) };
         var reset = Button("모든 단축키 기본값", ResetAll); DockPanel.SetDock(reset, Dock.Bottom); hotkeys.Children.Add(reset);
         hotkeys.Children.Add(new ScrollViewer { Content = hotkeyRows, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
-        tabs.Items.Add(new TabItem { Header = "단축키", Content = hotkeys }); Content = root;
+        tabs.Items.Add(new TabItem { Header = "단축키", Content = hotkeys });
+        tabs.Items.Add(new TabItem { Header = "일반·백업", Content = BuildGeneral(dataPath) }); Content = root;
+        SetAutoStart(autoStart);
+        this.autoStart.Checked += (_, _) => { if (!refreshing) AutoStartChanged?.Invoke(true); };
+        this.autoStart.Unchecked += (_, _) => { if (!refreshing) AutoStartChanged?.Invoke(false); };
         monitorBox.SelectionChanged += (_, _) => SwitchMonitor();
         Closing += (_, e) => { if (!AllowClose) { e.Cancel = true; HidePanel(); } };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; if (capturing) CancelCapture(); else HidePanel(); } };
         RefreshSettings(settings, monitors);
+    }
+
+    public void SelectTab(int index) => tabs.SelectedIndex = Math.Clamp(index, 0, 2);
+    public void SetAutoStart(bool value)
+    {
+        bool previous = refreshing; refreshing = true; autoStart.IsChecked = value; refreshing = previous;
+    }
+    private UIElement BuildGeneral(string dataPath)
+    {
+        var content = new StackPanel { Margin = new Thickness(10) };
+        content.Children.Add(autoStart);
+        content.Children.Add(Label("백업과 복원"));
+        content.Children.Add(new TextBlock { Text = "매일 첫 저장 후 자동 백업하며 최근 7개를 보관합니다. 휴지통 메모도 포함됩니다.", TextWrapping = TextWrapping.Wrap });
+        content.Children.Add(Button("백업 파일 저장…", () => BackupRequested?.Invoke()));
+        content.Children.Add(Button("백업에서 복원…", () => RestoreRequested?.Invoke()));
+        content.Children.Add(new TextBlock { Text = "복원하면 전체 메모가 백업 내용으로 바뀝니다. 현재 데이터는 교체 전에 안전 백업합니다.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray, Margin = new Thickness(0, 8, 0, 8) });
+        content.Children.Add(Label("데이터 저장 위치"));
+        var path = new TextBox { Text = dataPath, IsReadOnly = true, TextWrapping = TextWrapping.Wrap };
+        System.Windows.Automation.AutomationProperties.SetName(path, "데이터 저장 위치");
+        content.Children.Add(path);
+        return new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+    }
+    private static DataTemplate CornerTemplate()
+    {
+        var text = new FrameworkElementFactory(typeof(TextBlock));
+        text.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding { Converter = new CornerLabelConverter() });
+        return new DataTemplate { VisualTree = text };
+    }
+    private sealed class CornerLabelConverter : System.Windows.Data.IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value switch
+        {
+            ExpandedCorner.TopLeft => "왼쪽 위", ExpandedCorner.TopRight => "오른쪽 위",
+            ExpandedCorner.BottomLeft => "왼쪽 아래", ExpandedCorner.BottomRight => "오른쪽 아래", _ => "오른쪽 위"
+        };
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
     }
 
     private static TextBlock Label(string text) => new() { Text = text, Margin = new Thickness(0, 8, 0, 4) };
@@ -82,7 +132,6 @@ public sealed class LayoutOptionsWindow : Window
         monitors = available; selectedId = null;
         monitorBox.ItemsSource = monitors;
         monitorBox.SelectedItem = monitors.FirstOrDefault(m => m.Id == settings.SelectedMonitor) ?? monitors.FirstOrDefault();
-        auto.IsChecked = settings.AutoArrange;
         refreshing = false; LoadMonitor(); BuildRecorders(); status.Foreground = Brushes.DimGray; status.Text = "변경한 설정은 적용 후 저장됩니다.";
     }
     private void SwitchMonitor()
@@ -99,6 +148,7 @@ public sealed class LayoutOptionsWindow : Window
         gap.Text = value.Gap.ToString(CultureInfo.InvariantCulture); columns.Text = value.Columns.ToString(CultureInfo.InvariantCulture);
         shape.SelectedIndex = (int)value.Shape; sort.SelectedIndex = (int)value.Sort;
         target.SelectedIndex = value.IncludeExpanded ? 1 : 0;
+        corner.SelectedItem = value.ExpandedCorner;
     }
     private bool StoreMonitor()
     {
@@ -107,7 +157,7 @@ public sealed class LayoutOptionsWindow : Window
             || !double.TryParse(gap.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var spacing) || !int.TryParse(columns.Text, out var count)
             || !double.IsFinite(px) || !double.IsFinite(py) || !double.IsFinite(spacing) || px < 0 || py < 0 || spacing < 0 || spacing > 24 || count < 0 || count > 30)
         { ShowError("위치와 간격은 0 이상의 숫자, 열 수는 0 이상의 정수를 입력하세요."); return false; }
-        draft.Monitors[selectedId] = new MonitorLayout { X = px, Y = py, Gap = spacing, Columns = count, Shape = (LayoutShape)shape.SelectedIndex, Sort = (LayoutSort)sort.SelectedIndex, IncludeExpanded = target.SelectedIndex == 1 };
+        draft.Monitors[selectedId] = new MonitorLayout { X = px, Y = py, Gap = spacing, Columns = count, IncludeExpanded = target.SelectedIndex == 1, Shape = (LayoutShape)shape.SelectedIndex, Sort = (LayoutSort)sort.SelectedIndex, ExpandedCorner = corner.SelectedItem is ExpandedCorner direction ? direction : ExpandedCorner.TopRight };
         return true;
     }
     private void BuildRecorders()
@@ -154,7 +204,7 @@ public sealed class LayoutOptionsWindow : Window
         try
         {
             HotkeyService.Validate(draft.Hotkeys);
-            var candidate = draft with { AutoArrange = auto.IsChecked == true, SelectedMonitor = selectedId, PanelLeft = Left, PanelTop = Top, Monitors = new(draft.Monitors), Hotkeys = new(draft.Hotkeys) };
+            var candidate = draft with { AutoArrange = false, SelectedMonitor = selectedId, PanelLeft = Left, PanelTop = Top, Monitors = new(draft.Monitors), Hotkeys = new(draft.Hotkeys) };
             candidate.Validate();
             if (arrange) ArrangeRequested?.Invoke(candidate); else ApplyRequested?.Invoke(candidate);
         }

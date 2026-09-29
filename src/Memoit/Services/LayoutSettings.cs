@@ -13,6 +13,7 @@ public sealed record MonitorLayout
     public double Gap { get; init; } = 8;
     public int Columns { get; init; }
     public bool IncludeExpanded { get; init; }
+    public ExpandedCorner ExpandedCorner { get; init; } = ExpandedCorner.TopRight;
     public LayoutShape Shape { get; init; } = LayoutShape.Grid;
     public LayoutSort Sort { get; init; } = LayoutSort.Created;
 
@@ -20,15 +21,16 @@ public sealed record MonitorLayout
     {
         if (!double.IsFinite(X) || X < 0 || !double.IsFinite(Y) || Y < 0
             || !double.IsFinite(Gap) || Gap < 0 || Gap > 24 || Columns < 0 || Columns > 30
-            || !Enum.IsDefined(Shape) || !Enum.IsDefined(Sort))
+            || !Enum.IsDefined(Shape) || !Enum.IsDefined(Sort) || !Enum.IsDefined(ExpandedCorner))
             throw new InvalidDataException("모니터 타일 배치 설정이 올바르지 않습니다.");
     }
 }
 
 public sealed record LayoutSettings
 {
-    public int Version { get; init; } = 2;
+    public int Version { get; init; } = 3;
     public bool AutoArrange { get; init; }
+    public bool NeedsManualArrangementNotice { get; init; }
     public bool SortByColor { get; init; }
     public Dictionary<string, MonitorLayout> Monitors { get; init; } = [];
     public Dictionary<string, string> Hotkeys { get; init; } = HotkeyDefaults.Create();
@@ -52,7 +54,7 @@ public sealed record LayoutSettings
             || OverlayTop.HasValue && !double.IsFinite(OverlayTop.Value)
             || OverlayColor is not null && !NoteColors.Values.Any(c => NoteColors.Matches(c, OverlayColor)))
             throw new InvalidDataException("미니 패널 위치 또는 투명도가 올바르지 않습니다.");
-        if (Version != 2) throw new InvalidDataException("지원하지 않는 타일 설정 버전입니다.");
+        if (Version != 3) throw new InvalidDataException("지원하지 않는 타일 설정 버전입니다.");
         if (Monitors is null || Hotkeys is null || PanelLeft.HasValue && !double.IsFinite(PanelLeft.Value)
             || PanelTop.HasValue && !double.IsFinite(PanelTop.Value))
             throw new InvalidDataException("타일 설정 값이 올바르지 않습니다.");
@@ -81,7 +83,12 @@ public sealed record LayoutSettings
         ValidateJsonNames(document.RootElement);
         var settings = JsonSerializer.Deserialize<LayoutSettings>(json, JsonOptions)
             ?? throw new InvalidDataException("타일 설정을 읽지 못했습니다.");
-        if (settings.Version == 1) settings = settings with { Version = 2 };
+        if (!document.RootElement.TryGetProperty("Version", out _) || settings.Version is 1 or 2)
+        {
+            settings.Hotkeys?.Remove("ToggleAuto");
+            settings = settings with { Version = 3, AutoArrange = false, NeedsManualArrangementNotice = true };
+        }
+        settings = settings with { AutoArrange = false };
         settings.Validate();
         // New commands must not replace a user's existing assignment or explicit disabled value.
         var used = settings.Hotkeys.Values.Select(HotkeyService.Normalize).ToHashSet(StringComparer.Ordinal);

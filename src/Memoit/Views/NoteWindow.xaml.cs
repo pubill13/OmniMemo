@@ -32,10 +32,8 @@ public partial class NoteWindow : Window
     public event EventHandler? HideRequested;
     public event Action<Point>? TileMoveRequested;
     public event Action<bool>? ArrangeTilesRequested;
-    public event Action<bool>? AutoArrangeChanged;
     public event Action? TileDragCompleted;
 
-    public void SetAutoArrange(bool enabled) => AutoArrangeItem.IsChecked = enabled;
     public bool EditorHasFocus => Editor.IsKeyboardFocusWithin;
 
     public NoteWindow(NoteViewModel vm)
@@ -71,9 +69,10 @@ public partial class NoteWindow : Window
         applyingLayout = true;
         try
         {
-            MinWidth = IsCollapsed ? 36 : 280; MinHeight = IsCollapsed ? 36 : 220;
-            Width = IsCollapsed ? 36 : Math.Max(280, vm.Snapshot.Width);
-            Height = IsCollapsed ? 36 : Math.Max(220, vm.Snapshot.Height);
+            MinWidth = IsCollapsed ? 36 : 200; MinHeight = IsCollapsed ? 36 : 150;
+            Width = IsCollapsed ? 36 : Math.Max(200, vm.Snapshot.Width);
+            Height = IsCollapsed ? 36 : Math.Max(150, vm.Snapshot.Height);
+            Left = vm.Snapshot.Left; Top = vm.Snapshot.Top;
             ResizeMode = IsCollapsed ? ResizeMode.NoResize : ResizeMode.CanResize;
             WindowChrome.GetWindowChrome(this).ResizeBorderThickness = new Thickness(IsCollapsed ? 0 : 5);
             Root.Visibility = IsCollapsed ? Visibility.Collapsed : Visibility.Visible;
@@ -87,11 +86,23 @@ public partial class NoteWindow : Window
         if (IsCollapsed) vm.UpdatePosition(Left, Top);
         else vm.UpdateBounds(Left, Top, Width, Height);
     }
+    public void BeginArrangement(Rect bounds)
+    {
+        applyingLayout = true;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        MinWidth = IsCollapsed ? 36 : Math.Min(280, bounds.Width / dpi.DpiScaleX);
+        MinHeight = IsCollapsed ? 36 : Math.Min(220, bounds.Height / dpi.DpiScaleY);
+    }
+    public void EndArrangement()
+    {
+        applyingLayout = false;
+        SaveBounds();
+    }
     public void ToggleCollapsed()
     {
         SaveBounds();
         vm.IsCollapsed = !vm.IsCollapsed;
-        if (IsLoaded) { WindowPlacement.KeepOnScreen(this); SaveBounds(); }
+        if (IsLoaded) { WindowPlacement.KeepVisible(this); SaveBounds(); }
         if (!IsCollapsed) Editor.Focus();
     }
     private void OnClosing(object? sender, CancelEventArgs e)
@@ -176,7 +187,6 @@ public partial class NoteWindow : Window
     private void OnLayoutOptions(object sender, RoutedEventArgs e) => LayoutOptionsRequested?.Invoke();
     private void OnArrangeByCreated(object sender, RoutedEventArgs e) => ArrangeTilesRequested?.Invoke(false);
     private void OnArrangeByColor(object sender, RoutedEventArgs e) => ArrangeTilesRequested?.Invoke(true);
-    private void OnAutoArrange(object sender, RoutedEventArgs e) => AutoArrangeChanged?.Invoke(AutoArrangeItem.IsChecked);
     private void OnMenu(object sender, RoutedEventArgs e)
     {
         var button = (Button)sender; button.ContextMenu!.PlacementTarget = button; button.ContextMenu.IsOpen = true;

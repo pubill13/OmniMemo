@@ -10,6 +10,10 @@ public sealed record Note
     public bool IsCollapsed { get; init; }
     public double Left { get; init; } = 100;
     public double Top { get; init; } = 100;
+    public double? CollapsedLeft { get; init; }
+    public double? CollapsedTop { get; init; }
+    public double? ExpandedLeft { get; init; }
+    public double? ExpandedTop { get; init; }
     public double Width { get; init; } = 320;
     public double Height { get; init; } = 300;
     public bool IsVisible { get; init; } = true;

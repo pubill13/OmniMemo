@@ -1,11 +1,16 @@
+using System.Diagnostics;
 using System.Windows;
 using Memoit.Services;
+using Memoit.ViewModels;
 using Memoit.Views;
 
 namespace Memoit;
 
 public partial class App
 {
+    private bool arranging;
+    private readonly ArrangementHistory arrangementHistory = new();
+
     private void ExecuteCommand(string command)
     {
         if (busy || shuttingDown) return;
@@ -13,6 +18,9 @@ public partial class App
         if (command == "ToggleOverlay") { ToggleOverlayPanel(); return; }
         if (command == "ShowList") { ShowList(); return; }
         if (command == "Search") { ShowList(true); return; }
+        if (command is "Arrange" or "ArrangeCollapsed" or "ArrangeExpanded" or "UndoArrange" or "RetrySave"
+            or "SortCreated" or "SortColor" or "SortTitle" or "ShapeGrid" or "ShapeHorizontal" or "ShapeVertical")
+        { RunArrangement(command); return; }
         RunOperation(async () =>
         {
             switch (command)
@@ -24,16 +32,8 @@ public partial class App
                 case "ToggleCollapsed": await SetAllCollapsedAsync(windows.Values.Any(w => w.IsVisible && !w.IsCollapsed)); break;
                 case "CollapseAll": await SetAllCollapsedAsync(true); break;
                 case "ExpandAll": await SetAllCollapsedAsync(false); break;
-                case "Arrange": await ArrangeTilesAsync(); break;
-                case "SortCreated": await ChangeLayoutAsync(sort: LayoutSort.Created); break;
-                case "SortColor": await ChangeLayoutAsync(sort: LayoutSort.Color); break;
-                case "SortTitle": await ChangeLayoutAsync(sort: LayoutSort.Title); break;
-                case "ShapeGrid": await ChangeLayoutAsync(shape: LayoutShape.Grid); break;
-                case "ShapeHorizontal": await ChangeLayoutAsync(shape: LayoutShape.Horizontal); break;
-                case "ShapeVertical": await ChangeLayoutAsync(shape: LayoutShape.Vertical); break;
-                case "ToggleAuto": await SetAutoArrangeAsync(!layoutSettings.AutoArrange); break;
             }
-        }, command is "ToggleVisibility" or "HideAll" or "ShowAll" or "ToggleCollapsed" or "CollapseAll" or "ExpandAll");
+        });
     }
 
     private async Task SetAllCollapsedAsync(bool collapsed)
@@ -41,9 +41,8 @@ public partial class App
         var visible = windows.Where(p => p.Value.IsVisible && notes[p.Key].Snapshot.DeletedAt is null).ToArray();
         foreach (var pair in visible)
             if (pair.Value.IsCollapsed != collapsed) pair.Value.ToggleCollapsed();
-        bool saved = true;
-        foreach (var pair in visible) saved &= await notes[pair.Key].FlushAsync();
-        if (!saved) throw new IOException("일부 메모를 저장하지 못했습니다. 변경 내용은 유지되며 다음 편집 또는 종료 때 다시 저장합니다.");
+        if (!await NoteViewModel.FlushManyAsync(visible.Select(p => notes[p.Key]), store.SaveManyAsync))
+            throw new IOException("일부 메모를 저장하지 못했습니다. 변경 내용은 유지됩니다. 트레이의 미저장 메모 다시 저장을 사용하세요.");
     }
 
     private void SaveLayoutSettings(LayoutSettings value)
@@ -68,70 +67,108 @@ public partial class App
             throw;
         }
         layoutSettings = value;
-        if (autoArrangeMenu is not null) autoArrangeMenu.Checked = value.AutoArrange;
         foreach (var window in windows.Values)
-        {
-            window.SetAutoArrange(value.AutoArrange);
             window.CollapseGesture = value.Hotkeys.GetValueOrDefault("ToggleCurrent", "");
-        }
     }
 
-    private Dictionary<Guid, Point> CalculateTileMoves(LayoutSettings settings)
+    private async void RunArrangement(string command)
     {
-        var result = new Dictionary<Guid, Point>();
-        var candidates = windows.Where(p => p.Value.IsVisible
-            && notes[p.Key].Snapshot.DeletedAt is null).Select(p => (p.Key, Window: p.Value, Monitor: MonitorCatalog.ForWindow(p.Value))).ToArray();
-        foreach (var group in candidates.GroupBy(p => p.Monitor.Id))
-        {
-            var monitor = group.First().Monitor;
-            var options = settings.GetMonitor(group.Key);
-            var selected = group.Where(p => p.Window.IsCollapsed || options.IncludeExpanded).ToArray();
-            if (selected.Length == 0) continue;
-            var sizes = selected.ToDictionary(p => p.Key, p => WindowPlacement.GetSize(p.Window));
-            foreach (var move in TileLayout.Arrange(selected.Select(p => notes[p.Key].Snapshot), monitor.WorkArea,
-                options, group.Max(p => p.Monitor.Scale), sizes)) result.Add(move.Key, move.Value);
-        }
-        return result;
-    }
-
-    private async Task ApplyTileMovesAsync(Dictionary<Guid, Point> moves)
-    {
-        foreach (var move in moves)
-            if (WindowPlacement.GetPosition(windows[move.Key]) != move.Value)
-                WindowPlacement.Move(windows[move.Key], move.Value);
-        bool saved = true;
-        foreach (var id in moves.Keys) saved &= await notes[id].FlushAsync();
-        if (!saved) throw new IOException("정렬한 위치를 일부 저장하지 못했습니다. 창의 변경 내용은 유지됩니다.");
-    }
-
-    private Task ArrangeTilesAsync() => ApplyTileMovesAsync(CalculateTileMoves(layoutSettings));
-
-    private async Task ChangeLayoutAsync(LayoutSort? sort = null, LayoutShape? shape = null)
-    {
-        var updated = new Dictionary<string, MonitorLayout>(layoutSettings.Monitors);
-        foreach (var monitor in MonitorCatalog.All())
-        {
-            var prior = layoutSettings.GetMonitor(monitor.Id);
-            updated[monitor.Id] = prior with { Sort = sort ?? prior.Sort, Shape = shape ?? prior.Shape };
-        }
-        var candidate = layoutSettings with { Monitors = updated };
-        var moves = CalculateTileMoves(candidate);
-        SaveLayoutSettings(candidate);
-        await ApplyTileMovesAsync(moves);
-        RefreshLayoutPanel();
-    }
-
-    private async Task SetAutoArrangeAsync(bool enabled)
-    {
+        if (arranging || busy || shuttingDown) return;
+        arranging = true;
         try
         {
-            var candidate = layoutSettings with { AutoArrange = enabled };
-            var moves = enabled ? CalculateTileMoves(candidate) : [];
-            SaveLayoutSettings(candidate);
-            if (enabled) await ApplyTileMovesAsync(moves);
-            RefreshLayoutPanel();
+            if (command == "RetrySave")
+            {
+                if (!await NoteViewModel.FlushManyAsync(notes.Values, store.SaveManyAsync))
+                    throw new IOException("저장하지 못했습니다. 저장 상태 아이콘에서 원인을 확인한 뒤 다시 시도하세요.");
+                ArrangementNotice("미저장 메모를 저장했습니다.");
+                return;
+            }
+            LayoutSort? sort = command switch { "SortCreated" => LayoutSort.Created, "SortColor" => LayoutSort.Color, "SortTitle" => LayoutSort.Title, _ => null };
+            LayoutShape? shape = command switch { "ShapeGrid" => LayoutShape.Grid, "ShapeHorizontal" => LayoutShape.Horizontal, "ShapeVertical" => LayoutShape.Vertical, _ => null };
+            var clock = Stopwatch.StartNew();
+            var monitors = MonitorCatalog.All();
+            if (sort.HasValue || shape.HasValue)
+            {
+                var updated = new Dictionary<string, MonitorLayout>(layoutSettings.Monitors);
+                foreach (var monitor in monitors)
+                {
+                    var prior = layoutSettings.GetMonitor(monitor.Id);
+                    updated[monitor.Id] = prior with { Sort = sort ?? prior.Sort, Shape = shape ?? prior.Shape };
+                }
+                SaveLayoutSettings(layoutSettings with { Monitors = updated });
+                RefreshLayoutPanel();
+            }
+            var candidates = windows.Where(p => p.Value.IsVisible && notes[p.Key].Snapshot.DeletedAt is null)
+                .Select(p => (Id: p.Key, Window: p.Value, Bounds: WindowPlacement.GetBounds(p.Value))).ToArray();
+            var moves = new Dictionary<Guid, Rect>();
+            int skipped = 0;
+            if (command == "UndoArrange")
+            {
+                foreach (var item in arrangementHistory.GetRestorable(notes.Values.Select(n => n.Snapshot), monitors))
+                    if (windows.TryGetValue(item.Key, out var window) && window.IsVisible) moves[item.Key] = item.Value;
+                if (moves.Count == 0) { ArrangementNotice("복원할 이전 배치가 없습니다."); return; }
+            }
+            else
+            {
+                foreach (var group in candidates.GroupBy(p => MonitorCatalog.Nearest(p.Bounds, monitors)))
+                {
+                    var monitor = group.Key;
+                    var options = layoutSettings.GetMonitor(monitor.Id);
+                    var snapshots = group.Select(p => notes[p.Id].Snapshot).ToArray();
+                    var sizes = group.ToDictionary(p => p.Id, p => p.Bounds.Size);
+                    if (command != "ArrangeExpanded")
+                    {
+                        var result = NoteArrangement.ArrangeCollapsed(snapshots, monitor.WorkArea, options, monitor.Scale, sizes);
+                        skipped += result.SkippedTiles;
+                        foreach (var pair in result.Bounds) moves[pair.Key] = pair.Value;
+                    }
+                    if (command != "ArrangeCollapsed")
+                    {
+                        var result = NoteArrangement.ArrangeExpanded(snapshots, monitor.WorkArea, options, options.ExpandedCorner, monitor.Scale, sizes);
+                        foreach (var pair in result.Bounds) moves[pair.Key] = pair.Value;
+                    }
+                }
+                arrangementHistory.Capture(candidates.Where(p => moves.ContainsKey(p.Id)).Select(p =>
+                    new ArrangementSnapshot(p.Id, p.Window.IsCollapsed, p.Bounds, MonitorCatalog.Nearest(p.Bounds, monitors).Id)));
+            }
+            var originals = candidates.ToDictionary(p => p.Id, p => p.Bounds);
+            var changed = moves.Where(p => originals.TryGetValue(p.Key, out var original) && !NearlyEqual(original, p.Value)).ToArray();
+            double calculatedMs = clock.Elapsed.TotalMilliseconds;
+            foreach (var pair in changed) windows[pair.Key].BeginArrangement(pair.Value);
+            try { WindowPlacement.MoveTogether(changed.Select(p => ((Window)windows[p.Key], p.Value)).ToArray()); }
+            finally { foreach (var pair in changed) windows[pair.Key].EndArrangement(); }
+            double movedMs = clock.Elapsed.TotalMilliseconds;
+            // Capture only after WPF has observed every move, then serialize alongside ordinary autosaves.
+            bool saved = await NoteViewModel.FlushManyAsync(changed.Select(p => notes[p.Key]), store.SaveManyAsync);
+            double storedMs = clock.Elapsed.TotalMilliseconds;
+            LastArrangementTiming = new ArrangementTiming(calculatedMs, movedMs - calculatedMs, storedMs - movedMs, changed.Length);
+            if (command == "UndoArrange") arrangementHistory.Clear();
+            if (!saved) throw new IOException("배치는 변경했지만 저장하지 못했습니다. 트레이의 미저장 메모 다시 저장을 눌러 주세요.");
+            ArrangementNotice(skipped > 0 ? $"일부 타일을 배치하지 못했습니다 ({skipped}개). 타일 시작점·간격·열 수를 조정해 주세요."
+                : command == "UndoArrange" ? "이전 배치로 돌아갔습니다." : "메모를 정돈했습니다.", skipped > 0);
         }
-        finally { foreach (var window in windows.Values) window.SetAutoArrange(layoutSettings.AutoArrange); }
+        catch (Exception ex) { ArrangementNotice(ex.Message, true); }
+        finally { arranging = false; RefreshList(); }
+    }
+
+    internal sealed record ArrangementTiming(double CalculationMs, double MoveMs, double SaveMs, int MovedCount);
+    internal ArrangementTiming? LastArrangementTiming { get; private set; }
+    private static bool NearlyEqual(Rect a, Rect b) => Math.Abs(a.X - b.X) < .5 && Math.Abs(a.Y - b.Y) < .5
+        && Math.Abs(a.Width - b.Width) < .5 && Math.Abs(a.Height - b.Height) < .5;
+
+    private void ArrangementNotice(string message, bool warning = false)
+    {
+        if (warning) layoutPanel?.ShowError(message); else layoutPanel?.ShowSuccess(message);
+        tray?.ShowBalloonTip(5000, "OmniMemo", message, warning ? System.Windows.Forms.ToolTipIcon.Warning : System.Windows.Forms.ToolTipIcon.Info);
+    }
+
+    private void ShowArrangementUpgradeNotice()
+    {
+        if (!layoutSettings.NeedsManualArrangementNotice) return;
+        ArrangementNotice("자동 정렬이 정돈 명령으로 바뀌었습니다. 접기·펼치기나 이동 후에는 위치를 유지하며, 필요할 때 미니 패널이나 트레이에서 정돈하세요.");
+        try { SaveLayoutSettings(layoutSettings with { NeedsManualArrangementNotice = false }); }
+        catch (Exception ex) { ArrangementNotice("변경 안내 상태를 저장하지 못했습니다: " + ex.Message, true); }
     }
 
     private void RefreshLayoutPanel()
@@ -142,11 +179,23 @@ public partial class App
     private void ToggleLayoutPanel()
     {
         if (layoutPanel?.IsVisible == true) { layoutPanel.Close(); return; }
+        OpenSettings(0);
+    }
+
+    private void OpenSettings(int tab)
+    {
         if (layoutPanel is null)
         {
-            layoutPanel = new LayoutOptionsWindow(layoutSettings, MonitorCatalog.All());
+            layoutPanel = new LayoutOptionsWindow(layoutSettings, MonitorCatalog.All(), dataDirectory, StartupRegistration.IsEnabled());
             layoutPanel.ApplyRequested += candidate => ApplyPanelSettings(candidate, false);
             layoutPanel.ArrangeRequested += candidate => ApplyPanelSettings(candidate, true);
+            layoutPanel.AutoStartChanged += enabled =>
+            {
+                try { StartupRegistration.SetEnabled(enabled); }
+                catch (Exception ex) { layoutPanel.SetAutoStart(!enabled); layoutPanel.ShowError("자동 실행 설정을 변경하지 못했습니다: " + ex.Message); }
+            };
+            layoutPanel.BackupRequested += () => RunOperation(BackupAsync);
+            layoutPanel.RestoreRequested += () => RunOperation(RestoreAsync);
             layoutPanel.CaptureChanged += capture =>
             {
                 try { if (capture) hotkeys?.BeginCapture(); else hotkeys?.EndCapture(); }
@@ -154,38 +203,32 @@ public partial class App
             };
             layoutPanel.Hidden += () =>
             {
-                try
-                {
-                    SaveLayoutSettings(layoutSettings with { PanelLeft = layoutPanel.Left, PanelTop = layoutPanel.Top,
-                        SelectedMonitor = layoutPanel.SelectedMonitorId });
-                }
-                catch (Exception ex) { Error("정렬 옵션창 위치를 저장하지 못했습니다.", ex); }
+                try { SaveLayoutSettings(layoutSettings with { PanelLeft = layoutPanel.Left, PanelTop = layoutPanel.Top, SelectedMonitor = layoutPanel.SelectedMonitorId }); }
+                catch (Exception ex) { ArrangementNotice("설정 창 위치를 저장하지 못했습니다: " + ex.Message, true); }
             };
             if (layoutSettings.PanelLeft is double left && layoutSettings.PanelTop is double top)
             { layoutPanel.Left = left; layoutPanel.Top = top; }
         }
         else layoutPanel.RefreshSettings(layoutSettings, MonitorCatalog.All());
+        layoutPanel.SelectTab(tab);
         layoutPanel.Show(); WindowPlacement.KeepOnScreen(layoutPanel); layoutPanel.Activate();
     }
 
     private void ApplyPanelSettings(LayoutSettings candidate, bool arrange)
     {
-        candidate = candidate with
+        try
         {
-            OverlayLeft = layoutSettings.OverlayLeft, OverlayTop = layoutSettings.OverlayTop,
-            OverlayOpacity = layoutSettings.OverlayOpacity, OverlayTopmost = layoutSettings.OverlayTopmost,
-            OverlayColor = layoutSettings.OverlayColor, OverlayVisible = layoutSettings.OverlayVisible
-        };
-        RunOperation(async () =>
-        {
-            try
+            candidate = candidate with
             {
-                var moves = arrange || candidate.AutoArrange ? CalculateTileMoves(candidate) : [];
-                SaveLayoutSettings(candidate);
-                if (arrange || candidate.AutoArrange) await ApplyTileMovesAsync(moves);
-                layoutPanel?.ShowSuccess(arrange ? "설정을 저장하고 정렬했습니다." : "설정을 저장했습니다.");
-            }
-            catch (Exception ex) { layoutPanel?.ShowError(ex.Message); }
-        }, false);
+                OverlayLeft = layoutSettings.OverlayLeft, OverlayTop = layoutSettings.OverlayTop,
+                OverlayOpacity = layoutSettings.OverlayOpacity, OverlayTopmost = layoutSettings.OverlayTopmost,
+                OverlayColor = layoutSettings.OverlayColor, OverlayVisible = layoutSettings.OverlayVisible,
+                NeedsManualArrangementNotice = layoutSettings.NeedsManualArrangementNotice
+            };
+            SaveLayoutSettings(candidate);
+            layoutPanel?.ShowSuccess();
+            if (arrange) RunArrangement("Arrange");
+        }
+        catch (Exception ex) { layoutPanel?.ShowError(ex.Message); }
     }
 }

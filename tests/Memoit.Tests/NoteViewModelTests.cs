@@ -9,6 +9,33 @@ namespace Memoit.Tests;
 public sealed class NoteViewModelTests
 {
     [Fact]
+    public Task CollapseAndExpandRememberIndependentPositions() => OnDispatcher(() =>
+    {
+        using var vm = new NoteViewModel(new Note { Left = 100, Top = 200 }, _ => Task.CompletedTask);
+        vm.SetCollapsed(true); vm.UpdatePosition(400, 500); vm.SetCollapsed(false);
+        Assert.Equal(100, vm.Snapshot.Left); Assert.Equal(200, vm.Snapshot.Top);
+        vm.UpdateBounds(600, 700, 400, 300); vm.SetCollapsed(true);
+        Assert.Equal(400, vm.Snapshot.Left); Assert.Equal(500, vm.Snapshot.Top);
+        vm.SetCollapsed(false); Assert.Equal(600, vm.Snapshot.Left); Assert.Equal(400, vm.Snapshot.Width);
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task BatchPreservesEditsDuringSaveAndFailureCanRetry() => OnDispatcher(async () =>
+    {
+        var started = new TaskCompletionSource(); var release = new TaskCompletionSource();
+        using var vm = new NoteViewModel(new Note(), _ => Task.CompletedTask);
+        vm.Body = "before";
+        var batch = NoteViewModel.FlushManyAsync([vm], async notes => { Assert.Equal("before", notes[0].Body); started.SetResult(); await release.Task; });
+        await started.Task; vm.Body = "after"; vm.UpdatePosition(250, 350); release.SetResult();
+        Assert.True(await batch); Assert.True(vm.IsDirty); Assert.Equal("after", vm.Body);
+        Assert.False(await NoteViewModel.FlushManyAsync([vm], _ => Task.FromException(new IOException("full"))));
+        Assert.True(vm.IsDirty); Assert.Equal("Failed", vm.SaveState);
+        Assert.True(await NoteViewModel.FlushManyAsync([vm], notes => { Assert.Equal("after", notes[0].Body); Assert.Equal(250, notes[0].Left); return Task.CompletedTask; }));
+        Assert.False(vm.IsDirty);
+    });
+
+    [Fact]
     public Task ChangesDuringSaveAreFlushedInOrder() => OnDispatcher(async () =>
     {
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -55,8 +82,20 @@ public sealed class NoteViewModelTests
         Note original = vm.Snapshot;
         vm.UpdateBounds(10, 10, double.NaN, 300);
         vm.UpdateBounds(10, 10, 300, double.PositiveInfinity);
+        vm.UpdateBounds(10, 10, 35, 100);
         Assert.Equal(original, vm.Snapshot);
         Assert.False(vm.IsDirty);
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task SmallWindowBoundsAreAcceptedForScreenClamping() => OnDispatcher(() =>
+    {
+        using var vm = new NoteViewModel(new Note(), _ => Task.CompletedTask);
+        vm.UpdateBounds(10, 10, 100, 80);
+        Assert.Equal(100, vm.Snapshot.Width);
+        Assert.Equal(80, vm.Snapshot.Height);
+        Assert.True(vm.IsDirty);
         return Task.CompletedTask;
     });
 

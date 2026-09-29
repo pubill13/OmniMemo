@@ -98,7 +98,7 @@ public sealed class TileLayoutTests
             Assert.False(LayoutSettings.Load(file).AutoArrange);
             var settings = new LayoutSettings { AutoArrange = true, SortByColor = true };
             settings.Save(file);
-            Assert.True(LayoutSettings.Load(file).AutoArrange);
+            Assert.False(LayoutSettings.Load(file).AutoArrange);
             Assert.True(LayoutSettings.Load(file).SortByColor);
             new LayoutSettings().Save(file);
             Assert.False(LayoutSettings.Load(file).AutoArrange);
@@ -162,7 +162,9 @@ public sealed class TileLayoutTests
         {
             File.WriteAllText(file, "{\"AutoArrange\":true,\"SortByColor\":true}");
             var legacy = LayoutSettings.Load(file);
-            Assert.Equal(2, legacy.Version);
+            Assert.Equal(3, legacy.Version);
+            Assert.True(legacy.NeedsManualArrangementNotice);
+            Assert.False(legacy.AutoArrange);
             Assert.Equal(LayoutSort.Color, legacy.GetMonitor("new-monitor").Sort);
             Assert.False(legacy.GetMonitor("new-monitor").IncludeExpanded);
             var options = new MonitorLayout { X = 18, Gap = 12, Shape = LayoutShape.Vertical, Sort = LayoutSort.Title, IncludeExpanded = true };

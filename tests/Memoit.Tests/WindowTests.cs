@@ -76,8 +76,8 @@ public sealed class WindowTests
                     var vm = new NoteViewModel(new Note(), _ => Task.CompletedTask);
                     var window = new NoteWindow(vm);
                     windows.Add((window, vm));
-                    Assert.True(window.MinWidth >= 240);
-                    Assert.True(window.MinHeight >= 180);
+                    Assert.True(window.MinWidth >= 200);
+                    Assert.True(window.MinHeight >= 150);
                     window.Editor.Text = $"메모 {i}";
                 }
             }

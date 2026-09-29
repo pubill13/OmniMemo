@@ -18,12 +18,9 @@ public partial class App : Application
     private Forms.NotifyIcon? tray;
     private System.Drawing.Icon? trayIcon;
     private Views.MainWindow? list;
-    private SettingsWindow? settings;
     private LayoutOptionsWindow? layoutPanel;
     private HotkeyService? hotkeys;
     private LayoutSettings layoutSettings = new();
-    private Forms.ToolStripMenuItem? autoArrangeMenu;
-    private AutoArrangeQueue? autoArrangeQueue;
     private bool busy;
     private bool shuttingDown;
     private bool backupInProgress;
@@ -56,13 +53,13 @@ public partial class App : Application
                 HotkeyService.Validate(loaded.Hotkeys);
                 layoutSettings = loaded;
             }
-            catch (Exception ex) { Error("정렬 설정을 읽지 못했습니다. 이번 실행에는 자동 정렬을 끕니다.", ex); }
+            catch (Exception ex) { Error("설정을 읽지 못했습니다. 이번 실행에는 기본 설정을 사용합니다.", ex); }
             CreateList();
             CreateTray();
             hotkeys = new HotkeyService();
             hotkeys.Command += ExecuteCommand;
             try { hotkeys.Configure(layoutSettings.Hotkeys); }
-            catch (Exception ex) { Error("단축키를 등록하지 못했습니다. 정렬 옵션의 단축키 탭에서 충돌하는 키를 변경해 주세요.", ex); }
+            catch (Exception ex) { Error("단축키를 등록하지 못했습니다. 설정의 단축키 탭에서 충돌하는 키를 변경해 주세요.", ex); }
             if (Environment.GetEnvironmentVariable("OMNIMEMO_DATA_DIR") is null
                 && Environment.GetEnvironmentVariable("MEMOIT_DATA_DIR") is null)
             {
@@ -77,7 +74,7 @@ public partial class App : Application
                 if (windows.Count == 0) ShowList();
             }
             RefreshList();
-            QueueAutoArrange();
+            ShowArrangementUpgradeNotice();
             RestoreOverlayPanel();
             SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
             _ = instance.ListenAsync(() => Dispatcher.BeginInvoke(() => { if (!busy) ShowList(); }),
@@ -160,17 +157,12 @@ public partial class App : Application
         menu.Items.Add("전체 보이기", null, (_, _) => ExecuteCommand("ShowAll"));
         menu.Items.Add("전체 접기", null, (_, _) => ExecuteCommand("CollapseAll"));
         menu.Items.Add("전체 펼치기", null, (_, _) => ExecuteCommand("ExpandAll"));
-        menu.Items.Add("정렬 옵션…", null, (_, _) => ExecuteCommand("TogglePanel"));
         menu.Items.Add("미니 패널", null, (_, _) => ExecuteCommand("ToggleOverlay"));
-        var arrangeMenu = new Forms.ToolStripMenuItem("접힌 메모 정렬");
-        arrangeMenu.DropDownItems.Add("생성순으로 정렬", null, (_, _) => ExecuteCommand("SortCreated"));
-        arrangeMenu.DropDownItems.Add("색상별로 정렬", null, (_, _) => ExecuteCommand("SortColor"));
-        arrangeMenu.DropDownItems.Add("제목순으로 정렬", null, (_, _) => ExecuteCommand("SortTitle"));
-        arrangeMenu.DropDownItems.Add(new Forms.ToolStripSeparator());
-        autoArrangeMenu = new Forms.ToolStripMenuItem("자동 정렬") { Checked = layoutSettings.AutoArrange };
-        autoArrangeMenu.Click += (_, _) => ExecuteCommand("ToggleAuto");
-        arrangeMenu.DropDownItems.Add(autoArrangeMenu);
-        menu.Items.Add(arrangeMenu);
+        menu.Items.Add("접힌 메모 정돈", null, (_, _) => ExecuteCommand("ArrangeCollapsed"));
+        menu.Items.Add("펼친 메모 정돈", null, (_, _) => ExecuteCommand("ArrangeExpanded"));
+        menu.Items.Add("모두 정돈", null, (_, _) => ExecuteCommand("Arrange"));
+        menu.Items.Add("이전 배치로", null, (_, _) => ExecuteCommand("UndoArrange"));
+        menu.Items.Add("미저장 메모 다시 저장", null, (_, _) => ExecuteCommand("RetrySave"));
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("설정", null, (_, _) => { if (!busy) ShowSettings(); });
         menu.Items.Add("종료", null, (_, _) => RunOperation(ExitAsync));
@@ -183,16 +175,7 @@ public partial class App : Application
     {
         var vm = new NoteViewModel(note, store.SaveAsync, isNew);
         vm.Saved += OnNoteSaved;
-        vm.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(NoteViewModel.IsCollapsed) or nameof(NoteViewModel.Color)) QueueAutoArrange();
-            else if (e.PropertyName == nameof(NoteViewModel.Title)
-                && windows.TryGetValue(vm.Snapshot.Id, out var window) && window.IsVisible)
-            {
-                var options = layoutSettings.GetMonitor(MonitorCatalog.ForWindow(window).Id);
-                if (options.Sort == LayoutSort.Title && (vm.IsCollapsed || options.IncludeExpanded)) QueueAutoArrange();
-            }
-        };
+
         notes.Add(note.Id, vm);
         return vm;
     }
@@ -216,18 +199,9 @@ public partial class App : Application
             window = new NoteWindow(vm);
             var target = window;
             window.NewNoteRequested += () => RunOperation(() => NewNoteAsync(target));
-            window.SetAutoArrange(layoutSettings.AutoArrange);
             window.CollapseGesture = layoutSettings.Hotkeys.GetValueOrDefault("ToggleCurrent", "");
             window.LayoutOptionsRequested += () => ExecuteCommand("TogglePanel");
             window.ArrangeTilesRequested += byColor => ExecuteCommand(byColor ? "SortColor" : "SortCreated");
-            window.AutoArrangeChanged += enabled => RunOperation(() => SetAutoArrangeAsync(enabled), false);
-            window.TileDragCompleted += () =>
-            {
-                if (target.IsCollapsed) QueueAutoArrange();
-                else autoArrangeQueue?.CancelPending(); // A deliberate move takes precedence over an outstanding title sort.
-            };
-            window.InteractionFinished += () => autoArrangeQueue?.Resume();
-            window.IsVisibleChanged += (_, _) => QueueAutoArrange();
             window.SearchRequested += () => { if (!busy) ShowList(true); };
             window.HideRequested += (_, _) => RunOperation(async () =>
             {
@@ -241,8 +215,8 @@ public partial class App : Application
                 if (await vm.FlushAsync()) target.Hide();
                 else { vm.SetDeleted(false); Error("저장에 실패해 메모를 삭제하지 않았습니다."); }
             });
-            window.SourceInitialized += (_, _) => WindowPlacement.KeepOnScreen(target);
-            window.Loaded += (_, _) => WindowPlacement.KeepOnScreen(target);
+            window.SourceInitialized += (_, _) => WindowPlacement.KeepVisible(target);
+            window.Loaded += (_, _) => WindowPlacement.KeepVisible(target);
             window.SourceInitialized += (_, _) =>
             {
                 var magnet = new WindowMagnet(target, () => windows.Where(pair => pair.Value != target
@@ -255,34 +229,10 @@ public partial class App : Application
         }
         bool wasVisible = window.IsVisible;
         window.Show();
-        WindowPlacement.KeepOnScreen(window);
+        WindowPlacement.KeepVisible(window);
         if (!wasVisible) window.Activate();
     }
 
-    private void QueueAutoArrange()
-    {
-        if (!layoutSettings.AutoArrange || shuttingDown) return;
-        autoArrangeQueue ??= new AutoArrangeQueue(Dispatcher,
-            () => layoutSettings.AutoArrange && !shuttingDown && !busy
-                && !windows.Values.Any(w => w.IsVisible && (w.EditorHasFocus || w.IsDragging)),
-            async () =>
-        {
-            busy = true;
-            try { await ArrangeTilesAsync(); }
-            finally { busy = false; }
-        }, ex =>
-        {
-                // Do not repeatedly move notes or show errors when a disk/screen is full.
-                layoutSettings = layoutSettings with { AutoArrange = false };
-                if (autoArrangeMenu is not null) autoArrangeMenu.Checked = false;
-                foreach (var window in windows.Values) window.SetAutoArrange(false);
-                string message = "자동 정렬을 중단했습니다. 정렬 메뉴에서 다시 켤 수 있습니다.";
-                try { SaveLayoutSettings(layoutSettings); }
-                catch (Exception settingsError) { message += "\n중단 설정을 저장하지 못했습니다: " + settingsError.Message; }
-                Error(message, ex);
-        });
-        autoArrangeQueue.Request();
-    }
     private void ShowList(bool search = false)
     {
         if (list is null) return;
@@ -295,7 +245,7 @@ public partial class App : Application
 
     private async void OnNoteSaved()
     {
-        RefreshList();
+        if (!arranging) RefreshList();
         var today = DateOnly.FromDateTime(DateTime.Now);
         if (backupInProgress || backupAttempt == today) return;
         backupAttempt = today;
@@ -319,29 +269,12 @@ public partial class App : Application
         }
     }
 
-    private void ShowSettings()
-    {
-        try
-        {
-            if (settings is not null) { settings.Activate(); return; }
-            settings = new SettingsWindow(StartupRegistration.IsEnabled(), dataDirectory);
-            settings.Closed += (_, _) => settings = null;
-            settings.AutoStartChanged += enabled =>
-            {
-                try { StartupRegistration.SetEnabled(enabled); }
-                catch (Exception ex) { settings?.SetAutoStart(!enabled); Error("자동 실행 설정을 변경하지 못했습니다.", ex); }
-            };
-            settings.BackupRequested += () => RunOperation(BackupAsync);
-            settings.RestoreRequested += () => RunOperation(RestoreAsync);
-            settings.Show();
-        }
-        catch (Exception ex) { Error("설정을 열지 못했습니다.", ex); }
-    }
+    private void ShowSettings() => OpenSettings(2);
 
     private async Task BackupAsync()
     {
         var dialog = new SaveFileDialog { Title = "메모 전체 백업", Filter = "OmniMemo 백업 (*.db)|*.db", FileName = $"OmniMemo-backup-{DateTime.Now:yyyyMMdd-HHmmss}.db" };
-        if (dialog.ShowDialog(settings) != true) return;
+        if (dialog.ShowDialog(layoutPanel) != true) return;
         if (!await FlushAllAsync()) throw new IOException("저장하지 못한 변경이 있어 백업을 중단했습니다.");
         await store.BackupAsync(dialog.FileName);
         Dialogs.Show("백업을 저장했습니다.\n" + dialog.FileName, "메모 전체 백업", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -350,10 +283,11 @@ public partial class App : Application
     private async Task RestoreAsync()
     {
         var dialog = new OpenFileDialog { Title = "메모 백업 복원", Filter = "OmniMemo 백업 (*.db)|*.db", CheckFileExists = true };
-        if (dialog.ShowDialog(settings) != true) return;
+        if (dialog.ShowDialog(layoutPanel) != true) return;
         if (Dialogs.Show("현재 메모 전체를 선택한 백업으로 교체합니다. 현재 데이터는 안전 백업으로 보관합니다.\n계속할까요?", "백업 복원", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         if (!await FlushAllAsync()) throw new IOException("저장하지 못한 변경이 있어 복원을 중단했습니다.");
         await store.RestoreAsync(dialog.FileName);
+        arrangementHistory.Clear();
         CloseNoteWindows();
         foreach (var vm in notes.Values) vm.Dispose();
         notes.Clear();
@@ -379,7 +313,6 @@ public partial class App : Application
         shuttingDown = true;
         CloseNoteWindows();
         if (list is not null) { list.AllowClose = true; list.Close(); }
-        settings?.Close();
         if (layoutPanel is not null) { layoutPanel.AllowClose = true; layoutPanel.Close(); }
         CloseOverlayPanel();
         Shutdown();
@@ -391,7 +324,7 @@ public partial class App : Application
         windows.Clear();
     }
 
-    private async void RunOperation(Func<Task> action, bool queueAutoArrange = true)
+    private async void RunOperation(Func<Task> action)
     {
         if (busy || shuttingDown) return;
         busy = true;
@@ -405,8 +338,6 @@ public partial class App : Application
             {
                 foreach (Window window in Windows) window.IsEnabled = true;
                 RefreshList();
-                if (queueAutoArrange) QueueAutoArrange();
-                else autoArrangeQueue?.Resume();
             }
         }
     }
@@ -415,7 +346,7 @@ public partial class App : Application
     {
         foreach (Window window in Windows) if (window.IsVisible) WindowPlacement.KeepOnScreen(window);
         RefreshLayoutPanel();
-        QueueAutoArrange();
+
     });
 
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)

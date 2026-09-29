@@ -154,6 +154,54 @@ public sealed class NoteStoreTests : IDisposable
         Assert.Equal(1L, cmd.ExecuteScalar());
     }
 
+    [Fact]
+    public async Task V2MigrationKeepsOnlyActivePositionAndSafetyBackup()
+    {
+        CreateV1(Database, new Note { Left = -500, Top = 75 });
+        using (var db = new SqliteConnection($"Data Source={Database};Pooling=False"))
+        {
+            db.Open(); using var cmd = db.CreateCommand();
+            cmd.CommandText = "ALTER TABLE notes ADD COLUMN font_family TEXT NOT NULL DEFAULT 'Malgun Gothic'; ALTER TABLE notes ADD COLUMN is_collapsed INTEGER NOT NULL DEFAULT 1; PRAGMA user_version=2";
+            cmd.ExecuteNonQuery();
+        }
+        using var store = new NoteStore(Database); await store.InitializeAsync();
+        var note = Assert.Single(await store.LoadAsync());
+        Assert.Equal(-500, note.CollapsedLeft); Assert.Equal(75, note.CollapsedTop); Assert.Null(note.ExpandedLeft);
+        Assert.Equal(3L, ReadScalar(Database, "PRAGMA user_version"));
+        string safety = Assert.Single(Directory.GetFiles(Path.Combine(directory, "backups"), "before-migration-*.db"));
+        Assert.Equal(2L, ReadScalar(safety, "PRAGMA user_version"));
+        await store.RestoreAsync(safety);
+        Assert.Equal(note, Assert.Single(await store.LoadAsync()));
+    }
+
+    [Fact]
+    public async Task IndependentPositionsRoundTripAndInvalidBatchIsAtomic()
+    {
+        using var store = new NoteStore(Database); await store.InitializeAsync();
+        var note = new Note { CollapsedLeft = -200, CollapsedTop = 20, ExpandedLeft = 500, ExpandedTop = 300 };
+        await store.SaveManyAsync([note]);
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.SaveManyAsync([note with { Body = "changed" }, new Note { ExpandedLeft = 1 }]));
+        Assert.Equal(note, Assert.Single(await store.LoadAsync()));
+        string backup = Path.Combine(directory, "positions.db"); await store.BackupAsync(backup);
+        await store.SaveAsync(note with { ExpandedLeft = 100 }); await store.RestoreAsync(backup);
+        Assert.Equal(note, Assert.Single(await store.LoadAsync()));
+    }
+
+    [Fact]
+    public async Task BatchWriteFailureRollsBackEarlierRows()
+    {
+        using var store = new NoteStore(Database); await store.InitializeAsync();
+        var first = new Note { Body = "original" }; await store.SaveAsync(first);
+        using (var db = new SqliteConnection($"Data Source={Database};Pooling=False"))
+        {
+            db.Open(); using var command = db.CreateCommand();
+            command.CommandText = "CREATE TRIGGER reject_note BEFORE INSERT ON notes WHEN NEW.body='reject' BEGIN SELECT RAISE(ABORT, 'injected failure'); END";
+            command.ExecuteNonQuery();
+        }
+        await Assert.ThrowsAsync<SqliteException>(() => store.SaveManyAsync([first with { Body = "changed" }, new Note { Body = "reject" }]));
+        Assert.Equal(first, Assert.Single(await store.LoadAsync()));
+    }
+
     private static void CreateV1(string path, Note note)
     {
         using var db = new SqliteConnection($"Data Source={path};Pooling=False"); db.Open();

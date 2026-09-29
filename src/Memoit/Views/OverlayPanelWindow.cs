@@ -37,11 +37,13 @@ public sealed class OverlayPanelWindow : Window
         content.Children.Add(new TextBlock { Text = "보이는 메모 · 색상별 접기 / 펼치기", Margin = new Thickness(2, 9, 0, 4) });
         content.Children.Add(color);
         content.Children.Add(Row(Button("접기", () => CollapseRequested?.Invoke(true, SelectedColor)), Button("펼치기", () => CollapseRequested?.Invoke(false, SelectedColor))));
-        content.Children.Add(Row(Button("전체 숨김 / 보임", () => CommandRequested?.Invoke("ToggleVisibility")), Button("지금 정렬", () => CommandRequested?.Invoke("Arrange"))));
-        content.Children.Add(new TextBlock { Text = "전체 화면 배치", Margin = new Thickness(2, 7, 0, 2) });
+        content.Children.Add(Row(Button("전체 숨김 / 보임", () => CommandRequested?.Invoke("ToggleVisibility")), Button("모두 정돈", () => CommandRequested?.Invoke("Arrange"))));
+        content.Children.Add(Row(Button("접힌 메모 정돈", () => CommandRequested?.Invoke("ArrangeCollapsed")), Button("펼친 메모 정돈", () => CommandRequested?.Invoke("ArrangeExpanded"))));
+        content.Children.Add(Button("이전 배치로", () => CommandRequested?.Invoke("UndoArrange")));
+        content.Children.Add(new TextBlock { Text = "타일 배치", Margin = new Thickness(2, 7, 0, 2) });
         content.Children.Add(Row(Button("격자", () => CommandRequested?.Invoke("ShapeGrid")), Button("가로", () => CommandRequested?.Invoke("ShapeHorizontal")), Button("세로", () => CommandRequested?.Invoke("ShapeVertical"))));
         content.Children.Add(Row(Button("생성순", () => CommandRequested?.Invoke("SortCreated")), Button("색상순", () => CommandRequested?.Invoke("SortColor")), Button("제목순", () => CommandRequested?.Invoke("SortTitle"))));
-        content.Children.Add(Row(pinned, Button("상세 옵션…", () => CommandRequested?.Invoke("TogglePanel"))));
+        content.Children.Add(Row(pinned, Button("설정…", () => CommandRequested?.Invoke("TogglePanel"))));
         content.Children.Add(new TextBlock { Text = "불투명도 (30–100%)", Margin = new Thickness(2, 5, 0, 0) }); content.Children.Add(opacity);
         foreach (var (element, name) in new (DependencyObject, string)[] { (color, "패널 색상 필터"), (opacity, "패널 불투명도"), (pinned, "패널 항상 위"), (close, "데스크톱 패널 숨기기") })
             System.Windows.Automation.AutomationProperties.SetName(element, name);

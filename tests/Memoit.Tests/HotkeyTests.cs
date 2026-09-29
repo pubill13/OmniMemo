@@ -38,7 +38,11 @@ public sealed class HotkeyTests
     {
         var defaults = HotkeyDefaults.Create();
         HotkeyService.Validate(defaults);
-        Assert.Equal(20, defaults.Count);
+        Assert.Equal(22, defaults.Count);
+        Assert.DoesNotContain("ToggleAuto", defaults.Keys);
+        Assert.Equal("", defaults["ArrangeCollapsed"]);
+        Assert.Equal("", defaults["ArrangeExpanded"]);
+        Assert.Equal("", defaults["UndoArrange"]);
         Assert.Equal("Ctrl+Alt+Shift+N", defaults["NewNote"]);
         Assert.Equal("Ctrl+Alt+Shift+F", defaults["Search"]);
         Assert.True(HotkeyService.Matches(defaults["ToggleCurrent"], Key.Space, ModifierKeys.Control | ModifierKeys.Shift));

@@ -49,7 +49,21 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
     public double FontSize { get => note.FontSize; set { if (value != note.FontSize) { note = note with { FontSize = value }; Changed(); Notify(); } } }
     public string FontFamily { get => note.FontFamily; set { if (!string.IsNullOrWhiteSpace(value) && value.Length <= 100 && value != note.FontFamily) { note = note with { FontFamily = value }; Changed(); Notify(); Notify(nameof(EffectiveFontFamily)); } } }
     public string EffectiveFontFamily => InstalledFonts.Value.Contains(note.FontFamily) ? note.FontFamily : "Malgun Gothic";
-    public bool IsCollapsed { get => note.IsCollapsed; set { if (value != note.IsCollapsed) { note = note with { IsCollapsed = value }; Changed(false); Notify(); } } }
+    public bool IsCollapsed
+    {
+        get => note.IsCollapsed;
+        set
+        {
+            if (value == note.IsCollapsed) return;
+            note = note.IsCollapsed
+                ? note with { CollapsedLeft = note.Left, CollapsedTop = note.Top }
+                : note with { ExpandedLeft = note.Left, ExpandedTop = note.Top };
+            note = note with { IsCollapsed = value,
+                Left = (value ? note.CollapsedLeft : note.ExpandedLeft) ?? note.Left,
+                Top = (value ? note.CollapsedTop : note.ExpandedTop) ?? note.Top };
+            Changed(false); Notify();
+        }
+    }
     public bool IsPinned { get => note.IsPinned; set { if (value != note.IsPinned) { note = note with { IsPinned = value }; Changed(); Notify(); } } }
     public string SaveStatus { get => status; private set { status = value; Notify(); } }
     public string SaveState { get => saveState; private set { saveState = value; Notify(); } }
@@ -60,16 +74,18 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
     public void UpdateBounds(double left, double top, double width, double height)
     {
         if (IsCollapsed) { UpdatePosition(left, top); return; }
-        if (!double.IsFinite(left) || !double.IsFinite(top) || !double.IsFinite(width) || !double.IsFinite(height) || width < 240 || height < 180) return;
+        if (!double.IsFinite(left) || !double.IsFinite(top) || !double.IsFinite(width) || !double.IsFinite(height) || width < 36 || height < 36) return;
         if (note.Left == left && note.Top == top && note.Width == width && note.Height == height) return;
-        note = note with { Left = left, Top = top, Width = width, Height = height };
+        note = note with { Left = left, Top = top, Width = width, Height = height, ExpandedLeft = left, ExpandedTop = top };
         Changed(false);
     }
 
     public void UpdatePosition(double left, double top)
     {
         if (!double.IsFinite(left) || !double.IsFinite(top) || (note.Left == left && note.Top == top)) return;
-        note = note with { Left = left, Top = top };
+        note = note.IsCollapsed
+            ? note with { Left = left, Top = top, CollapsedLeft = left, CollapsedTop = top }
+            : note with { Left = left, Top = top, ExpandedLeft = left, ExpandedTop = top };
         Changed(false);
     }
 
@@ -139,6 +155,43 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
             return !IsDirty;
         }
         finally { saveGate.Release(); }
+    }
+
+    /// <summary>Called on the UI dispatcher. Gates serialize batches with each editor's autosave.</summary>
+    public static async Task<bool> FlushManyAsync(IEnumerable<NoteViewModel> source, Func<IReadOnlyList<Note>, Task> saveMany)
+    {
+        var models = source.Distinct().OrderBy(vm => vm.note.Id).ToArray();
+        var acquired = new List<NoteViewModel>();
+        try
+        {
+            foreach (var vm in models) { await vm.saveGate.WaitAsync(); acquired.Add(vm); }
+            var pending = models.Where(vm => vm.IsDirty && !vm.disposed)
+                .Select(vm => (Vm: vm, Snapshot: vm.note, Revision: vm.revision)).ToArray();
+            if (pending.Length == 0) return true;
+            foreach (var item in pending) { item.Vm.timer.Stop(); item.Vm.SaveState = "Saving"; item.Vm.SaveStatus = "저장 중…"; }
+            try { await saveMany(pending.Select(item => item.Snapshot).ToArray()); }
+            catch (Exception ex)
+            {
+                foreach (var item in pending)
+                {
+                    item.Vm.failed = true; item.Vm.timer.Stop();
+                    item.Vm.SaveState = "Failed"; item.Vm.SaveStatus = "저장 실패 · " + ex.Message;
+                }
+                return false;
+            }
+            foreach (var item in pending)
+            {
+                var vm = item.Vm;
+                vm.savedRevision = item.Revision;
+                vm.failed = false;
+                vm.firstDirty = DateTimeOffset.UtcNow;
+                if (!vm.IsDirty) { vm.SaveState = "Saved"; vm.SaveStatus = "저장됨"; vm.timer.Stop(); }
+                else if (!vm.disposed) vm.timer.Start();
+                vm.Saved?.Invoke();
+            }
+            return true;
+        }
+        finally { foreach (var vm in acquired) vm.saveGate.Release(); }
     }
 
     private void Notify([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
