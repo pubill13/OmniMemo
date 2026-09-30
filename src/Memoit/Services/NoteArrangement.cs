@@ -22,12 +22,13 @@ public static class NoteArrangement
         double x = options.X * scale, y = options.Y * scale, rowHeight = 0;
         double gap = options.Gap * scale;
         int column = 0, skipped = 0;
+        string? previousColor = null;
         foreach (var note in ordered)
         {
             var size = GetSize(note, scale, sizesPixels);
             bool wrap = column > 0 && (options.Shape == LayoutShape.Vertical
-                || options.Shape == LayoutShape.Grid && (options.Columns > 0
-                    ? column >= options.Columns : x + size.Width > areaPixels.Width));
+                || options.Shape == LayoutShape.Grid && (options.Sort == LayoutSort.Color && previousColor != CanonicalColor(note.Color) || (options.Columns > 0
+                    ? column >= options.Columns : x + size.Width > areaPixels.Width)));
             if (wrap) { x = options.X * scale; y += rowHeight + gap; rowHeight = 0; column = 0; }
             var bounds = new Rect(areaPixels.X + x, areaPixels.Y + y, size.Width, size.Height);
             if (areaPixels.Contains(bounds)) result.Add(note.Id, bounds);
@@ -35,6 +36,7 @@ public static class NoteArrangement
             x += size.Width + gap;
             rowHeight = Math.Max(rowHeight, size.Height);
             column++;
+            previousColor = CanonicalColor(note.Color);
         }
         return new(result, skipped);
     }
@@ -116,6 +118,9 @@ public static class NoteArrangement
         int index = Array.FindIndex(Colors, c => string.Equals(c, color, StringComparison.OrdinalIgnoreCase));
         return index < 0 ? int.MaxValue : Math.Max(0, index - 1);
     }
+
+    private static string CanonicalColor(string color) => color.Equals("#FFF2B3", StringComparison.OrdinalIgnoreCase)
+        ? "#FFF2B2" : color.ToUpperInvariant();
 
     private static Size GetSize(Note note, double scale, IReadOnlyDictionary<Guid, Size>? sizes)
     {

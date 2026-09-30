@@ -15,6 +15,29 @@ namespace Memoit.Tests;
 public sealed class WindowTests
 {
     [Fact]
+    public void ListSelectionSurvivesSavedNoteRefreshAndTracksVisibleSearchResults() => RunSta(() =>
+    {
+        var window = new MainWindow();
+        var first = new Note { Body = "alpha" };
+        var second = new Note { Body = "beta" };
+        try
+        {
+            window.SetNotes([first, second]);
+            var box = (ListBox)window.FindName("NoteList");
+            box.SelectedItems.Add(box.Items[0]); box.SelectedItems.Add(box.Items[1]);
+            Assert.Equal(2, window.SelectedIds.Count);
+            window.SetNotes([first with { Body = "alpha edited" }, second]);
+            Assert.Equal(2, window.SelectedIds.Count);
+            Assert.Equal(2, box.SelectedItems.Count);
+            ((TextBox)window.FindName("SearchBox")).Text = "alpha";
+            Assert.Equal(first.Id, Assert.Single(window.SelectedIds));
+            window.SetNotes([first, second], true);
+            Assert.Empty(window.SelectedIds);
+        }
+        finally { window.AllowClose = true; window.Close(); }
+    });
+
+    [Fact]
     public void NoteWindow_BindsMultilineKoreanAndEmojiWithoutReplacingEditor()
     {
         RunSta(() =>

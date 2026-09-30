@@ -1,7 +1,7 @@
 <Window Icon="/OmniMemo;component/Assets/OmniMemo.ico" ShowInTaskbar="False" x:Class="Memoit.Views.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="OmniMemo · 메모 목록" Width="580" Height="680" MinWidth="430" MinHeight="420" Background="#F7F7F3" FontFamily="Malgun Gothic" Foreground="#292D35" WindowStartupLocation="CenterScreen" PreviewKeyDown="OnKeyDown">
  <Window.Resources>
   <Style TargetType="Button"><Setter Property="Padding" Value="13,8"/><Setter Property="Margin" Value="0,0,8,0"/><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#DDDFD7"/><Setter Property="Cursor" Value="Hand"/></Style>
-  <Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Margin" Value="0,0,0,10"/><Setter Property="Padding" Value="0"/></Style>
+  <Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Margin" Value="0,0,0,10"/><Setter Property="Padding" Value="0"/><Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/></Style>
  </Window.Resources>
  <Grid Margin="24">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -23,7 +23,7 @@
    </ListBox>
    <TextBlock x:Name="EmptyLabel" Text="메모가 없습니다. 새 메모로 시작하세요." TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#74776D" IsHitTestVisible="False"/>
   </Grid>
-  <TextBlock Grid.Row="5" Text="창을 닫아도 트레이에서 계속 실행됩니다." Foreground="#858A7D" FontSize="11" Margin="0,14,0,0"/>
+  <StackPanel Grid.Row="5"><ContentControl x:Name="UndoHost"/><TextBlock Text="창을 닫아도 트레이에서 계속 실행됩니다." Foreground="#858A7D" FontSize="11" Margin="0,14,0,0"/></StackPanel>
  </Grid>
 </Window>
 

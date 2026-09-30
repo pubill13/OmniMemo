@@ -24,7 +24,9 @@ public partial class MainWindow : Window
     public event Action<IReadOnlyList<Guid>>? DeleteSelectedRequested;
     public event Action? SearchChanged;
     private readonly HashSet<Guid> selected = [];
+    private bool refreshingSelection;
     public IReadOnlyList<Guid> SelectedIds => selected.ToArray();
+    public void SetUndoContent(UIElement? content) => UndoHost.Content = content;
 
     public MainWindow()
     {
@@ -48,7 +50,14 @@ public partial class MainWindow : Window
         var query = SearchText.Trim();
         var items = _notes.Where(n => (n.DeletedAt != null) == ShowingTrash && n.Body.Contains(query, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(n => n.UpdatedAt).Select(n => new NoteRow(n, ShowingTrash, selected.Contains(n.Id))).ToList();
-        NoteList.ItemsSource = items;
+        selected.IntersectWith(items.Select(row => row.Id));
+        refreshingSelection = true;
+        try
+        {
+            NoteList.ItemsSource = items;
+            foreach (var row in items.Where(row => row.IsSelected)) NoteList.SelectedItems.Add(row);
+        }
+        finally { refreshingSelection = false; }
         SectionLabel.Text = $"{(ShowingTrash ? "휴지통" : "전체 메모")} · {items.Count}개";
         EmptyLabel.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         EmptyLabel.Text = query.Length > 0 ? "검색 결과가 없습니다." : ShowingTrash ? "휴지통이 비어 있습니다." : "메모가 없습니다. 새 메모로 시작하세요.";
@@ -70,9 +79,14 @@ public partial class MainWindow : Window
     private void OnCheckSelection(object sender, RoutedEventArgs e)
     { if (sender is CheckBox box && box.Tag is Guid id) { if (box.IsChecked == true) selected.Add(id); else selected.Remove(id); DeleteSelectedButton.IsEnabled = !ShowingTrash && selected.Count > 0; } }
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
-    { foreach (NoteRow row in e.AddedItems) selected.Add(row.Id); foreach (NoteRow row in e.RemovedItems) selected.Remove(row.Id); DeleteSelectedButton.IsEnabled = !ShowingTrash && selected.Count > 0; }
+    {
+        if (refreshingSelection) return;
+        foreach (NoteRow row in e.AddedItems) { selected.Add(row.Id); row.IsSelected = true; }
+        foreach (NoteRow row in e.RemovedItems) { selected.Remove(row.Id); row.IsSelected = false; }
+        DeleteSelectedButton.IsEnabled = !ShowingTrash && selected.Count > 0;
+    }
     private void OnRowRightClick(object sender, MouseButtonEventArgs e)
-    { if (sender is FrameworkElement element && element.Tag is Guid id && !selected.Contains(id)) { selected.Clear(); selected.Add(id); RefreshList(); } }
+    { if (sender is FrameworkElement element && element.Tag is Guid id && !selected.Contains(id)) { selected.Add(id); RefreshList(); } }
     private void OnContextOpen(object sender, RoutedEventArgs e) => OpenNoteRequested?.Invoke(ContextId(sender));
     private void OnContextHide(object sender, RoutedEventArgs e) => HideRequested?.Invoke(ContextId(sender));
     private void OnContextDelete(object sender, RoutedEventArgs e) => DeleteRequested?.Invoke(ContextId(sender));
@@ -85,7 +99,7 @@ public partial class MainWindow : Window
         if (e.Key == Key.F) { FocusSearch(); e.Handled = true; }
     }
 
-    private sealed class NoteRow(Note note, bool trash, bool selected)
+    private sealed class NoteRow(Note note, bool trash, bool selected) : System.ComponentModel.INotifyPropertyChanged
     {
         public Guid Id => note.Id;
         public string Title => note.Title;
@@ -94,6 +108,12 @@ public partial class MainWindow : Window
         public string Modified => note.UpdatedAt.ToLocalTime().ToString("yyyy.MM.dd HH:mm");
         public Visibility TrashVisibility => trash ? Visibility.Visible : Visibility.Collapsed;
         public Visibility ActiveVisibility => trash ? Visibility.Collapsed : Visibility.Visible;
-        public bool IsSelected { get; set; } = selected;
+        private bool isSelected = selected;
+        public bool IsSelected
+        {
+            get => isSelected;
+            set { if (value == isSelected) return; isSelected = value; PropertyChanged?.Invoke(this, new(nameof(IsSelected))); }
+        }
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     }
 }

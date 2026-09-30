@@ -172,6 +172,16 @@ public partial class App
         catch (Exception ex) { ArrangementNotice("변경 안내 상태를 저장하지 못했습니다: " + ex.Message, true); }
     }
 
+    private IReadOnlyList<Memoit.Models.Note> GetPreviewNotes(string monitorId)
+    {
+        var monitors = MonitorCatalog.All();
+        return windows.Where(p => p.Value.IsVisible && notes[p.Key].Snapshot.DeletedAt is null)
+            .Select(p => (p.Key, Window: p.Value, Bounds: WindowPlacement.GetBounds(p.Value)))
+            .Where(p => MonitorCatalog.Nearest(p.Bounds, monitors).Id == monitorId)
+            .Select(p => notes[p.Key].Snapshot with { Width = p.Window.IsCollapsed ? notes[p.Key].Snapshot.Width : p.Bounds.Width / monitors.First(m => m.Id == monitorId).Scale,
+                Height = p.Window.IsCollapsed ? notes[p.Key].Snapshot.Height : p.Bounds.Height / monitors.First(m => m.Id == monitorId).Scale }).ToArray();
+    }
+
     private void RefreshLayoutPanel()
     {
         if (layoutPanel?.IsVisible == true) layoutPanel.RefreshSettings(layoutSettings, MonitorCatalog.All());
@@ -187,9 +197,8 @@ public partial class App
     {
         if (layoutPanel is null)
         {
-            layoutPanel = new LayoutOptionsWindow(layoutSettings, MonitorCatalog.All(), dataDirectory, StartupRegistration.IsEnabled());
-            layoutPanel.ApplyRequested += candidate => ApplyPanelSettings(candidate, false);
-            layoutPanel.ArrangeRequested += candidate => ApplyPanelSettings(candidate, true);
+            layoutPanel = new LayoutOptionsWindow(layoutSettings, MonitorCatalog.All(), dataDirectory, StartupRegistration.IsEnabled(), GetPreviewNotes);
+            layoutPanel.ApplyRequested += ApplyPanelSettings;
             layoutPanel.AutoStartChanged += enabled =>
             {
                 try { StartupRegistration.SetEnabled(enabled); }
@@ -215,7 +224,7 @@ public partial class App
         layoutPanel.Show(); WindowPlacement.KeepOnScreen(layoutPanel); layoutPanel.Activate();
     }
 
-    private void ApplyPanelSettings(LayoutSettings candidate, bool arrange)
+    private void ApplyPanelSettings(LayoutSettings candidate)
     {
         try
         {
@@ -229,7 +238,6 @@ public partial class App
             SaveLayoutSettings(candidate);
             overlayPanel?.RefreshSettings(layoutSettings);
             layoutPanel?.ShowSuccess();
-            if (arrange) RunArrangement("Arrange");
         }
         catch (Exception ex) { layoutPanel?.ShowError(ex.Message); }
     }

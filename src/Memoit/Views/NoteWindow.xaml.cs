@@ -48,7 +48,7 @@ public partial class NoteWindow : Window
         Closed += (_, _) => vm.PropertyChanged -= OnViewModelChanged;
         LocationChanged += (_, _) => SaveBounds();
         SizeChanged += (_, _) => SaveBounds();
-        Loaded += (_, _) => { if (!IsCollapsed) Editor.Focus(); };
+        Loaded += (_, _) => { if (!IsCollapsed && ShowActivated) Editor.Focus(); };
         Editor.LostKeyboardFocus += (_, _) =>
             _ = Dispatcher.BeginInvoke(() => InteractionFinished?.Invoke());
     }

@@ -97,13 +97,7 @@ public partial class App : Application
             if (notes.TryGetValue(id, out var vm) && vm.Snapshot.DeletedAt is null)
             { vm.SetVisible(true); ShowNote(vm); await vm.FlushAsync(); }
         });
-        list.RestoreNoteRequested += id => RunOperation(async () =>
-        {
-            var vm = notes[id];
-            vm.SetDeleted(false);
-            if (await vm.FlushAsync()) ShowNote(vm);
-            else { vm.SetDeleted(true); throw new IOException("메모를 복원하지 못했습니다. 다시 시도하세요."); }
-        });
+        list.RestoreNoteRequested += id => RunOperation(() => RestoreTrashAsync(id));
         list.PermanentDeleteRequested += id => RunOperation(async () =>
         {
             if (MessageBox.Show(list, "이 메모를 영구 삭제할까요? 휴지통에서 복구할 수 없습니다.", "영구 삭제", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
@@ -122,26 +116,6 @@ public partial class App : Application
             if (await vm.FlushAsync() && windows.Remove(id, out var window)) { window.Hide(); windows[id] = window; }
         });
         list.SettingsRequested += () => { if (!busy) ShowSettings(); };
-    }
-
-    private async Task DeleteSelectedAsync(IReadOnlyList<Guid> ids)
-    {
-        var targets = ids.Distinct().Where(id => notes.TryGetValue(id, out var vm) && vm.Snapshot.DeletedAt is null).ToArray();
-        if (targets.Length == 0) return;
-        string summary = string.Join(", ", targets.Take(3).Select(id => notes[id].Title));
-        if (targets.Length > 3) summary += $" 외 {targets.Length - 3}개";
-        if (MessageBox.Show(list, $"선택한 {targets.Length}개 메모를 휴지통으로 이동할까요?\n{summary}", "선택 삭제", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        var changed = new List<NoteViewModel>();
-        foreach (var id in targets) { var vm = notes[id]; vm.SetDeleted(true); changed.Add(vm); }
-        bool success = true;
-        foreach (var vm in changed) success &= await vm.FlushAsync();
-        if (!success)
-        {
-            foreach (var vm in changed.Where(vm => vm.IsDirty || vm.Snapshot.DeletedAt is not null)) vm.SetDeleted(false);
-            foreach (var vm in changed) await vm.FlushAsync();
-            throw new IOException("일부 메모를 휴지통으로 이동하지 못했습니다. 변경 내용을 원래 상태로 복구했습니다.");
-        }
-        foreach (var id in targets) if (windows.Remove(id, out var window)) { window.AllowClose = true; window.Close(); }
     }
 
     private void CreateTray()
@@ -176,23 +150,11 @@ public partial class App : Application
         return vm;
     }
 
-    private Task NewNoteAsync() => NewNoteAsync(null);
-
-    private async Task NewNoteAsync(NoteWindow? source)
-    {
-        int offset = windows.Count % 10 * 24;
-        var note = new Note { Left = source is null ? 100 + offset : source.Left + 28, Top = source is null ? 100 + offset : source.Top + 28 };
-        var vm = AddModel(note, true);
-        ShowNote(vm);
-        if (source is not null) WindowPlacement.Cascade(windows[note.Id], source);
-        if (!await vm.FlushAsync()) Error("새 메모를 저장하지 못했습니다. 창의 내용을 복사해 보관하거나 저장을 다시 시도하세요.");
-    }
-
-    private void ShowNote(NoteViewModel vm)
+    private void ShowNote(NoteViewModel vm, bool activate = true)
     {
         if (!windows.TryGetValue(vm.Snapshot.Id, out var window))
         {
-            window = new NoteWindow(vm);
+            window = new NoteWindow(vm) { ShowActivated = activate };
             var target = window;
             window.NewNoteRequested += () => RunOperation(() => NewNoteAsync(target));
             window.CollapseGesture = layoutSettings.Hotkeys.GetValueOrDefault("ToggleCurrent", "");
@@ -205,12 +167,9 @@ public partial class App : Application
                 if (await vm.FlushAsync()) target.Hide();
                 else { vm.SetVisible(true); Error("저장에 실패해 메모를 숨기지 않았습니다."); }
             });
-            window.DeleteRequested += () => RunOperation(async () =>
-            {
-                vm.SetDeleted(true);
-                if (await vm.FlushAsync()) target.Hide();
-                else { vm.SetDeleted(false); Error("저장에 실패해 메모를 삭제하지 않았습니다."); }
-            });
+            window.DeleteRequested += () => RunOperation(() => DeleteNotesAsync([vm.Snapshot.Id], false));
+            window.Activated += (_, _) => RecordNoteActivation(target);
+            window.SourceInitialized += (_, _) => ApplyInitialNotePlacement(target, vm.Snapshot.Id);
             window.SourceInitialized += (_, _) => WindowPlacement.KeepVisible(target);
             window.Loaded += (_, _) => WindowPlacement.KeepVisible(target);
             window.SourceInitialized += (_, _) =>
@@ -226,7 +185,7 @@ public partial class App : Application
         bool wasVisible = window.IsVisible;
         window.Show();
         WindowPlacement.KeepVisible(window);
-        if (!wasVisible) window.Activate();
+        if (!wasVisible && activate) window.Activate();
     }
 
     private void ShowList(bool search = false)
@@ -240,6 +199,7 @@ public partial class App : Application
     private void RefreshList()
     {
         list?.SetNotes(notes.Values.Select(n => n.Snapshot), list.ShowingTrash);
+        overlayPanel?.SetNotes(notes.Values.Select(n => n.Snapshot));
         overlayPanel?.SetHasVisibleNotes(windows.Values.Any(w => w.IsVisible));
     }
 
@@ -288,6 +248,7 @@ public partial class App : Application
         if (!await FlushAllAsync()) throw new IOException("저장하지 못한 변경이 있어 복원을 중단했습니다.");
         await store.RestoreAsync(dialog.FileName);
 
+        ClearDeleteUndo();
         CloseNoteWindows();
         foreach (var vm in notes.Values) vm.Dispose();
         notes.Clear();
@@ -311,6 +272,7 @@ public partial class App : Application
             SaveLayoutSettings(layoutSettings with { PanelLeft = layoutPanel.Left, PanelTop = layoutPanel.Top,
                 SelectedMonitor = layoutPanel.SelectedMonitorId });
         shuttingDown = true;
+        ClearDeleteUndo();
         CloseNoteWindows();
         if (list is not null) { list.AllowClose = true; list.Close(); }
         if (layoutPanel is not null) { layoutPanel.AllowClose = true; layoutPanel.Close(); }

@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.7.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.8.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -18,9 +18,13 @@ GitHub 릴리스의 `OmniMemo-1.7.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실
 
 ## 패널과 설정
 
-미니 패널은 새 메모·목록/검색, 접어서 정돈·모두 펼치기, 모두 숨기기/보이기를 제공합니다. **색상별 조작**을 펼치면 선택 색상의 보이는 메모만 접거나 펼칠 수 있습니다. 색상별 동작은 전체 정돈하지 않습니다. 헤더에서 압정·설정·닫기를 사용할 수 있고 제목을 드래그하면 패널을 옮깁니다.
+미니 패널은 새 메모·목록/검색, 접어서 정돈·모두 펼치기, 모두 숨기기/보이기를 제공합니다. **색상별 조작**을 펼치면 선택 색상의 보이는 메모만 접거나 펼칠 수 있습니다. 색상 칩은 보이는 메모 수를 표시하고, 버튼 툴팁에는 현재 지정된 단축키를 함께 표시합니다. 색상별 동작은 전체 정돈하지 않습니다. 헤더에서 압정·설정·닫기를 사용할 수 있고 제목을 드래그하면 패널을 옮깁니다.
 
-설정은 `배치`, `단축키`, `일반·백업`의 세 탭으로 통합했습니다. 배치에서 모니터별 타일 시작점, 격자·가로·세로, 간격 0~24 DIP, 열 수 0(자동)~30, 생성순·색상순·제목순, 펼친 메모 시작 모서리를 설정합니다. `화면에서 위치 선택…`으로 타일 시작점을 클릭 지정하며 Escape는 취소입니다. 일반·백업에서 패널 불투명도, 로그인 자동 실행, 백업·복원을 설정합니다.
+설정은 `배치`, `단축키`, `일반·백업`의 세 탭으로 통합했습니다. 배치에서 모니터별 타일 시작점, 격자·가로·세로, 간격 0~24 DIP, 열 수 0(자동)~30, 생성순·색상순·제목순, 펼친 메모 시작 모서리를 설정합니다. `화면에서 위치 선택…`으로 타일 시작점을 클릭 지정하며 Escape는 취소입니다. 배치 탭은 접힌 메모·펼친 메모·공통으로 구분하며 격자에서만 열 수를 표시합니다. 축소 미리보기는 입력 중인 설정으로 계산하고, 메모가 없으면 예시를 표시합니다. 적용은 설정만 저장하며 메모를 움직이지 않습니다. 격자+색상순에서는 색이 바뀔 때 새 행을 시작합니다. 일반·백업에서 패널 불투명도, 로그인 자동 실행, 백업·복원을 설정합니다.
+
+## 새 메모 위치
+
+메모의 ＋·Ctrl+N은 해당 메모 옆으로 28 DIP 어긋나게 만듭니다. 패널·트레이·목록·전역 단축키에서는 마지막으로 활성화한 메모의 모니터를 사용하고, 기록이 없거나 모니터가 사라졌다면 마우스가 있는 모니터를 사용합니다. 설정한 펼친 메모 모서리에서 시작하고, 같은 자리에 메모가 있으면 24 DIP씩 이동합니다. 기존 메모는 이동하지 않습니다.
 
 ## 단축키
 
@@ -38,7 +42,7 @@ GitHub 릴리스의 `OmniMemo-1.7.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실
 
 ## 편집과 데이터 보호
 
-일반 텍스트·한글·복사/붙여넣기·실행 취소/다시 실행을 지원합니다. 메모 메뉴에서 글꼴과 크기·색상을 선택하고 압정 아이콘으로 항상 위를 설정합니다. 제목은 본문의 첫 비어 있지 않은 줄입니다. X는 숨기기이며 삭제는 휴지통으로 이동합니다. 목록의 체크박스와 우클릭으로 여러 메모를 관리할 수 있습니다.
+일반 텍스트·한글·복사/붙여넣기·실행 취소/다시 실행을 지원합니다. 메모 메뉴에서 글꼴과 크기·색상을 선택하고 압정 아이콘으로 항상 위를 설정합니다. 제목은 본문의 첫 비어 있지 않은 줄입니다. X는 숨기기이며 삭제는 휴지통으로 이동합니다. 목록의 체크박스와 우클릭으로 여러 메모를 관리할 수 있습니다. 휴지통 이동 후 목록·패널 또는 작은 안내 창에 10초간 실행 취소를 제공합니다. 안내 위에 마우스나 키보드 포커스가 있으면 만료를 잠시 멈춥니다. 가장 최근 삭제 묶음만 되돌리며 재실행 후에는 유지하지 않습니다. 성공적으로 삭제된 항목의 표시·접힘 상태와 위치를 복구하고, 복원 실패 항목은 다시 시도할 수 있습니다.
 
 상단의 빈 곳이나 타일을 드래그하면 화면·다른 메모 가장자리에 자석처럼 붙으며, 더 끌면 떨어집니다. 화면 밖에 일부 걸치거나 다른 모니터로 옮길 수 있습니다.
 
@@ -57,18 +61,19 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.7.0/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.8.0/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.7.0/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.7.0/win-x64/OmniMemo.exe -ShowOverlay
-dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-1.7.json
+powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.8.0/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.8.0/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/Ux18Smoke.ps1 -Executable artifacts/OmniMemo-1.8.0/win-x64/OmniMemo.exe
+dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-1.8.json
 ```
 
-1.7 검증: 단위/STA 테스트 156개 통과. 실제 WPF 창으로 패널 켜짐/꺼짐 각각 타일100개 정돈과 메모20개 반복 접기·펼치기, 순서 저장, 외부 포커스 유지, 창 비활성화 없음 확인. 첫 측정 화면 반영(Dispatcher+DWM 동기화 포함): 타일100개 28~92ms, 메모20개 접기57~72ms, 펼치기157~253ms. 일부 펼치기는 목표200ms를 초과했습니다. 위치 저장은 별도 약12~86ms였습니다. 측정값은 PC 상태에 따라 달라집니다.
+1.8 검증: 단위/STA 테스트 181개 통과. 게시 실행 파일에서 새 메모 생성 위치, 기존 메모 위치 유지, 설정 적용 시 이동 없음, 색상 칩 개수, 단일·다중 삭제 실행 취소와 위치 복원, 안내 창의 비활성 표시를 확인했습니다. 패널 표시·숨김 각각 연속 입력·자동 저장·드래그, 반복 접기·펼치기, 외부 포커스 유지 회귀 검사도 통과했습니다.
 
 100/150/200% DPI의 계산 및 패널 오프스크린 렌더링을 검사했습니다. 실제 다른 배율의 물리 모니터 연결/해제, 한글 IME 조합, 흰색 순간 프레임의 영상 검증은 별도 확인 항목입니다.
 

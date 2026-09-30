@@ -7,6 +7,43 @@ namespace Memoit.Tests;
 
 public sealed class NoteArrangementTests
 {
+    [Theory]
+    [InlineData(1)]
+    [InlineData(1.5)]
+    [InlineData(2)]
+    public void ColorGridStartsNewRowsButYellowAliasesShareCreationOrder(double scale)
+    {
+        var notes = Notes(5, true);
+        notes[0] = notes[0] with { Color = "#fff2b2" };
+        notes[1] = notes[1] with { Color = "#FFF2B3" };
+        notes[2] = notes[2] with { Color = "#FFF2B2" };
+        notes[3] = notes[3] with { Color = "#FFDDE7" };
+        notes[4] = notes[4] with { Color = "#DEF0D8" };
+        var result = NoteArrangement.ArrangeCollapsed(notes.Reverse(), new Rect(-1000, -500, 1000, 1000),
+            new MonitorLayout { Sort = LayoutSort.Color, Columns = 2 }, scale);
+        Assert.Equal(result.Bounds[notes[0].Id].Top, result.Bounds[notes[1].Id].Top);
+        Assert.Equal(44 * scale, result.Bounds[notes[1].Id].Left - result.Bounds[notes[0].Id].Left);
+        Assert.Equal(44 * scale, result.Bounds[notes[2].Id].Top - result.Bounds[notes[0].Id].Top);
+        Assert.Equal(44 * scale, result.Bounds[notes[3].Id].Top - result.Bounds[notes[2].Id].Top);
+        Assert.Equal(44 * scale, result.Bounds[notes[4].Id].Top - result.Bounds[notes[3].Id].Top);
+    }
+
+    [Fact]
+    public void ColorRowsReportOverflowWhileHorizontalDoesNotBreakAtColorBoundary()
+    {
+        var notes = Notes(3, true);
+        notes[1] = notes[1] with { Color = "#FFDDE7" };
+        notes[2] = notes[2] with { Color = "#DEF0D8" };
+        var options = new MonitorLayout { Sort = LayoutSort.Color };
+        var area = new Rect(0, 0, 300, 96);
+        var grid = NoteArrangement.ArrangeCollapsed(notes, area, options);
+        Assert.Equal(1, grid.SkippedTiles);
+        Assert.DoesNotContain(notes[2].Id, grid.Bounds.Keys);
+        var horizontal = NoteArrangement.ArrangeCollapsed(notes, area, options with { Shape = LayoutShape.Horizontal });
+        Assert.Equal(0, horizontal.SkippedTiles);
+        Assert.All(horizontal.Bounds.Values, b => Assert.Equal(8, b.Top));
+    }
+
     private static Note[] Notes(int count, bool collapsed = false) => Enumerable.Range(0, count)
         .Select(i => new Note { IsCollapsed = collapsed, CreatedAt = DateTimeOffset.UnixEpoch.AddSeconds(i), Width = 100, Height = 80 }).ToArray();
 

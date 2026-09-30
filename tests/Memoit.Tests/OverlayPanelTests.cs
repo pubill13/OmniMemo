@@ -1,6 +1,13 @@
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Automation;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using Memoit.Models;
 using Memoit.Services;
 using Memoit.Views;
 using Xunit;
@@ -57,6 +64,13 @@ public sealed class OverlayPanelTests
                 {
                     Assert.Equal(.55, panel.Opacity); Assert.True(panel.Topmost); Assert.False(panel.ShowInTaskbar);
                     Assert.Equal("#FFF2B3", panel.SelectedColor);
+                    panel.SetNotes([new Note { Color = "#FFF2B2" }, new Note { Color = "#FFF2B3" }, new Note { Color = "#FFDDE7" }, new Note { IsVisible = false }, new Note { DeletedAt = DateTimeOffset.UtcNow }]);
+                    Assert.Empty(Descendants(panel).OfType<ComboBox>());
+                    var chips = Descendants(panel).OfType<ToggleButton>().Where(c => AutomationProperties.GetName(c).Contains("보이는 메모")).ToArray();
+                    Assert.Equal(7, chips.Length);
+                    Assert.Contains("전체 · 보이는 메모 3개", AutomationProperties.GetName(chips[0]));
+                    Assert.Contains("노랑 · 보이는 메모 2개 · 선택됨", AutomationProperties.GetName(chips[1]));
+                    Assert.True(chips[1].IsChecked); Assert.True(chips[1].Focusable);
                     bool? collapsed = null; string? selected = null;
                     panel.CollapseRequested += (value, color) => { collapsed = value; selected = color; };
                     var content = (StackPanel)((Border)panel.Content).Child;
@@ -68,6 +82,19 @@ public sealed class OverlayPanelTests
                     var expand = buttons.Single(b => Equals(b.Content, "모두 펼치기"));
                     Assert.Equal(arrange.ActualWidth, expand.ActualWidth);
                     Assert.True(arrange.ActualWidth >= 110);
+                    Assert.Contains("Ctrl+Alt+Shift+R", arrange.ToolTip.ToString());
+                    var custom = new LayoutSettings(); custom.Hotkeys["Arrange"] = "Ctrl+Alt+Q"; custom.Hotkeys["CollapseAll"] = "Ctrl+Alt+W";
+                    panel.RefreshSettings(custom);
+                    Assert.Equal("접어서 정돈\nCtrl+Alt+Q / Ctrl+Alt+W", arrange.ToolTip);
+                    Assert.Equal("모두 펼치기", expand.ToolTip);
+                    ((IToggleProvider)new ToggleButtonAutomationPeer(chips[1])).Toggle();
+                    Assert.Equal("#FFF2B3", panel.SelectedColor);
+                    Assert.Single(chips, c => c.IsChecked == true);
+                    ((IToggleProvider)new ToggleButtonAutomationPeer(chips[1])).Toggle();
+                    Assert.True(chips[1].IsChecked);
+                    var undo = new Button { Content = "실행 취소" }; panel.SetUndoContent(undo);
+                    panel.ShowStatus("완료"); Assert.Contains(undo, Descendants(panel));
+                    panel.SetUndoContent(null); Assert.DoesNotContain(undo, Descendants(panel));
                     buttons.Single(b => Equals(b.Content, "선택 색상 펼치기")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Assert.False(collapsed); Assert.Equal("#FFF2B3", selected);
                     string? command = null; panel.CommandRequested += value => command = value;
@@ -88,6 +115,61 @@ public sealed class OverlayPanelTests
             catch (Exception ex) { failure = ex; }
         });
         thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(1.5)]
+    [InlineData(2.0)]
+    public void ExpandedPanelRendersChipsWithoutClippingAtScaledResolution(double scale)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var panel = new OverlayPanelWindow(new LayoutSettings());
+                try
+                {
+                    panel.SetNotes(Enumerable.Range(0, 123).Select(i => new Note { Color = NoteColors.Values[i % 6] }));
+                    Descendants(panel).OfType<Expander>().Single().IsExpanded = true;
+                    var root = (FrameworkElement)panel.Content;
+                    root.Measure(new Size(280, double.PositiveInfinity));
+                    root.Arrange(new Rect(0, 0, 280, root.DesiredSize.Height)); root.UpdateLayout();
+                    var chips = Descendants(panel).OfType<ToggleButton>().Where(c => AutomationProperties.GetName(c).Contains("보이는 메모")).ToArray();
+                    ((IToggleProvider)new ToggleButtonAutomationPeer(chips[2])).Toggle();
+                    root.UpdateLayout();
+                    Assert.Equal(NoteColors.Values[1], panel.SelectedColor);
+                    Assert.Single(chips, c => c.IsChecked == true);
+                    foreach (var chip in chips)
+                    {
+                        Assert.True(chip.IsTabStop);
+                        Assert.True(chip.ActualWidth >= 50);
+                        var stack = Assert.IsType<StackPanel>(chip.Content);
+                        Assert.True(stack.ActualWidth <= chip.ActualWidth);
+                        Assert.True(stack.ActualHeight <= chip.ActualHeight);
+                    }
+                    var selectedBorder = Assert.IsType<Border>(chips[2].Template.FindName("surface", chips[2]));
+                    Assert.Equal(Color.FromRgb(0x42, 0x6f, 0xa6), Assert.IsType<SolidColorBrush>(selectedBorder.BorderBrush).Color);
+                    Assert.All(Descendants(panel).OfType<Button>(), b => Assert.False(string.IsNullOrWhiteSpace(b.ToolTip?.ToString())));
+                    var image = new RenderTargetBitmap((int)Math.Ceiling(root.ActualWidth * scale), (int)Math.Ceiling(root.ActualHeight * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+                    image.Render(root);
+                    Assert.Equal((int)Math.Ceiling(280 * scale), image.PixelWidth);
+                    string? output = Environment.GetEnvironmentVariable("OMNIMEMO_TEST_RENDER_DIR");
+                    if (!string.IsNullOrEmpty(output))
+                    {
+                        Directory.CreateDirectory(output);
+                        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
+                        using var stream = File.Create(Path.Combine(output, $"panel-{scale * 100:0}.png")); encoder.Save(stream);
+                    }
+                }
+                finally { panel.AllowClose = true; panel.Close(); }
+            }
+            catch (Exception ex) { failure = ex; }
+        });
+        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(20)), "Panel rendering timed out.");
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 }

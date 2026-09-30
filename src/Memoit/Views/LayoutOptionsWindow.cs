@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Memoit.Services;
+using Memoit.Models;
 
 namespace Memoit.Views;
 
@@ -22,6 +23,11 @@ public sealed class LayoutOptionsWindow : Window
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 4) };
     private readonly StackPanel hotkeyRows = new();
     private readonly Dictionary<string, TextBox> recorders = [];
+    private readonly StackPanel columnFields = new();
+    private readonly ComboBox previewMode = new() { ItemsSource = new[] { "접힌 모습", "펼친 모습" }, SelectedIndex = 0 };
+    private readonly Canvas preview = new() { Width = 250, Height = 140, Background = Brushes.White, ClipToBounds = true };
+    private readonly TextBlock previewStatus = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray };
+    private readonly Func<string, IReadOnlyList<Note>>? previewNotes;
     private string? selectedId;
     private bool refreshing;
     private bool capturing;
@@ -30,15 +36,16 @@ public sealed class LayoutOptionsWindow : Window
     public bool AllowClose { get; set; }
     public string? SelectedMonitorId => selectedId;
     public event Action<LayoutSettings>? ApplyRequested;
-    public event Action<LayoutSettings>? ArrangeRequested;
     public event Action<bool>? CaptureChanged;
     public event Action? Hidden;
     public event Action<bool>? AutoStartChanged;
     public event Action? BackupRequested;
     public event Action? RestoreRequested;
 
-    public LayoutOptionsWindow(LayoutSettings settings, IReadOnlyList<MonitorDescriptor> monitors, string dataPath = "", bool autoStart = false)
+    public LayoutOptionsWindow(LayoutSettings settings, IReadOnlyList<MonitorDescriptor> monitors, string dataPath = "", bool autoStart = false,
+        Func<string, IReadOnlyList<Note>>? previewNotes = null)
     {
+        this.previewNotes = previewNotes;
         Title = "OmniMemo · 설정"; Width = 340; Height = 570; MinWidth = 340; MinHeight = 450;
         Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/OmniMemo;component/Assets/OmniMemo.ico"));
         foreach (var (control, name) in new (DependencyObject, string)[] { (x, "시작 X"), (y, "시작 Y"), (gap, "간격"), (columns, "열 수"), (shape, "배치 형태"), (sort, "정렬 기준"), (monitorBox, "모니터"), (corner, "펼친 메모 시작 방향") })
@@ -51,18 +58,24 @@ public sealed class LayoutOptionsWindow : Window
         var footer = new StackPanel(); DockPanel.SetDock(footer, Dock.Bottom);
         footer.Children.Add(status);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Children.Add(Button("적용", () => Dispatch(false))); actions.Children.Add(Button("접어서 정돈", () => Dispatch(true))); footer.Children.Add(actions); root.Children.Add(footer);
+        actions.Children.Add(Button("적용", Dispatch)); footer.Children.Add(actions); root.Children.Add(footer);
         root.Children.Add(tabs);
         var layout = new StackPanel { Margin = new Thickness(10) };
         layout.Children.Add(Label("모니터")); layout.Children.Add(monitorBox);
-        layout.Children.Add(Label("접힌 메모"));
-        layout.Children.Add(Label("배치 형태")); layout.Children.Add(shape); layout.Children.Add(Label("정렬 기준")); layout.Children.Add(sort);
+        layout.Children.Add(Label("배치 미리보기")); layout.Children.Add(previewMode);
+        layout.Children.Add(new Border { Child = preview, BorderBrush = Brushes.LightGray, BorderThickness = new Thickness(1), Margin = new Thickness(0, 6, 0, 4) });
+        layout.Children.Add(previewStatus);
+        layout.Children.Add(Section("접힌 메모"));
+        layout.Children.Add(Label("배치 형태")); layout.Children.Add(shape);
         layout.Children.Add(Label("타일 시작점 X / Y (DIP)"));
         var coords = new UniformGridShim(); coords.Children.Add(x); coords.Children.Add(y); layout.Children.Add(coords);
         layout.Children.Add(Button("화면에서 위치 선택…", PickAnchor));
-        layout.Children.Add(Label("메모 사이 간격 (0–24 DIP)")); layout.Children.Add(gap);
-        layout.Children.Add(Label("열 수 (0 = 자동, 최대 30)")); layout.Children.Add(columns);
+        columnFields.Children.Add(Label("열 수 (0 = 자동, 최대 30)")); columnFields.Children.Add(columns); layout.Children.Add(columnFields);
+        layout.Children.Add(Section("펼친 메모"));
         layout.Children.Add(Label("펼친 메모 시작 방향")); layout.Children.Add(corner);
+        layout.Children.Add(Section("공통"));
+        layout.Children.Add(Label("정렬 기준")); layout.Children.Add(sort);
+        layout.Children.Add(Label("메모 사이 간격 (0–24 DIP)")); layout.Children.Add(gap);
         corner.ItemTemplate = CornerTemplate();
         layout.Children.Add(new TextBlock { Text = "접어서 정돈하면 타일 시작점에 모입니다. 모두 펼치면 선택한 모서리에서 같은 순서로 배치합니다.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), Foreground = Brushes.DimGray });
         tabs.Items.Add(new TabItem { Header = "배치", Content = new ScrollViewer { Content = layout, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
@@ -75,6 +88,9 @@ public sealed class LayoutOptionsWindow : Window
         this.autoStart.Checked += (_, _) => { if (!refreshing) AutoStartChanged?.Invoke(true); };
         this.autoStart.Unchecked += (_, _) => { if (!refreshing) AutoStartChanged?.Invoke(false); };
         monitorBox.SelectionChanged += (_, _) => SwitchMonitor();
+        foreach (var field in new[] { x, y, gap, columns }) field.TextChanged += (_, _) => RefreshPreview();
+        foreach (var field in new[] { shape, sort, corner, previewMode }) field.SelectionChanged += (_, _) => RefreshPreview();
+        IsVisibleChanged += (_, _) => { if (IsVisible) RefreshPreview(); };
         Closing += (_, e) => { if (!AllowClose) { e.Cancel = true; HidePanel(); } };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; if (capturing) CancelCapture(); else HidePanel(); } };
         RefreshSettings(settings, monitors);
@@ -120,6 +136,7 @@ public sealed class LayoutOptionsWindow : Window
     }
 
     private static TextBlock Label(string text) => new() { Text = text, Margin = new Thickness(0, 8, 0, 4) };
+    private static TextBlock Section(string text) => new() { Text = text, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 16, 0, 4) };
     private static Button Button(string text, Action action)
     {
         var button = new Button { Content = text, Padding = new Thickness(7, 5, 7, 5), Margin = new Thickness(2, 4, 2, 4) };
@@ -144,22 +161,64 @@ public sealed class LayoutOptionsWindow : Window
     }
     private void LoadMonitor()
     {
+        refreshing = true;
         selectedId = (monitorBox.SelectedItem as MonitorDescriptor)?.Id;
         var value = selectedId is not null ? draft.GetMonitor(selectedId) : new MonitorLayout();
         x.Text = value.X.ToString(CultureInfo.InvariantCulture); y.Text = value.Y.ToString(CultureInfo.InvariantCulture);
         gap.Text = value.Gap.ToString(CultureInfo.InvariantCulture); columns.Text = value.Columns.ToString(CultureInfo.InvariantCulture);
         shape.SelectedIndex = (int)value.Shape; sort.SelectedIndex = (int)value.Sort;
         corner.SelectedItem = value.ExpandedCorner;
+        refreshing = false;
+        RefreshPreview();
     }
     private bool StoreMonitor()
     {
         if (selectedId is null) return true;
+        if (!TryReadMonitor(out var value)) { ShowError("위치·간격·열 수를 확인하세요. 간격은 0–24, 열 수는 0–30입니다."); return false; }
+        draft.Monitors[selectedId] = value;
+        return true;
+    }
+    private bool TryReadMonitor(out MonitorLayout value)
+    {
+        value = new MonitorLayout();
         if (!double.TryParse(x.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var px) || !double.TryParse(y.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var py)
             || !double.TryParse(gap.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var spacing) || !int.TryParse(columns.Text, out var count)
             || !double.IsFinite(px) || !double.IsFinite(py) || !double.IsFinite(spacing) || px < 0 || py < 0 || spacing < 0 || spacing > 24 || count < 0 || count > 30)
-        { ShowError("위치와 간격은 0 이상의 숫자, 열 수는 0 이상의 정수를 입력하세요."); return false; }
-        draft.Monitors[selectedId] = new MonitorLayout { X = px, Y = py, Gap = spacing, Columns = count, Shape = (LayoutShape)shape.SelectedIndex, Sort = (LayoutSort)sort.SelectedIndex, ExpandedCorner = corner.SelectedItem is ExpandedCorner direction ? direction : ExpandedCorner.TopRight };
+            return false;
+        if (shape.SelectedIndex < 0 || sort.SelectedIndex < 0) return false;
+        value = new MonitorLayout { X = px, Y = py, Gap = spacing, Columns = count, Shape = (LayoutShape)shape.SelectedIndex, Sort = (LayoutSort)sort.SelectedIndex, ExpandedCorner = corner.SelectedItem is ExpandedCorner direction ? direction : ExpandedCorner.TopRight };
         return true;
+    }
+    public void RefreshPreview()
+    {
+        if (refreshing) return;
+        columnFields.Visibility = shape.SelectedIndex == (int)LayoutShape.Grid ? Visibility.Visible : Visibility.Collapsed;
+        preview.Children.Clear();
+        if (!TryReadMonitor(out var options)) { previewStatus.Text = "위치·간격·열 수를 확인하세요. 간격 0–24, 열 수 0–30."; return; }
+        if (monitorBox.SelectedItem is not MonitorDescriptor monitor) { previewStatus.Text = "모니터를 선택하세요."; return; }
+        if (!double.IsFinite(options.X * monitor.Scale) || !double.IsFinite(options.Y * monitor.Scale))
+        { previewStatus.Text = "시작 위치가 너무 큽니다. 화면 안의 위치를 입력하세요."; return; }
+        var source = previewNotes?.Invoke(monitor.Id) ?? [];
+        bool sample = !source.Any(n => n.IsVisible && n.DeletedAt is null);
+        if (sample) source = Enumerable.Range(0, 6).Select(i => new Note { Color = i < 3 ? "#FFF2B2" : "#FFDDE7", Body = $"예시 {i + 1}", CreatedAt = DateTimeOffset.UnixEpoch.AddSeconds(i) }).ToArray();
+        bool collapsed = previewMode.SelectedIndex == 0;
+        var notes = source.Where(n => n.IsVisible && n.DeletedAt is null).Select(n => n with { IsCollapsed = collapsed }).ToArray();
+        var result = collapsed ? NoteArrangement.ArrangeCollapsed(notes, monitor.WorkArea, options, monitor.Scale)
+            : NoteArrangement.ArrangeExpanded(notes, monitor.WorkArea, options, options.ExpandedCorner, monitor.Scale,
+                orderedIds: draft.ArrangementOrder.GetValueOrDefault(monitor.Id));
+        double ratio = Math.Min(250 / monitor.WorkArea.Width, 140 / monitor.WorkArea.Height);
+        preview.Width = monitor.WorkArea.Width * ratio; preview.Height = monitor.WorkArea.Height * ratio;
+        var lookup = notes.ToDictionary(n => n.Id);
+        foreach (var (id, bounds) in result.Bounds.Reverse())
+        {
+            var note = lookup[id];
+            var item = new Border { Width = bounds.Width * ratio, Height = bounds.Height * ratio,
+                Background = (Brush)new BrushConverter().ConvertFromString(note.Color)!, BorderBrush = Brushes.Gray, BorderThickness = new Thickness(.5), ToolTip = note.Title };
+            Canvas.SetLeft(item, (bounds.Left - monitor.WorkArea.Left) * ratio); Canvas.SetTop(item, (bounds.Top - monitor.WorkArea.Top) * ratio);
+            preview.Children.Add(item);
+        }
+        previewStatus.Text = (sample ? "예시 메모 · " : $"보이는 메모 {notes.Length}개 · ")
+            + (result.SkippedTiles > 0 ? $"일부 타일을 배치하지 못했습니다 ({result.SkippedTiles}개)." : result.UsedCascade ? "공간에 맞춰 계단식으로 배치합니다." : "실제 메모는 이동하지 않습니다.");
     }
     private void BuildRecorders()
     {
@@ -199,7 +258,7 @@ public sealed class LayoutOptionsWindow : Window
         if (captureId is string id) SetGesture(id, captureOriginal);
         EndCapture();
     }
-    private void Dispatch(bool arrange)
+    private void Dispatch()
     {
         EndCapture(); if (!StoreMonitor()) return;
         try
@@ -207,7 +266,7 @@ public sealed class LayoutOptionsWindow : Window
             HotkeyService.Validate(draft.Hotkeys);
             var candidate = draft with { AutoArrange = false, OverlayOpacity = opacity.Value / 100, SelectedMonitor = selectedId, PanelLeft = Left, PanelTop = Top, Monitors = new(draft.Monitors), Hotkeys = new(draft.Hotkeys) };
             candidate.Validate();
-            if (arrange) ArrangeRequested?.Invoke(candidate); else ApplyRequested?.Invoke(candidate);
+            ApplyRequested?.Invoke(candidate);
         }
         catch (Exception ex) { ShowError(ex.Message); }
     }

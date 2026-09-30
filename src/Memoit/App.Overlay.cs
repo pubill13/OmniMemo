@@ -33,6 +33,7 @@ public partial class App
             overlayPanel.Top = layoutSettings.OverlayTop ?? SystemParameters.WorkArea.Top + 16;
         }
         overlayPanel.RefreshSettings(layoutSettings);
+        overlayPanel.SetNotes(notes.Values.Select(n => n.Snapshot));
         overlayPanel.SetHasVisibleNotes(windows.Values.Any(w => w.IsVisible));
         overlayPanel.Show();
         WindowPlacement.KeepOnScreen(overlayPanel);

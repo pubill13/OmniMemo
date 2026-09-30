@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Memoit.Services;
 using Memoit.Views;
+using Memoit.Models;
 using Xunit;
 
 namespace Memoit.Tests;
@@ -10,6 +11,58 @@ namespace Memoit.Tests;
 [Collection("WPF")]
 public sealed class LayoutOptionsTests
 {
+    [Fact]
+    public void PreviewUsesSavedExpandedOrderAndDoesNotMutateNotes()
+    {
+        Sta(() =>
+        {
+            var first = new Note { Body = "first", Width = 200, Height = 150, IsCollapsed = true, CreatedAt = DateTimeOffset.UnixEpoch };
+            var second = new Note { Body = "second", Width = 200, Height = 150, IsCollapsed = true, CreatedAt = DateTimeOffset.UnixEpoch.AddSeconds(1) };
+            var settings = new LayoutSettings { ArrangementOrder = new() { ["A"] = [second.Id, first.Id] } };
+            var monitor = new MonitorDescriptor("A", "화면", new Rect(-1920, 0, 1920, 1080), 1.5);
+            var window = new LayoutOptionsWindow(settings, [monitor], previewNotes: _ => [first, second]);
+            try
+            {
+                Field<ComboBox>(window, "previewMode").SelectedIndex = 1;
+                var expected = NoteArrangement.ArrangeExpanded([first with { IsCollapsed = false }, second with { IsCollapsed = false }],
+                    monitor.WorkArea, new MonitorLayout(), scale: monitor.Scale, orderedIds: [second.Id, first.Id]);
+                var canvas = Field<Canvas>(window, "preview");
+                var ratio = canvas.Width / monitor.WorkArea.Width;
+                foreach (var note in new[] { first, second })
+                {
+                    var tile = canvas.Children.OfType<Border>().Single(b => Equals(b.ToolTip, note.Title));
+                    Assert.Equal((expected.Bounds[note.Id].Left - monitor.WorkArea.Left) * ratio, Canvas.GetLeft(tile), 6);
+                    Assert.Equal(expected.Bounds[note.Id].Width * ratio, tile.Width, 6);
+                }
+                Assert.True(first.IsCollapsed); Assert.True(second.IsCollapsed);
+                Field<ComboBox>(window, "shape").SelectedIndex = (int)LayoutShape.Horizontal;
+                Assert.Equal(Visibility.Collapsed, Field<StackPanel>(window, "columnFields").Visibility);
+                Field<TextBox>(window, "x").Text = "1.7e308";
+                Assert.Empty(canvas.Children);
+                Assert.Contains("너무", Field<TextBlock>(window, "previewStatus").Text);
+            }
+            finally { window.AllowClose = true; window.Close(); }
+        });
+    }
+
+    [Fact]
+    public void EmptyPreviewIsClearlySampleAndInvalidInputClearsIt()
+    {
+        Sta(() =>
+        {
+            var window = new LayoutOptionsWindow(new LayoutSettings(), [new MonitorDescriptor("A", "화면", new Rect(0, 0, 1920, 1080), 1)]);
+            try
+            {
+                Assert.Contains("예시", Field<TextBlock>(window, "previewStatus").Text);
+                Assert.Equal(6, Field<Canvas>(window, "preview").Children.Count);
+                Field<TextBox>(window, "gap").Text = "oops";
+                Assert.Empty(Field<Canvas>(window, "preview").Children);
+                Assert.Contains("확인", Field<TextBlock>(window, "previewStatus").Text);
+            }
+            finally { window.AllowClose = true; window.Close(); }
+        });
+    }
+
     [Fact]
     public void MonitorDraftsSurviveSwitchAndDoNotMutateSavedSettings()
     {
@@ -47,7 +100,7 @@ public sealed class LayoutOptionsTests
             {
                 bool called = false; window.ApplyRequested += _ => called = true;
                 Field<TextBox>(window, "gap").Text = "-1";
-                typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, [false]);
+                typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
                 Assert.False(called);
                 Assert.NotEmpty(Field<TextBlock>(window, "status").Text);
             }
@@ -71,7 +124,7 @@ public sealed class LayoutOptionsTests
                 Assert.DoesNotContain("ToggleAuto", Field<Dictionary<string, TextBox>>(window, "recorders").Keys);
                 LayoutSettings? candidate = null; window.ApplyRequested += value => candidate = value;
                 Field<Slider>(window, "opacity").Value = 55; window.Left = 0; window.Top = 0;
-                typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, [false]);
+                typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
                 Assert.NotNull(candidate); Assert.Equal(.55, candidate.OverlayOpacity);
             }
             finally { window.AllowClose = true; window.Close(); }

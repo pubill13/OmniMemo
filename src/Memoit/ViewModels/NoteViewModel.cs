@@ -103,6 +103,22 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
 
     public void SetCollapsed(bool collapsed) => IsCollapsed = collapsed;
 
+    public void RestoreLifecycle(Note state, bool preserveFailure = false)
+    {
+        string failure = SaveStatus;
+        bool collapseChanged = note.IsCollapsed != state.IsCollapsed;
+        note = note with { DeletedAt = state.DeletedAt, IsVisible = state.IsVisible,
+            IsCollapsed = state.IsCollapsed, Left = state.Left, Top = state.Top,
+            Width = state.Width, Height = state.Height, CollapsedLeft = state.CollapsedLeft,
+            CollapsedTop = state.CollapsedTop, ExpandedLeft = state.ExpandedLeft, ExpandedTop = state.ExpandedTop };
+        Changed(false);
+        if (collapseChanged) Notify(nameof(IsCollapsed));
+        if (preserveFailure)
+        {
+            failed = true; timer.Stop(); SaveState = "Failed"; SaveStatus = failure;
+        }
+    }
+
     private void Changed(bool updateModified = true)
     {
         if (disposed) return;
