@@ -28,9 +28,10 @@ public sealed record MonitorLayout
 
 public sealed record LayoutSettings
 {
-    public int Version { get; init; } = 4;
+    public int Version { get; init; } = 5;
     public bool AutoArrange { get; init; }
     public bool NeedsManualArrangementNotice { get; init; }
+    public bool NeedsShortcutSimplificationNotice { get; init; }
     public bool SortByColor { get; init; }
     public Dictionary<string, MonitorLayout> Monitors { get; init; } = [];
     public Dictionary<string, List<Guid>> ArrangementOrder { get; init; } = [];
@@ -55,7 +56,7 @@ public sealed record LayoutSettings
             || OverlayTop.HasValue && !double.IsFinite(OverlayTop.Value)
             || OverlayColor is not null && !NoteColors.Values.Any(c => NoteColors.Matches(c, OverlayColor)))
             throw new InvalidDataException("미니 패널 위치 또는 투명도가 올바르지 않습니다.");
-        if (Version != 4) throw new InvalidDataException("지원하지 않는 타일 설정 버전입니다.");
+        if (Version != 5) throw new InvalidDataException("지원하지 않는 타일 설정 버전입니다.");
         if (Monitors is null || Hotkeys is null || ArrangementOrder is null || PanelLeft.HasValue && !double.IsFinite(PanelLeft.Value)
             || PanelTop.HasValue && !double.IsFinite(PanelTop.Value))
             throw new InvalidDataException("타일 설정 값이 올바르지 않습니다.");
@@ -66,6 +67,8 @@ public sealed record LayoutSettings
         }
         foreach (var pair in Hotkeys)
             if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value is null) throw new InvalidDataException("단축키 설정이 올바르지 않습니다.");
+        if (Hotkeys.Keys.Any(key => !HotkeyDefaults.Labels.ContainsKey(key)))
+            throw new InvalidDataException("지원하지 않는 단축키 동작이 설정에 있습니다.");
         foreach (var pair in ArrangementOrder)
             if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value is null || pair.Value.Contains(Guid.Empty)
                 || pair.Value.Distinct().Count() != pair.Value.Count)
@@ -88,34 +91,47 @@ public sealed record LayoutSettings
         ValidateJsonNames(document.RootElement);
         var settings = JsonSerializer.Deserialize<LayoutSettings>(json, JsonOptions)
             ?? throw new InvalidDataException("타일 설정을 읽지 못했습니다.");
-        var retiredGestures = new HashSet<string>(StringComparer.Ordinal);
-        foreach (string command in new[] { "ToggleAuto", "ArrangeCollapsed", "ArrangeExpanded", "UndoArrange" })
-            if (settings.Hotkeys?.TryGetValue(command, out var gesture) == true && gesture is not null)
-                retiredGestures.Add(HotkeyService.Normalize(gesture));
-        if (!document.RootElement.TryGetProperty("Version", out _) || settings.Version is 1 or 2)
-        {
-            settings.Hotkeys?.Remove("ToggleAuto");
-            settings = settings with { Version = 3, AutoArrange = false, NeedsManualArrangementNotice = true };
-        }
-        if (settings.Version == 3)
-        {
-            settings.Hotkeys?.Remove("ArrangeCollapsed");
-            settings.Hotkeys?.Remove("ArrangeExpanded");
-            settings.Hotkeys?.Remove("UndoArrange");
-            settings = settings with { Version = 4 };
-        }
-        settings = settings with { AutoArrange = false };
-        settings.Validate();
-        // New commands must not replace a user's existing assignment or explicit disabled value.
-        var used = settings.Hotkeys!.Values.Select(HotkeyService.Normalize).ToHashSet(StringComparer.Ordinal);
+        bool missingVersion = !document.RootElement.TryGetProperty("Version", out _);
+        bool migrating = missingVersion || settings.Version is >= 1 and <= 4;
+        if (!migrating && settings.Version != 5)
+            throw new InvalidDataException("지원하지 않는 타일 설정 버전입니다.");
+        if (settings.Hotkeys is null || settings.Hotkeys.Any(p => string.IsNullOrWhiteSpace(p.Key) || p.Value is null))
+            throw new InvalidDataException("단축키 설정이 올바르지 않습니다.");
+
+        if (!migrating && settings.Hotkeys.Keys.Any(key => !HotkeyDefaults.Labels.ContainsKey(key)))
+            throw new InvalidDataException("지원하지 않는 단축키 동작이 설정에 있습니다.");
+
+        // Retired gestures cannot silently acquire a different meaning through a new default.
+        var retiredGestures = settings.Hotkeys.Where(p => !HotkeyDefaults.Labels.ContainsKey(p.Key))
+            .Select(p => HotkeyService.Normalize(p.Value)).ToHashSet(StringComparer.Ordinal);
+        var hotkeys = settings.Hotkeys.Where(p => HotkeyDefaults.Labels.ContainsKey(p.Key))
+            .ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
+        if (migrating && !settings.Hotkeys.ContainsKey("Search") && settings.Hotkeys.TryGetValue("ShowList", out var oldList))
+            hotkeys["Search"] = oldList;
+        var used = hotkeys.Values.Select(HotkeyService.Normalize).ToHashSet(StringComparer.Ordinal);
         used.UnionWith(retiredGestures);
         foreach (var pair in HotkeyDefaults.Create())
-            if (!settings.Hotkeys.ContainsKey(pair.Key))
+            if (!hotkeys.ContainsKey(pair.Key))
             {
                 var gesture = used.Contains(pair.Value) ? "" : pair.Value;
-                settings.Hotkeys.Add(pair.Key, gesture);
+                hotkeys.Add(pair.Key, gesture);
                 used.Add(gesture);
             }
+        settings = settings with
+        {
+            Version = 5,
+            AutoArrange = false,
+            NeedsManualArrangementNotice = settings.NeedsManualArrangementNotice || missingVersion || settings.Version is 1 or 2,
+            NeedsShortcutSimplificationNotice = settings.NeedsShortcutSimplificationNotice || migrating,
+            Hotkeys = hotkeys
+        };
+        settings.Validate();
+        if (migrating)
+        {
+            // Load does not overwrite the source. Preserve it before any caller can save v5.
+            string backup = filePath + ".pre-v5.bak";
+            if (!File.Exists(backup)) File.Copy(filePath, backup);
+        }
         return settings;
     }
 

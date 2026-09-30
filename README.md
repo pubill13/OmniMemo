@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.8.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.9.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -20,7 +20,11 @@ GitHub 릴리스의 `OmniMemo-1.8.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실
 
 미니 패널은 새 메모·목록/검색, 접어서 정돈·모두 펼치기, 모두 숨기기/보이기를 제공합니다. **색상별 조작**을 펼치면 선택 색상의 보이는 메모만 접거나 펼칠 수 있습니다. 색상 칩은 보이는 메모 수를 표시하고, 버튼 툴팁에는 현재 지정된 단축키를 함께 표시합니다. 색상별 동작은 전체 정돈하지 않습니다. 헤더에서 압정·설정·닫기를 사용할 수 있고 제목을 드래그하면 패널을 옮깁니다.
 
-설정은 `배치`, `단축키`, `일반·백업`의 세 탭으로 통합했습니다. 배치에서 모니터별 타일 시작점, 격자·가로·세로, 간격 0~24 DIP, 열 수 0(자동)~30, 생성순·색상순·제목순, 펼친 메모 시작 모서리를 설정합니다. `화면에서 위치 선택…`으로 타일 시작점을 클릭 지정하며 Escape는 취소입니다. 배치 탭은 접힌 메모·펼친 메모·공통으로 구분하며 격자에서만 열 수를 표시합니다. 축소 미리보기는 입력 중인 설정으로 계산하고, 메모가 없으면 예시를 표시합니다. 적용은 설정만 저장하며 메모를 움직이지 않습니다. 격자+색상순에서는 색이 바뀔 때 새 행을 시작합니다. 일반·백업에서 패널 불투명도, 로그인 자동 실행, 백업·복원을 설정합니다.
+설정은 `배치 / 단축키 / 일반 / 백업`으로 나뉩니다. 배치에는 **접었을 때 / 펼쳤을 때 / 순서와 간격**을 모았습니다. `여러 줄로 배치`는 한 줄을 채우고 다음 줄로 넘어가며, 가로·세로 한 줄은 줄바꿈하지 않습니다. 여러 줄 배치의 `한 줄에 놓을 메모 수`는 자동 또는 1~30개를 지정합니다. 자동은 시작점 오른쪽의 가용 폭으로 계산합니다. 색상순이면 새 색에서 줄을 바꾸고 같은 색은 먼저 만든 순서입니다.
+
+`화면에서 지정`으로 시작점을 고르고, 세부 조정에서 X·Y를 입력합니다. 미리보기 버튼은 별도 창을 열며 적용 전 설정과 보이는 메모를 반영합니다. 실제 메모를 움직이지 않습니다. **적용은 설정만 저장**합니다. 일반 탭에서 패널 불투명도(30~100%)와 로그인 자동 실행을 적용하고, 백업 탭의 백업·복원 버튼은 즉시 실행합니다.
+
+트레이에서는 새 메모, 목록, 숨김/보임 전환, 미니 패널, 설정, 종료를 제공합니다. 정돈은 패널 버튼이나 통합 단축키를 사용하세요.
 
 ## 새 메모 위치
 
@@ -30,15 +34,16 @@ GitHub 릴리스의 `OmniMemo-1.8.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실
 
 | 동작 | 기본 키 |
 |---|---|
-| 새 메모 / 목록 / 검색 | Ctrl+Alt+Shift+N / L / F |
-| 미니 패널 / 설정 | Ctrl+Alt+Shift+P / O |
-| 모두 숨기기·보이기 전환 | Ctrl+Alt+Shift+H |
-| 접어서 정돈·모두 펼치기 전환 | Ctrl+Alt+Shift+C |
-| 접어서 정돈 | Ctrl+Alt+Shift+R |
-| 생성순 / 색상순 / 제목순으로 접어서 정돈 | Ctrl+Alt+Shift+1 / 2 / 3 |
+| 새 메모 | Ctrl+Alt+Shift+N |
+| 목록·검색 | Ctrl+Alt+Shift+F |
 | 현재 메모 접기·펼치기 | Ctrl+Shift+Space |
+| 모두 숨기기·보이기 | Ctrl+Alt+Shift+H |
+| 접어서 정돈·모두 펼치기 | Ctrl+Alt+Shift+C |
+| 미니 패널 열기·닫기 | Ctrl+Alt+Shift+P |
 
-전환 명령은 펼친 메모가 하나라도 있으면 접어서 정돈하고, 모두 접혔으면 모두 펼칩니다. 전체 접기/펼치기 전용 키와 배치 형태별 키는 설정에서 할당할 수 있습니다. 기존 전체 접기 키는 접어서 정돈으로 연결하며 제거된 명령의 키는 다른 기능으로 재할당하지 않습니다. 앱 내부 Ctrl+N·Ctrl+F도 유지합니다.
+전환 명령은 보이는 메모 중 펼친 것이 하나라도 있으면 접어서 정돈하고, 모두 접혔으면 모두 펼칩니다. 패널에서는 원하는 동작을 두 버튼으로 직접 선택할 수 있습니다. 앱 내부 Ctrl+N·Ctrl+F는 유지합니다.
+
+설정 v5로 이관하면서 기존 파일을 `layout.json.pre-v5.bak`으로 보관합니다. 유지되는 키의 사용자 지정과 해제 상태를 보존하며 목록·검색은 기존 검색 키를 우선합니다. 제거된 개별 명령의 단축키는 해제하고 다른 동작에 재할당하지 않습니다.
 
 ## 편집과 데이터 보호
 
@@ -46,9 +51,9 @@ GitHub 릴리스의 `OmniMemo-1.8.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실
 
 상단의 빈 곳이나 타일을 드래그하면 화면·다른 메모 가장자리에 자석처럼 붙으며, 더 끌면 떨어집니다. 화면 밖에 일부 걸치거나 다른 모니터로 옮길 수 있습니다.
 
-데이터는 `%LOCALAPPDATA%\MemoitPersonal\notes.db`에 저장하며 실행 파일과 분리됩니다. DB v3은 접힌/펼친 위치를 저장합니다. 구버전 DB는 안전 백업 후 트랜잭션으로 이관하며 구버전 실행 파일로 새 DB를 열 수 없습니다. 설정 v4는 모니터별 정돈 순서를 저장합니다.
+데이터는 `%LOCALAPPDATA%\MemoitPersonal\notes.db`에 저장하며 실행 파일과 분리됩니다. DB v3은 접힌/펼친 위치를 저장합니다. 구버전 DB는 안전 백업 후 트랜잭션으로 이관하며 구버전 실행 파일로 새 DB를 열 수 없습니다. 설정 v5는 모니터별 정돈 순서와 간소화된 단축키를 저장합니다.
 
-입력 중 약 500ms 대기 또는 최대 2초 간격으로 자동 저장합니다. 일괄 전환은 화면에 먼저 반영한 뒤 한 트랜잭션으로 저장하며 입력·드래그를 막지 않습니다. 실패 시 빨간 상태 표시와 오류를 남기고 트레이의 `미저장 메모 다시 저장`으로 재시도합니다. 강제 종료 직전 미저장 입력까지 보장하지 않습니다.
+입력 중 약 500ms 대기 또는 최대 2초 간격으로 자동 저장합니다. 일괄 전환은 화면에 먼저 반영한 뒤 한 트랜잭션으로 저장하며 입력·드래그를 막지 않습니다. 실패 시 빨간 상태 표시와 오류를 남기고 저장 실패가 있을 때만 트레이에 나타나는 `저장 다시 시도`로 재시도합니다. 강제 종료 직전 미저장 입력까지 보장하지 않습니다.
 
 하루 첫 저장 후 자동 백업하며 최근 7개를 보관합니다. 수동 복원은 현재 데이터 안전 백업 후 전체 교체합니다. 휴지통은 자동 삭제하지 않습니다. 데이터와 백업은 암호화되지 않습니다.
 
@@ -61,20 +66,20 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.8.0/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.9.0/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.8.0/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.8.0/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/Ux18Smoke.ps1 -Executable artifacts/OmniMemo-1.8.0/win-x64/OmniMemo.exe
-dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-1.8.json
+powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.9.0/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.9.0/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/Ux19Smoke.ps1 -Executable artifacts/OmniMemo-1.9.0/win-x64/OmniMemo.exe
+dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-1.9.json
 ```
 
-1.8 검증: 단위/STA 테스트 181개 통과. 게시 실행 파일에서 새 메모 생성 위치, 기존 메모 위치 유지, 설정 적용 시 이동 없음, 색상 칩 개수, 단일·다중 삭제 실행 취소와 위치 복원, 안내 창의 비활성 표시를 확인했습니다. 패널 표시·숨김 각각 연속 입력·자동 저장·드래그, 반복 접기·펼치기, 외부 포커스 유지 회귀 검사도 통과했습니다.
+1.9 검증: 단위/STA 테스트 197개, Release 빌드 통과. 실제 실행 파일에서 4개 설정 탭, 별도 미리보기의 단일 창·재열기·부모 닫기, 6개 단축키, 불투명도 적용, 적용 시 메모 위치 유지, 삭제 실행 취소, 입력·자동 저장·창 이동과 일괄 전환을 확인했습니다. 트레이의 간소화 메뉴와 숨김/보임 전환도 확인했습니다.
 
-100/150/200% DPI의 계산 및 패널 오프스크린 렌더링을 검사했습니다. 실제 다른 배율의 물리 모니터 연결/해제, 한글 IME 조합, 흰색 순간 프레임의 영상 검증은 별도 확인 항목입니다.
+100/150/200% 설정 화면 오프스크린 렌더링을 확인했습니다. 실제 물리 다중 모니터·배율 전환, 한글 IME 조합은 미검증입니다. 자석 드래그 정밀 좌표 검사는 기대 좌표와 차이가 있어 통과하지 못했습니다. 저장 실패 재시도 메뉴의 실제 복구 검사는 중복 트레이 아이콘으로 테스트 앱을 안전하게 식별할 수 없어 완료하지 못했습니다. 저장 실패·재시도 상태와 설정 복구 로직은 자동 테스트로 검증했습니다.
 
 동기화·이미지·일정 알림·부분 글자 서식은 포함하지 않습니다. 소스의 Memoit 네임스페이스는 호환성을 위해 유지합니다.

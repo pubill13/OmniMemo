@@ -107,7 +107,7 @@ function Delete-Note($note) {
 }
 try {
  New-Item -ItemType Directory -Path $env:OMNIMEMO_DATA_DIR | Out-Null
- @{OverlayVisible=$true; Version=4; OverlayOpacity=1.0} | ConvertTo-Json | Set-Content (Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json') -Encoding UTF8
+ @{OverlayVisible=$true; Version=5; OverlayOpacity=1.0} | ConvertTo-Json | Set-Content (Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json') -Encoding UTF8
  $process=Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden -PassThru
  $first=Wait-For { foreach($w in (Notes)) { return $w } } 'first note'
  $r=Rect $first; $scale=[HotkeySmokeNative]::GetDpiForWindow([IntPtr]$first.Current.NativeWindowHandle)/96.0
@@ -148,7 +148,7 @@ try {
  Check (@(Notes).Count -eq 2) 'Source plus creates additional note'
  $original=Rect $restored
  Check ($original.Left -eq $r.Left -and $original.Top -eq $r.Top) 'New source note does not move existing note'
- Send-Chord 0x4C
+ Send-Chord 0x46
  $list=Wait-For { Root-Named 'OmniMemo · 메모 목록' } 'list'
  $rows=$list.FindAll([System.Windows.Automation.TreeScope]::Descendants,(Condition ([System.Windows.Automation.AutomationElement]::ControlTypeProperty) ([System.Windows.Automation.ControlType]::ListItem)))
  Check ($rows.Count -eq 2) 'List contains both active notes'

@@ -39,7 +39,7 @@ function Named($root,[string]$name) { $root.FindFirst([System.Windows.Automation
 function Roots { [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children,(Condition ([System.Windows.Automation.AutomationElement]::ProcessIdProperty) $process.Id)) }
 function Wait-For([scriptblock]$probe,[string]$description) {
  $end=[DateTime]::UtcNow.AddSeconds(15)
- do { [System.Windows.Forms.Application]::DoEvents(); $result=& $probe; if($result) { return $result }; Start-Sleep -Milliseconds 150 } while([DateTime]::UtcNow -lt $end)
+ do { if($process.HasExited) { throw ("App exited while waiting for "+$description+"; code "+$process.ExitCode) }; [System.Windows.Forms.Application]::DoEvents(); $result=& $probe; if($result) { return $result }; Start-Sleep -Milliseconds 150 } while([DateTime]::UtcNow -lt $end)
  throw ('Timed out: '+$description)
 }
 function Check([bool]$value,[string]$description) { if(-not $value) { throw $description }; $log.Add('PASS: '+$description); Write-Output ('PASS: '+$description) }
@@ -99,47 +99,68 @@ function Send-Chord([byte]$key,[bool]$global=$true) {
  finally { [HotkeySmokeNative]::keybd_event($key,0,2,[UIntPtr]::Zero); [array]::Reverse($keys); foreach($k in $keys) { [HotkeySmokeNative]::keybd_event([byte]$k,0,2,[UIntPtr]::Zero) } }
  Start-Sleep -Milliseconds 650
 }
-function Root-Named([string]$name) { foreach($w in (Roots)) { if($w.Current.Name -eq $name) { return $w } } }
+function Windows-Named([string]$name) {
+ $conditions=[System.Windows.Automation.Condition[]]@(
+  (Condition ([System.Windows.Automation.AutomationElement]::ProcessIdProperty) $process.Id),
+  (Condition ([System.Windows.Automation.AutomationElement]::ControlTypeProperty) ([System.Windows.Automation.ControlType]::Window)),
+  (Condition ([System.Windows.Automation.AutomationElement]::NameProperty) $name))
+ $match=New-Object System.Windows.Automation.AndCondition (,$conditions)
+ [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Descendants,$match) | Where-Object { -not $_.Current.IsOffscreen }
+}
+function Root-Named([string]$name) { Windows-Named $name | Select-Object -First 1 }
 function Delete-Note($note) {
  Invoke-Element (Named $note '메모 설정')
  $action=Wait-For { foreach($w in (Roots)) { $item=Named $w '휴지통으로 이동'; if($item -and -not $item.Current.IsOffscreen){ return $item } } } 'delete menu'
  Invoke-Element $action
 }
+function Select-Tab($root,[string]$name) { (Named $root $name).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 200 }
 try {
  New-Item -ItemType Directory -Path $env:OMNIMEMO_DATA_DIR | Out-Null
- @{OverlayVisible=$false; Version=5} | ConvertTo-Json | Set-Content (Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json') -Encoding UTF8
+ @{OverlayVisible=$true; Version=5; OverlayOpacity=1.0} | ConvertTo-Json | Set-Content (Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json') -Encoding UTF8
  $process=Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden -PassThru
  $first=Wait-For { foreach($w in (Notes)) { return $w } } 'first note'
- Send-Chord 0x4E
- Check (@(Notes).Count -eq 2) 'Global new note creates another note'
- Send-Chord 0x46
- $list=Wait-For { Root-Named 'OmniMemo · 메모 목록' } 'search list'
- Check ((Named $list '메모 내용 검색').Current.HasKeyboardFocus) 'Global search focuses search field'
- $list.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
- Send-Chord 0x48
- Check (@(Notes).Count -eq 0) 'Visibility shortcut hides all notes'
- Send-Chord 0x48
- Check (@(Notes).Count -eq 2) 'Same visibility shortcut restores notes'
- Send-Chord 0x43
- Check (@(Notes | Where-Object { Is-Tile $_ }).Count -eq 2) 'Collapse toggle tidies visible notes'
- Send-Chord 0x43
- Check (@(Notes | Where-Object { Is-Tile $_ }).Count -eq 0) 'Same collapse toggle expands visible notes'
- $note=@(Notes)[0]
- [void][HotkeySmokeNative]::SetForegroundWindow([IntPtr]$note.Current.NativeWindowHandle)
- (Named $note '메모 내용').SetFocus()
- Send-Chord 0x20 $false
- Check (Is-Tile $note) 'Local shortcut collapses focused note only'
- Check (@(Notes | Where-Object { Is-Tile $_ }).Count -eq 1) 'Local shortcut leaves other note expanded'
- Send-Chord 0x50
- [void](Wait-For { Root-Named 'OmniMemo · 데스크톱 패널' } 'panel toggle open')
- Send-Chord 0x50
- Check ($null -eq (Root-Named 'OmniMemo · 데스크톱 패널')) 'Same panel shortcut hides panel'
- Send-Chord 0x52
- Check (@(Notes | Where-Object { Is-Tile $_ }).Count -eq 1) 'Retired arrange shortcut does not run'
+ $before=Rect $first
+ $overlay=Wait-For { Root-Named 'OmniMemo · 데스크톱 패널' } 'panel'
+ Invoke-Element (Named $overlay '설정')
+ $settings=Wait-For { Root-Named 'OmniMemo · 설정' } 'settings'
+ foreach($tab in @('배치','단축키','일반','백업')) { Check ($null -ne (Named $settings $tab)) ('Settings tab: '+$tab) }
+ Check ($null -eq (Named $settings '접어서 정돈')) 'Settings has no arrangement action'
+ Capture-Window $settings 'settings-layout.png'
+ Invoke-Element (Named $settings '미리보기')
+ $preview=Wait-For { Root-Named 'OmniMemo · 배치 미리보기' } 'separate preview'
+ Invoke-Element (Named $settings '미리보기')
+ Check (@(Windows-Named 'OmniMemo · 배치 미리보기').Count -eq 1) 'Preview is a single separate window'
+ Capture-Window $preview 'preview.png'
+ $preview.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
+ Select-Tab $settings '단축키'
+ $editors=$settings.FindAll([System.Windows.Automation.TreeScope]::Descendants,(Condition ([System.Windows.Automation.AutomationElement]::ControlTypeProperty) ([System.Windows.Automation.ControlType]::Edit)))
+ $shortcuts=@($editors | Where-Object { $_.Current.Name -like '* 단축키' })
+ Check ($shortcuts.Count -eq 6) 'Exactly six shortcut editors are exposed'
+ Capture-Window $settings 'settings-shortcuts.png'
+ Select-Tab $settings '일반'
+ $slider=Named $settings '패널 불투명도'
+ Check ($null -ne $slider) 'Panel opacity is discoverable in General'
+ $range=$slider.GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern)
+ $value=if($range.Current.Maximum -le 1) { 0.75 } else { 75 }
+ $range.SetValue($value)
+ Capture-Window $settings 'settings-general.png'
+ Invoke-Element (Named $settings '적용')
+ [void](Wait-For { if([Math]::Abs((Config).OverlayOpacity-0.75) -lt 0.001){return $true} } 'opacity saved')
+ $after=Rect $first
+ Check ($after.Left -eq $before.Left -and $after.Top -eq $before.Top) 'Apply changes settings without moving notes'
+ Select-Tab $settings '백업'
+ Check ($null -ne (Named $settings '데이터 저장 위치')) 'Backup tab exposes data location'
+ Capture-Window $settings 'settings-backup.png'
+ Select-Tab $settings '배치'
+ Invoke-Element (Named $settings '미리보기')
+ [void](Wait-For { Root-Named 'OmniMemo · 배치 미리보기' } 'preview reopened')
+ $settings.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
+ [void](Wait-For { if($null -eq (Root-Named 'OmniMemo · 배치 미리보기')){return $true} } 'preview closes with settings')
+ Check $true 'Closing settings closes preview'
 } finally {
  if($process) { if(-not $process.HasExited) { Stop-Process -Id $process.Id }; $process.Dispose() }
  [void][HotkeySmokeNative]::SetCursorPos($cursor.X,$cursor.Y)
  $helper.Dispose(); $env:OMNIMEMO_DATA_DIR=$previous
  $log | Set-Content -LiteralPath (Join-Path $directory 'results.txt') -Encoding UTF8
- Write-Output ('Hotkey 1.9 artifacts: '+$directory)
+ Write-Output ('UX 1.9 artifacts: '+$directory)
 }

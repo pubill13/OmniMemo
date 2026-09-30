@@ -9,6 +9,7 @@ namespace Memoit;
 public partial class App
 {
     private bool arranging;
+    private bool layoutSaveFailed;
     private readonly object layoutFileGate = new();
 
     private void ExecuteCommand(string command)
@@ -46,6 +47,7 @@ public partial class App
             {
                 value.Save(Path.Combine(dataDirectory, "layout.json"));
                 layoutSettings = value;
+                layoutSaveFailed = false;
             }
         }
         catch (Exception saveError)
@@ -138,7 +140,7 @@ public partial class App
             await PersistLayoutAsync();
             double storedMs = clock.Elapsed.TotalMilliseconds;
             LastArrangementTiming = new ArrangementTiming(calculatedMs, movedMs - calculatedMs, storedMs - movedMs, changed.Length);
-            if (!saved) throw new IOException("화면은 변경했지만 저장하지 못했습니다. 트레이의 미저장 메모 다시 저장을 눌러 주세요.");
+            if (!saved) throw new IOException("화면은 변경했지만 저장하지 못했습니다. 트레이의 저장 다시 시도를 눌러 주세요.");
             ArrangementNotice(skipped > 0 ? $"일부 타일을 배치하지 못했습니다 ({skipped}개). 시작점·간격·열 수를 조정해 주세요."
                 : collapsed ? "접어서 정돈했습니다." : "모두 펼쳤습니다.", skipped > 0);
         }
@@ -146,12 +148,17 @@ public partial class App
         finally { arranging = false; RefreshList(); }
     }
 
-    private Task PersistLayoutAsync() => Task.Run(() =>
+    private async Task PersistLayoutAsync()
     {
         // The lock also serializes ordinary settings saves. Read the latest snapshot inside it so an
         // intervening settings edit cannot be overwritten by an older queued arrangement snapshot.
-        lock (layoutFileGate) layoutSettings.Save(Path.Combine(dataDirectory, "layout.json"));
-    });
+        try
+        {
+            await Task.Run(() => { lock (layoutFileGate) layoutSettings.Save(Path.Combine(dataDirectory, "layout.json")); });
+            layoutSaveFailed = false;
+        }
+        catch { layoutSaveFailed = true; throw; }
+    }
     internal sealed record ArrangementTiming(double CalculationMs, double MoveMs, double SaveMs, int MovedCount);
     internal ArrangementTiming? LastArrangementTiming { get; private set; }
     private static bool NearlyEqual(Rect a, Rect b) => Math.Abs(a.X - b.X) < .5 && Math.Abs(a.Y - b.Y) < .5
@@ -166,9 +173,12 @@ public partial class App
 
     private void ShowArrangementUpgradeNotice()
     {
-        if (!layoutSettings.NeedsManualArrangementNotice) return;
-        ArrangementNotice("자동 정렬이 정돈 명령으로 바뀌었습니다. 접기·펼치기나 이동 후에는 위치를 유지하며, 필요할 때 미니 패널이나 트레이에서 정돈하세요.");
-        try { SaveLayoutSettings(layoutSettings with { NeedsManualArrangementNotice = false }); }
+        if (!layoutSettings.NeedsManualArrangementNotice && !layoutSettings.NeedsShortcutSimplificationNotice) return;
+        string message = layoutSettings.NeedsShortcutSimplificationNotice
+            ? "설정 화면을 정리하고 단축키를 6개로 줄였습니다. 숨김/보임과 정돈/펼치기는 각각 하나의 키로 전환합니다. 제거된 키는 해제했으며 이전 설정은 백업했습니다."
+            : "자동 정렬이 정돈 명령으로 바뀌었습니다. 필요할 때 미니 패널에서 정돈하세요.";
+        tray?.ShowBalloonTip(7000, "OmniMemo · 설정 변경 안내", message, System.Windows.Forms.ToolTipIcon.Info);
+        try { SaveLayoutSettings(layoutSettings with { NeedsManualArrangementNotice = false, NeedsShortcutSimplificationNotice = false }); }
         catch (Exception ex) { ArrangementNotice("변경 안내 상태를 저장하지 못했습니다: " + ex.Message, true); }
     }
 
@@ -190,20 +200,15 @@ public partial class App
     private void ToggleLayoutPanel()
     {
         if (layoutPanel?.IsVisible == true) { layoutPanel.Close(); return; }
-        OpenSettings(0);
+        OpenSettings(SettingsTab.Layout);
     }
 
-    private void OpenSettings(int tab)
+    private void OpenSettings(SettingsTab tab)
     {
         if (layoutPanel is null)
         {
             layoutPanel = new LayoutOptionsWindow(layoutSettings, MonitorCatalog.All(), dataDirectory, StartupRegistration.IsEnabled(), GetPreviewNotes);
             layoutPanel.ApplyRequested += ApplyPanelSettings;
-            layoutPanel.AutoStartChanged += enabled =>
-            {
-                try { StartupRegistration.SetEnabled(enabled); }
-                catch (Exception ex) { layoutPanel.SetAutoStart(!enabled); layoutPanel.ShowError("자동 실행 설정을 변경하지 못했습니다: " + ex.Message); }
-            };
             layoutPanel.BackupRequested += () => RunOperation(BackupAsync);
             layoutPanel.RestoreRequested += () => RunOperation(RestoreAsync);
             layoutPanel.CaptureChanged += capture =>
@@ -219,12 +224,16 @@ public partial class App
             if (layoutSettings.PanelLeft is double left && layoutSettings.PanelTop is double top)
             { layoutPanel.Left = left; layoutPanel.Top = top; }
         }
-        else layoutPanel.RefreshSettings(layoutSettings, MonitorCatalog.All());
+        else
+        {
+            layoutPanel.RefreshSettings(layoutSettings, MonitorCatalog.All());
+            layoutPanel.SetAutoStart(StartupRegistration.IsEnabled());
+        }
         layoutPanel.SelectTab(tab);
         layoutPanel.Show(); WindowPlacement.KeepOnScreen(layoutPanel); layoutPanel.Activate();
     }
 
-    private void ApplyPanelSettings(LayoutSettings candidate)
+    private void ApplyPanelSettings(LayoutSettings candidate, bool autoStart)
     {
         try
         {
@@ -233,9 +242,11 @@ public partial class App
                 OverlayLeft = layoutSettings.OverlayLeft, OverlayTop = layoutSettings.OverlayTop,
                 OverlayTopmost = layoutSettings.OverlayTopmost,
                 OverlayColor = layoutSettings.OverlayColor, OverlayVisible = layoutSettings.OverlayVisible,
-                ArrangementOrder = layoutSettings.ArrangementOrder, NeedsManualArrangementNotice = layoutSettings.NeedsManualArrangementNotice
+                ArrangementOrder = layoutSettings.ArrangementOrder, NeedsManualArrangementNotice = layoutSettings.NeedsManualArrangementNotice,
+                NeedsShortcutSimplificationNotice = layoutSettings.NeedsShortcutSimplificationNotice
             };
-            SaveLayoutSettings(candidate);
+            SettingsApply.Save(candidate, autoStart, StartupRegistration.IsEnabled,
+                StartupRegistration.SetEnabled, SaveLayoutSettings);
             overlayPanel?.RefreshSettings(layoutSettings);
             layoutPanel?.ShowSuccess();
         }

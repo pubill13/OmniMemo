@@ -127,12 +127,15 @@ public partial class App : Application
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("새 메모", null, (_, _) => RunOperation(NewNoteAsync));
         menu.Items.Add("메모 목록", null, (_, _) => { if (!busy) ShowList(); });
-        menu.Items.Add("전체 숨기기", null, (_, _) => ExecuteCommand("HideAll"));
-        menu.Items.Add("전체 보이기", null, (_, _) => ExecuteCommand("ShowAll"));
-        menu.Items.Add("접어서 정돈", null, (_, _) => ExecuteCommand("CollapseAll"));
-        menu.Items.Add("모두 펼치기", null, (_, _) => ExecuteCommand("ExpandAll"));
+        var visibility = menu.Items.Add("모두 숨기기", null, (_, _) => ExecuteCommand("ToggleVisibility"));
         menu.Items.Add("미니 패널", null, (_, _) => ExecuteCommand("ToggleOverlay"));
-        menu.Items.Add("미저장 메모 다시 저장", null, (_, _) => ExecuteCommand("RetrySave"));
+        var retry = menu.Items.Add("저장 다시 시도", null, (_, _) => ExecuteCommand("RetrySave"));
+        retry.Visible = false;
+        menu.Opening += (_, _) =>
+        {
+            visibility.Text = windows.Values.Any(w => w.IsVisible) ? "모두 숨기기" : "모두 보이기";
+            retry.Visible = layoutSaveFailed || notes.Values.Any(n => n.SaveState == "Failed");
+        };
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("설정", null, (_, _) => { if (!busy) ShowSettings(); });
         menu.Items.Add("종료", null, (_, _) => RunOperation(ExitAsync));
@@ -201,6 +204,7 @@ public partial class App : Application
         list?.SetNotes(notes.Values.Select(n => n.Snapshot), list.ShowingTrash);
         overlayPanel?.SetNotes(notes.Values.Select(n => n.Snapshot));
         overlayPanel?.SetHasVisibleNotes(windows.Values.Any(w => w.IsVisible));
+        if (layoutPanel?.IsVisible == true) layoutPanel.RefreshPreview();
     }
 
     private async void OnNoteSaved()
@@ -229,7 +233,7 @@ public partial class App : Application
         }
     }
 
-    private void ShowSettings() => OpenSettings(2);
+    private void ShowSettings() => OpenSettings(SettingsTab.Layout);
 
     private async Task BackupAsync()
     {

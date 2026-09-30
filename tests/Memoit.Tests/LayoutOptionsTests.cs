@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using Memoit.Services;
@@ -98,7 +98,7 @@ public sealed class LayoutOptionsTests
             var window = new LayoutOptionsWindow(new LayoutSettings(), [new MonitorDescriptor("A", "화면", new Rect(0, 0, 1920, 1080), 1)]);
             try
             {
-                bool called = false; window.ApplyRequested += _ => called = true;
+                bool called = false; window.ApplyRequested += (_, _) => called = true;
                 Field<TextBox>(window, "gap").Text = "-1";
                 typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
                 Assert.False(called);
@@ -108,7 +108,7 @@ public sealed class LayoutOptionsTests
         });
     }
     [Fact]
-    public void UnifiedSettingsExposeThreeTabsAndStartupWithoutRecursiveEvents()
+    public void UnifiedSettingsExposeFourTabsAndStartupOnlyOnApply()
     {
         Sta(() =>
         {
@@ -116,13 +116,12 @@ public sealed class LayoutOptionsTests
             try
             {
                 var tabs = Field<TabControl>(window, "tabs");
-                Assert.Equal(new[] { "배치", "단축키", "일반·백업" }, tabs.Items.Cast<TabItem>().Select(t => t.Header));
-                window.SelectTab(2); Assert.Equal(2, tabs.SelectedIndex);
-                int events = 0; window.AutoStartChanged += _ => events++;
-                window.SetAutoStart(false); Assert.Equal(0, events);
-                Field<CheckBox>(window, "autoStart").IsChecked = true; Assert.Equal(1, events);
+                Assert.Equal(new[] { "배치", "단축키", "일반", "백업" }, tabs.Items.Cast<TabItem>().Select(t => t.Header));
+                window.SelectTab(SettingsTab.General); Assert.Equal(2, tabs.SelectedIndex);
+                window.SetAutoStart(false);
+                Field<CheckBox>(window, "autoStart").IsChecked = true;
                 Assert.DoesNotContain("ToggleAuto", Field<Dictionary<string, TextBox>>(window, "recorders").Keys);
-                LayoutSettings? candidate = null; window.ApplyRequested += value => candidate = value;
+                LayoutSettings? candidate = null; window.ApplyRequested += (value, startup) => { candidate = value; Assert.True(startup); };
                 Field<Slider>(window, "opacity").Value = 55; window.Left = 0; window.Top = 0;
                 typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
                 Assert.NotNull(candidate); Assert.Equal(.55, candidate.OverlayOpacity);
@@ -130,6 +129,40 @@ public sealed class LayoutOptionsTests
             finally { window.AllowClose = true; window.Close(); }
         });
     }
+    [Fact]
+    public void ColumnModeValidatesManualCountAndPreviewIsNotEmbedded()
+    {
+        Sta(() =>
+        {
+            var window = new LayoutOptionsWindow(new LayoutSettings(), [new MonitorDescriptor("A", "화면", new Rect(0, 0, 1920, 1080), 1)]);
+            try
+            {
+                Assert.Null(Field<Canvas>(window, "preview").Parent);
+                Assert.Equal(6, Field<Dictionary<string, TextBox>>(window, "recorders").Count);
+                var mode = Field<ComboBox>(window, "columnMode"); var count = Field<TextBox>(window, "columns");
+                Assert.Equal(Visibility.Collapsed, count.Visibility);
+                mode.SelectedIndex = 1; count.Text = "0";
+                Assert.Contains("확인", Field<TextBlock>(window, "previewStatus").Text);
+                count.Text = "3";
+                Assert.NotEmpty(Field<Canvas>(window, "preview").Children);
+                LayoutSettings? applied = null; window.ApplyRequested += (value, _) => applied = value;
+                window.Left = 0; window.Top = 0;
+                typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
+                Assert.Equal(3, applied!.GetMonitor("A").Columns);
+                mode.SelectedIndex = 0;
+                typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
+                Assert.Equal(0, applied.GetMonitor("A").Columns);
+                mode.SelectedIndex = 1; count.Text = "invalid"; Field<ComboBox>(window, "shape").SelectedIndex = (int)LayoutShape.Horizontal;
+                typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
+                Assert.Equal(LayoutShape.Horizontal, applied.GetMonitor("A").Shape);
+                Assert.Equal(0, applied.GetMonitor("A").Columns);
+                Field<Slider>(window, "opacity").Value = 65;
+                Assert.Contains("65%", Field<TextBlock>(window, "opacitySummary").Text);
+            }
+            finally { window.AllowClose = true; window.Close(); }
+        });
+    }
+
     private static T Field<T>(object target, string name) => (T)target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(target)!;
     [Fact]
     public void RecorderCancelRestoresDraftGestureAndReleasesCapture()

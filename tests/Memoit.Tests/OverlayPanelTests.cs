@@ -82,11 +82,11 @@ public sealed class OverlayPanelTests
                     var expand = buttons.Single(b => Equals(b.Content, "모두 펼치기"));
                     Assert.Equal(arrange.ActualWidth, expand.ActualWidth);
                     Assert.True(arrange.ActualWidth >= 110);
-                    Assert.Contains("Ctrl+Alt+Shift+R", arrange.ToolTip.ToString());
-                    var custom = new LayoutSettings(); custom.Hotkeys["Arrange"] = "Ctrl+Alt+Q"; custom.Hotkeys["CollapseAll"] = "Ctrl+Alt+W";
+                    Assert.Contains("Ctrl+Alt+Shift+C", arrange.ToolTip.ToString());
+                    var custom = new LayoutSettings(); custom.Hotkeys["ToggleCollapsed"] = "Ctrl+Alt+Q";
                     panel.RefreshSettings(custom);
-                    Assert.Equal("접어서 정돈\nCtrl+Alt+Q / Ctrl+Alt+W", arrange.ToolTip);
-                    Assert.Equal("모두 펼치기", expand.ToolTip);
+                    Assert.Equal("접어서 정돈\nCtrl+Alt+Q", arrange.ToolTip);
+                    Assert.Equal("모두 펼치기\nCtrl+Alt+Q", expand.ToolTip);
                     ((IToggleProvider)new ToggleButtonAutomationPeer(chips[1])).Toggle();
                     Assert.Equal("#FFF2B3", panel.SelectedColor);
                     Assert.Single(chips, c => c.IsChecked == true);

@@ -90,7 +90,7 @@ public static class EnabledRecorder {
 "@
 try {
  New-Item -ItemType Directory -Path $env:OMNIMEMO_DATA_DIR | Out-Null
- @{OverlayVisible=[bool]$ShowOverlay} | ConvertTo-Json | Set-Content (Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json') -Encoding UTF8
+ @{OverlayVisible=[bool]$ShowOverlay; Version=5} | ConvertTo-Json | Set-Content (Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json') -Encoding UTF8
  $process=Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden -PassThru
  $first=Wait-For { foreach($w in (Notes)) { return $w } } 'first note'
  Drag-Note $first 140 12

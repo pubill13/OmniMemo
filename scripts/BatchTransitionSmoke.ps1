@@ -101,14 +101,14 @@ function Send-Chord([byte]$key,[bool]$global=$true) {
 }
 try {
  New-Item -ItemType Directory -Path $env:OMNIMEMO_DATA_DIR | Out-Null
- @{OverlayVisible=[bool]$ShowOverlay; Version=4} | ConvertTo-Json | Set-Content (Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json') -Encoding UTF8
+ @{OverlayVisible=[bool]$ShowOverlay; Version=5} | ConvertTo-Json | Set-Content (Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json') -Encoding UTF8
  $process=Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden -PassThru
  $first=Wait-For { foreach($w in (Notes)) { return $w } } 'first note'
  for($i=1;$i -lt 5;$i++) { Send-Chord 0x4E }
  $all=@(Notes); Check ($all.Count -eq 5) 'Five notes created by global shortcut'
  foreach($w in $all) { [EnabledRecorder]::Start($w) }
  for($i=0;$i -lt 3;$i++) {
-  Send-Chord 0x52
+  Send-Chord 0x43
   Check (@(Notes | Where-Object { -not (Is-Tile $_) }).Count -eq 0) 'Arrange collapses every visible note'
   Check ([HotkeySmokeNative]::GetForegroundWindow() -eq $helper.Handle) 'Batch collapse preserves external focus'
   Send-Chord 0x43
@@ -117,7 +117,7 @@ try {
  }
  Check ([EnabledRecorder]::Disabled -eq 0) 'Batch commands never disable note windows'
  foreach($w in $all) { [EnabledRecorder]::Stop($w) }
- Send-Chord 0x52
+ Send-Chord 0x43
  $tile=@(Notes)[0]; $before=Rect $tile
  [void][HotkeySmokeNative]::SetForegroundWindow([IntPtr]$tile.Current.NativeWindowHandle)
  Start-Sleep -Milliseconds 150

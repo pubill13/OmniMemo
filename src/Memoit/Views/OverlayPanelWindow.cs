@@ -58,10 +58,10 @@ public sealed class OverlayPanelWindow : Window
         title.MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { DragMove(); PreferencesChanged?.Invoke(); } };
         header.Children.Add(title); content.Children.Add(header);
         content.Children.Add(Section("메모"));
-        content.Children.Add(Row(CommandButton("새 메모", "NewNote"), CommandButton("목록·검색", "Search", "ShowList")));
+        content.Children.Add(Row(CommandButton("새 메모", "NewNote"), CommandButton("목록·검색", "Search")));
         content.Children.Add(Section("전체 조작"));
-        var arrange = CommandButton("접어서 정돈", "Arrange", "CollapseAll"); arrange.Background = Brush("#E0EAF8");
-        var expand = CommandButton("모두 펼치기", "ExpandAll"); expand.Background = Brush("#E0EAF8");
+        var arrange = CommandButton("접어서 정돈", "Arrange", "ToggleCollapsed"); arrange.Background = Brush("#E0EAF8");
+        var expand = CommandButton("모두 펼치기", "ExpandAll", "ToggleCollapsed"); expand.Background = Brush("#E0EAF8");
         content.Children.Add(Row(arrange, expand));
         visibility = Button("모두 숨기기", () => CommandRequested?.Invoke("ToggleVisibility")); content.Children.Add(visibility);
         var filtered = new StackPanel();

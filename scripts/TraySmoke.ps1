@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory=$true)][string]$Executable, [string]$ArtifactsDirectory='artifacts/verification')
+﻿param([Parameter(Mandatory=$true)][string]$Executable, [string]$ArtifactsDirectory='artifacts/verification', [switch]$MenuOnly)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,WindowsBase
 Add-Type @'
@@ -20,6 +20,7 @@ New-Item -ItemType Directory -Path $directory | Out-Null
 $previous=$env:OMNIMEMO_DATA_DIR
 $env:OMNIMEMO_DATA_DIR=Join-Path $directory 'data'
 $process=$null
+$layoutLock=$null
 $log=New-Object 'System.Collections.Generic.List[string]'
 $original=New-Object TrayMouse+POINT
 [void][TrayMouse]::GetCursorPos([ref]$original)
@@ -114,20 +115,35 @@ function Drag-Window($window,[int]$offsetX,[int]$offsetY,[int]$targetX,[int]$tar
  Start-Sleep -Milliseconds 300
 }
 try {
+ New-Item -ItemType Directory -Path $env:OMNIMEMO_DATA_DIR | Out-Null
+ @{Version=5} | ConvertTo-Json | Set-Content (Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json') -Encoding UTF8
  $exe=(Resolve-Path -LiteralPath $Executable).Path
  $process=Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden -PassThru
  Start-Sleep -Seconds 3
  $menu=Open-TrayMenu
- foreach ($name in @('새 메모','메모 목록','전체 숨기기','전체 보이기','설정','종료')) {
+ foreach ($name in @('새 메모','메모 목록','모두 숨기기','미니 패널','설정','종료')) {
   if (-not (Named $menu $name)) { throw ('Missing tray action: '+$name) }
  }
- Record 'OmniMemo notification icon opens all six right-click actions'
+ foreach ($name in @('접어서 정돈','모두 펼치기','저장 다시 시도','전체 숨기기','전체 보이기')) {
+  $removed=Named $menu $name
+  if ($removed -and -not $removed.Current.IsOffscreen) { throw ('Unexpected normal tray action: '+$name) }
+ }
+ Record 'Tray exposes compact menu without arrangement or normal-state retry'
+ Invoke-Element (Named $menu '모두 숨기기')
+ Start-Sleep -Milliseconds 400
+ $menu=Open-TrayMenu
+ if (-not (Named $menu '모두 보이기')) { throw 'Visibility menu did not change to Show all.' }
+ Invoke-Element (Named $menu '모두 보이기')
+ Start-Sleep -Milliseconds 400
+ $menu=Open-TrayMenu
+ if (-not (Named $menu '모두 숨기기')) { throw 'Visibility menu did not change back to Hide all.' }
+ Record 'Single tray visibility command changes label and toggles both ways'
  Invoke-Element (Named $menu '메모 목록')
  $null=Wait-Element { Named ([System.Windows.Automation.AutomationElement]::RootElement) '메모 내용 검색' } 'list search opened from tray'
  Record 'Tray list action opens note list'
  $menu=Open-TrayMenu
  Invoke-Element (Named $menu '설정')
- $null=Wait-Element { Named ([System.Windows.Automation.AutomationElement]::RootElement) 'Windows 로그인 시 OmniMemo 실행' } 'settings opened from tray'
+ $null=Wait-Element { Named ([System.Windows.Automation.AutomationElement]::RootElement) '미리보기' } 'settings opened from tray'
  Record 'Tray settings action opens settings'
  $menu=Open-TrayMenu
  Invoke-Element (Named $menu '새 메모')
@@ -136,13 +152,15 @@ try {
  $noteWindows=@(foreach ($root in $roots) { if (Named $root '메모 내용') { $root } })
  if ($noteWindows.Count -lt 2) { throw 'New note action did not create another note.' }
  Record 'Tray new-note action creates second note'
+ if (-not $MenuOnly) {
  # The freshly created note is foreground; drag only a point on its own title bar.
  $moving=$noteWindows[0]; $anchor=$noteWindows[1]
  $movingRect=Window-Rect $moving; $anchorRect=Window-Rect $anchor
  if ($movingRect.Left -lt $anchorRect.Left) { $swap=$moving; $moving=$anchor; $anchor=$swap; $anchorRect=Window-Rect $anchor }
- Drag-Window $moving 170 14 ($anchorRect.Right+6) $anchorRect.Top
+  $movingRect=Window-Rect $moving
+ Drag-Window $moving 140 12 ($anchorRect.Left-($movingRect.Right-$movingRect.Left)-6) $anchorRect.Top
  $snapped=Window-Rect $moving
- if ([Math]::Abs($snapped.Left-$anchorRect.Right) -gt 2 -or [Math]::Abs($snapped.Top-$anchorRect.Top) -gt 2) { throw ("Actual title-bar drag did not snap: actual={0},{1}; target={2},{3}" -f $snapped.Left,$snapped.Top,$anchorRect.Right,$anchorRect.Top) }
+ if ([Math]::Abs($snapped.Right-$anchorRect.Left) -gt 2 -or [Math]::Abs($snapped.Top-$anchorRect.Top) -gt 2) { throw ("Actual title-bar drag did not snap: actual={0},{1}; target={2},{3}" -f $snapped.Left,$snapped.Top,$anchorRect.Right,$anchorRect.Top) }
  Record 'Actual mouse drag snaps expanded note beside another note'
  Invoke-Element (Named $moving '작은 타일로 접기')
  Start-Sleep -Milliseconds 300
@@ -157,17 +175,45 @@ try {
  [TrayMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
  $null=Wait-Element { if ((Window-Rect $moving).Right-(Window-Rect $moving).Left -gt 100) { return $true } } 'physical tile click expands after drag'
  Record 'Physical tile click expands after drag'
+ }
  $buttons=(Taskbar).FindAll([System.Windows.Automation.TreeScope]::Descendants,(Condition ([System.Windows.Automation.AutomationElement]::ControlTypeProperty) ([System.Windows.Automation.ControlType]::Button)))
  foreach ($button in $buttons) {
   if ($button.Current.AutomationId -like 'Appid:*OmniMemo*') { throw 'OmniMemo has a taskbar application button.' }
  }
  Record 'No OmniMemo taskbar application button while note/list/settings are open'
  $menu=Open-TrayMenu
+ Invoke-Element (Named $menu '미니 패널')
+ $panel=Wait-Element {
+  $condition=New-Object System.Windows.Automation.AndCondition ((Condition ([System.Windows.Automation.AutomationElement]::ProcessIdProperty) $process.Id)),((Condition ([System.Windows.Automation.AutomationElement]::NameProperty) 'OmniMemo · 데스크톱 패널'))
+  [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$condition)
+ } 'mini panel for isolated save failure'
+ # Holding only the isolated test settings file prevents its atomic replacement.
+ # Read access remains available so the app can report and recover from a real I/O failure.
+ $layoutPath=Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json'
+ Start-Sleep -Milliseconds 700
+ $layoutLock=[IO.File]::Open($layoutPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+ Invoke-Element (Named $panel '접어서 정돈')
+ $null=Wait-Element {
+  $texts=$panel.FindAll([System.Windows.Automation.TreeScope]::Descendants,(Condition ([System.Windows.Automation.AutomationElement]::ControlTypeProperty) ([System.Windows.Automation.ControlType]::Text)))
+  foreach($text in $texts) { if($text.Current.Name -like '*layout.json*'){return $text} }
+ } 'locked layout file failure status'
+ $menu=Open-TrayMenu
+ if (-not (Named $menu '저장 다시 시도')) { throw 'Save retry was not exposed after a real locked-file save failure.' }
+ Record 'Real settings write failure exposes tray save retry'
+ $layoutLock.Dispose(); $layoutLock=$null
+ Invoke-Element (Named $menu '저장 다시 시도')
+ $null=Wait-Element { Named $panel '미저장 메모를 저장했습니다.' } 'retry success status'
+ $menu=Open-TrayMenu
+ $retry=Named $menu '저장 다시 시도'
+ if ($retry -and -not $retry.Current.IsOffscreen) { throw 'Save retry remained visible after successful recovery.' }
+ Record 'Successful retry clears failure and hides tray retry'
+ $menu=Open-TrayMenu
  Invoke-Element (Named $menu '종료')
  if (-not $process.WaitForExit(10000)) { throw 'Tray exit did not terminate application.' }
  Record 'Tray exit saves and terminates the process'
 } catch { $log.Add('FAIL: '+$_.Exception.Message); throw }
 finally {
+ if ($layoutLock) { $layoutLock.Dispose() }
  if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id }
  [void][TrayMouse]::SetCursorPos($original.X,$original.Y)
  $env:OMNIMEMO_DATA_DIR=$previous

@@ -13,16 +13,16 @@ public sealed class HotkeyTests
         string file = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
         try
         {
-            new LayoutSettings { Hotkeys = new() { ["TogglePanel"] = "Ctrl+Alt+Shift+P", ["NewNote"] = "" } }.Save(file);
+            File.WriteAllText(file, "{\"Version\":4,\"Hotkeys\":{\"TogglePanel\":\"Ctrl+Alt+Shift+P\",\"NewNote\":\"\"}}");
             var loaded = LayoutSettings.Load(file);
             Assert.Equal("", loaded.Hotkeys["NewNote"]);
-            Assert.Equal("Ctrl+Alt+Shift+P", loaded.Hotkeys["TogglePanel"]);
+            Assert.DoesNotContain("TogglePanel", loaded.Hotkeys.Keys);
             Assert.Equal("", loaded.Hotkeys["ToggleOverlay"]);
-            Assert.Equal("Ctrl+Alt+Shift+L", loaded.Hotkeys["ShowList"]);
+            Assert.DoesNotContain("ShowList", loaded.Hotkeys.Keys);
             Assert.Equal("Ctrl+Alt+Shift+F", loaded.Hotkeys["Search"]);
             HotkeyService.Validate(loaded.Hotkeys);
         }
-        finally { File.Delete(file); }
+        finally { File.Delete(file); File.Delete(file + ".pre-v5.bak"); }
     }
 
     [Theory]
@@ -38,7 +38,7 @@ public sealed class HotkeyTests
     {
         var defaults = HotkeyDefaults.Create();
         HotkeyService.Validate(defaults);
-        Assert.Equal(19, defaults.Count);
+        Assert.Equal(6, defaults.Count);
         Assert.DoesNotContain("ToggleAuto", defaults.Keys);
         Assert.DoesNotContain("ArrangeCollapsed", defaults.Keys);
         Assert.DoesNotContain("ArrangeExpanded", defaults.Keys);
@@ -63,12 +63,12 @@ public sealed class HotkeyTests
     [InlineData("Ctrl+A+B")]
     [InlineData("Ctrl+")]
     public void RejectsReservedOrMalformedGestures(string gesture)
-        => Assert.Throws<ArgumentException>(() => HotkeyService.Validate(new Dictionary<string, string> { ["Arrange"] = gesture }));
+        => Assert.Throws<ArgumentException>(() => HotkeyService.Validate(new Dictionary<string, string> { ["ToggleCollapsed"] = gesture }));
 
     [Fact]
     public void DuplicateLocalAndGlobalGesturesAreRejectedAfterNormalization()
         => Assert.Throws<ArgumentException>(() => HotkeyService.Validate(new Dictionary<string, string>
-        { ["Arrange"] = "Ctrl+Shift+Space", ["ToggleCurrent"] = "shift+control+space" }));
+        { ["ToggleCollapsed"] = "Ctrl+Shift+Space", ["ToggleCurrent"] = "shift+control+space" }));
 
     [Fact]
     public void NativeConflictRollsBackNewRegistrationsAndKeepsPreviousBinding() => OnSta(() =>
@@ -78,7 +78,7 @@ public sealed class HotkeyTests
         owner.Configure(Binding("Ctrl+Alt+Shift+F20"));
         competitor.Configure(Binding("Ctrl+Alt+Shift+F21"));
         Assert.Throws<InvalidOperationException>(() => owner.Configure(new Dictionary<string, string>
-        { ["Arrange"] = "Ctrl+Alt+Shift+F22", ["SortColor"] = "Ctrl+Alt+Shift+F21" }));
+        { ["ToggleCollapsed"] = "Ctrl+Alt+Shift+F22", ["ToggleVisibility"] = "Ctrl+Alt+Shift+F21" }));
         using var probe = new HotkeyService();
         Assert.Throws<InvalidOperationException>(() => probe.Configure(Binding("Ctrl+Alt+Shift+F20")));
         probe.Configure(Binding("Ctrl+Alt+Shift+F22"));
@@ -90,8 +90,8 @@ public sealed class HotkeyTests
     public void SwappingCommandsReusesRegisteredGesturesAndCaptureReleasesThem() => OnSta(() =>
     {
         using var owner = new HotkeyService();
-        owner.Configure(new Dictionary<string, string> { ["Arrange"] = "Ctrl+Alt+Shift+F20", ["SortColor"] = "Ctrl+Alt+Shift+F21" });
-        owner.Configure(new Dictionary<string, string> { ["Arrange"] = "Ctrl+Alt+Shift+F21", ["SortColor"] = "Ctrl+Alt+Shift+F20" });
+        owner.Configure(new Dictionary<string, string> { ["ToggleCollapsed"] = "Ctrl+Alt+Shift+F20", ["ToggleVisibility"] = "Ctrl+Alt+Shift+F21" });
+        owner.Configure(new Dictionary<string, string> { ["ToggleCollapsed"] = "Ctrl+Alt+Shift+F21", ["ToggleVisibility"] = "Ctrl+Alt+Shift+F20" });
         owner.BeginCapture();
         Assert.True(owner.Suspended);
         using var competitor = new HotkeyService();
@@ -121,7 +121,7 @@ public sealed class HotkeyTests
         Assert.Throws<InvalidOperationException>(() => other.Configure(Binding("Ctrl+Alt+Shift+F20")));
     });
 
-    private static Dictionary<string, string> Binding(string gesture) => new() { ["Arrange"] = gesture };
+    private static Dictionary<string, string> Binding(string gesture) => new() { ["ToggleCollapsed"] = gesture };
     private static void OnSta(Action test)
     {
         Exception? error = null;

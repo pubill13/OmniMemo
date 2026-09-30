@@ -17,13 +17,14 @@ public sealed class ArrangementOrderTests
         {
             File.WriteAllText(file, "{\"Version\":" + version + ",\"Hotkeys\":{\"ArrangeCollapsed\":\"Ctrl+Alt+Shift+R\",\"ArrangeExpanded\":\"Ctrl+Alt+Shift+X\",\"UndoArrange\":\"Ctrl+Alt+Shift+Y\",\"CollapseAll\":\"Ctrl+Alt+Shift+G\"}}");
             var settings = LayoutSettings.Load(file);
-            Assert.Equal(4, settings.Version);
+            Assert.Equal(5, settings.Version);
             Assert.Empty(settings.ArrangementOrder);
             Assert.DoesNotContain("ArrangeCollapsed", settings.Hotkeys.Keys);
             Assert.DoesNotContain("ArrangeExpanded", settings.Hotkeys.Keys);
             Assert.DoesNotContain("UndoArrange", settings.Hotkeys.Keys);
-            Assert.Equal("", settings.Hotkeys["Arrange"]);
-            Assert.Equal("Ctrl+Alt+Shift+G", settings.Hotkeys["CollapseAll"]);
+            Assert.DoesNotContain("Arrange", settings.Hotkeys.Keys);
+            Assert.DoesNotContain("CollapseAll", settings.Hotkeys.Keys);
+            Assert.DoesNotContain("Ctrl+Alt+Shift+G", settings.Hotkeys.Values);
             HotkeyService.Validate(settings.Hotkeys);
         });
     }
@@ -80,6 +81,6 @@ public sealed class ArrangementOrderTests
     {
         var file = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
         try { test(file); }
-        finally { File.Delete(file); }
+        finally { File.Delete(file); File.Delete(file + ".pre-v5.bak"); }
     }
 }

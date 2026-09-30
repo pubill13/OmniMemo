@@ -162,7 +162,7 @@ public sealed class TileLayoutTests
         {
             File.WriteAllText(file, "{\"AutoArrange\":true,\"SortByColor\":true}");
             var legacy = LayoutSettings.Load(file);
-            Assert.Equal(4, legacy.Version);
+            Assert.Equal(5, legacy.Version);
             Assert.True(legacy.NeedsManualArrangementNotice);
             Assert.False(legacy.AutoArrange);
             Assert.Equal(LayoutSort.Color, legacy.GetMonitor("new-monitor").Sort);
