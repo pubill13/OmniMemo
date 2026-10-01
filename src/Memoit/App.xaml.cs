@@ -127,13 +127,13 @@ public partial class App : Application
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("새 메모", null, (_, _) => RunOperation(NewNoteAsync));
         menu.Items.Add("메모 목록", null, (_, _) => { if (!busy) ShowList(); });
-        var visibility = menu.Items.Add("모두 숨기기", null, (_, _) => ExecuteCommand("ToggleVisibility"));
-        menu.Items.Add("미니 패널", null, (_, _) => ExecuteCommand("ToggleOverlay"));
+        menu.Items.Add("모두 숨기기", null, (_, _) => ExecuteCommand("HideAll"));
+        menu.Items.Add("모두 보이기", null, (_, _) => ExecuteCommand("ShowAll"));
+        menu.Items.Add("미니 패널", null, (_, _) => { if (!busy) ShowOverlayPanel(true); });
         var retry = menu.Items.Add("저장 다시 시도", null, (_, _) => ExecuteCommand("RetrySave"));
         retry.Visible = false;
         menu.Opening += (_, _) =>
         {
-            visibility.Text = windows.Values.Any(w => w.IsVisible) ? "모두 숨기기" : "모두 보이기";
             retry.Visible = layoutSaveFailed || notes.Values.Any(n => n.SaveState == "Failed");
         };
         menu.Items.Add(new Forms.ToolStripSeparator());
@@ -271,6 +271,8 @@ public partial class App : Application
 
     private async Task ExitAsync()
     {
+        overlayPanel?.FlushPreferences();
+        if (layoutSaveFailed) await PersistLayoutAsync();
         if (!await FlushAllAsync()) { ShowList(); throw new IOException("저장에 실패해 종료를 취소했습니다. 메모 창의 내용을 보관한 뒤 다시 시도하세요."); }
         if (layoutPanel?.IsVisible == true)
             SaveLayoutSettings(layoutSettings with { PanelLeft = layoutPanel.Left, PanelTop = layoutPanel.Top,
@@ -317,8 +319,9 @@ public partial class App : Application
 
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
     {
+        overlayPanel?.FlushPreferences();
         // Windows gives no asynchronous save contract. Cancel once rather than lose pending input.
-        if (busy || notes.Values.Any(n => n.IsDirty))
+        if (busy || layoutSaveFailed || notes.Values.Any(n => n.IsDirty))
         {
             e.Cancel = true;
             RunOperation(ExitAsync);

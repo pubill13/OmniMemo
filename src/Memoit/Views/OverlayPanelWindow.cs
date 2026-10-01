@@ -25,6 +25,9 @@ public sealed class OverlayPanelWindow : Window
     private readonly TextBlock status = new() { MinHeight = 18, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 7, 2, 0) };
     private readonly DispatcherTimer statusTimer = new() { Interval = TimeSpan.FromSeconds(3) };
     private double selectedOpacity;
+    private readonly Slider opacitySlider = new() { Minimum = 30, Maximum = 100, TickFrequency = 5, SmallChange = 5, LargeChange = 10, IsSnapToTickEnabled = true };
+    private readonly TextBlock opacityLabel = new();
+    private readonly DispatcherTimer preferencesTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private bool refreshing;
     public bool AllowClose { get; set; }
     public event Action<string>? CommandRequested;
@@ -85,12 +88,26 @@ public sealed class OverlayPanelWindow : Window
         filtered.Children.Add(chips);
         filtered.Children.Add(Row(Button("선택 색상 접기", () => CollapseRequested?.Invoke(true, SelectedColor)), Button("선택 색상 펼치기", () => CollapseRequested?.Invoke(false, SelectedColor))));
         content.Children.Add(new Expander { Header = "색상별 조작", IsExpanded = false, Content = filtered, Margin = new Thickness(2, 12, 2, 0), Foreground = Brush("#526079") });
+        var opacityHeading = new DockPanel { Margin = new Thickness(2, 12, 2, 4) };
+        DockPanel.SetDock(opacityLabel, Dock.Right); opacityHeading.Children.Add(opacityLabel);
+        opacityHeading.Children.Add(new TextBlock { Text = "불투명도" }); content.Children.Add(opacityHeading);
+        opacitySlider.ToolTip = "패널 불투명도 · 100%가 가장 진합니다";
+        AutomationProperties.SetName(opacitySlider, "패널 불투명도"); content.Children.Add(opacitySlider);
+        opacitySlider.ValueChanged += (_, _) =>
+        {
+            opacityLabel.Text = $"{opacitySlider.Value:0}%";
+            if (refreshing) return;
+            selectedOpacity = opacitySlider.Value / 100; Opacity = selectedOpacity;
+            preferencesTimer.Stop(); preferencesTimer.Start();
+        };
         content.Children.Add(status); AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
         content.Children.Add(undoHost);
         RefreshSettings(settings);
         pinned.Checked += (_, _) => Changed(); pinned.Unchecked += (_, _) => Changed();
         statusTimer.Tick += (_, _) => { statusTimer.Stop(); status.Text = ""; };
-        Closing += (_, e) => { if (!AllowClose) { e.Cancel = true; Hide(); Hidden?.Invoke(); } else statusTimer.Stop(); };
+        preferencesTimer.Tick += (_, _) => FlushPreferences();
+        IsVisibleChanged += (_, _) => { if (!IsVisible) FlushPreferences(); };
+        Closing += (_, e) => { FlushPreferences(); if (!AllowClose) { e.Cancel = true; Hide(); Hidden?.Invoke(); } else statusTimer.Stop(); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; Close(); } };
     }
 
@@ -150,10 +167,17 @@ public sealed class OverlayPanelWindow : Window
         foreach (var item in shortcutButtons) SetShortcutTip(item.Button, item.Description, item.Commands);
         SetHasVisibleNotes(Equals(visibility.Content, "모두 숨기기"));
         selectedOpacity = settings.OverlayOpacity; Opacity = selectedOpacity;
+        opacitySlider.Value = selectedOpacity * 100;
+        opacityLabel.Text = $"{opacitySlider.Value:0}%";
         pinned.IsChecked = settings.OverlayTopmost; Topmost = settings.OverlayTopmost;
         refreshing = false;
     }
-    private void Changed() { if (refreshing) return; Topmost = SelectedTopmost; PreferencesChanged?.Invoke(); }
+    public void FlushPreferences()
+    {
+        if (!preferencesTimer.IsEnabled) return;
+        preferencesTimer.Stop(); PreferencesChanged?.Invoke();
+    }
+    private void Changed() { if (refreshing) return; preferencesTimer.Stop(); Topmost = SelectedTopmost; PreferencesChanged?.Invoke(); }
     private static SolidColorBrush Brush(string value) => (SolidColorBrush)new BrushConverter().ConvertFromString(value)!;
     private static TextBlock Section(string text) => new() { Text = text, FontSize = 11, Foreground = Brush("#64748B"), Margin = new Thickness(2, 9, 2, 5) };
     private static Grid Row(params UIElement[] children)

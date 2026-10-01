@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -20,9 +20,8 @@ public sealed class LayoutOptionsWindow : Window
     private readonly ComboBox corner = new() { ItemsSource = Enum.GetValues<ExpandedCorner>() };
     private Window? previewWindow;
     private readonly ComboBox columnMode = new() { ItemsSource = new[] { "자동", "직접 지정" }, SelectedIndex = 0 };
-    private readonly TextBlock originSummary = new(), opacitySummary = new(), shapeHint = new(), colorHint = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock originSummary = new(), shapeHint = new(), colorHint = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Dictionary<ExpandedCorner, RadioButton> cornerButtons = [];
-    private readonly Slider opacity = new() { Minimum = 30, Maximum = 100, TickFrequency = 5, IsSnapToTickEnabled = true };
     private readonly TabControl tabs = new();
     private readonly CheckBox autoStart = new() { Content = "Windows 로그인 시 OmniMemo 실행" };
     private readonly TextBox x = new(), y = new(), gap = new(), columns = new();
@@ -103,7 +102,6 @@ public sealed class LayoutOptionsWindow : Window
         tabs.Items.Add(new TabItem { Header = "일반", Content = BuildGeneral() });
         tabs.Items.Add(new TabItem { Header = "백업", Content = BuildBackup(dataPath) }); Content = root;
         SetAutoStart(autoStart);
-        opacity.ValueChanged += (_, _) => opacitySummary.Text = $"{opacity.Value:0}% · 100%가 가장 진합니다";
         Loaded += (_, _) => FitToWorkArea();
         monitorBox.SelectionChanged += (_, _) => SwitchMonitor();
         foreach (var field in new[] { x, y, gap, columns }) field.TextChanged += (_, _) => RefreshPreview();
@@ -123,9 +121,6 @@ public sealed class LayoutOptionsWindow : Window
     {
         var content = new StackPanel { Margin = new Thickness(10), Background = Brushes.WhiteSmoke };
         content.Children.Add(Section("시작")); content.Children.Add(autoStart);
-        content.Children.Add(Section("미니 패널")); content.Children.Add(Label("불투명도")); content.Children.Add(opacity); content.Children.Add(opacitySummary);
-        opacitySummary.Text = $"{opacity.Value:0}% · 100%가 가장 진합니다";
-        System.Windows.Automation.AutomationProperties.SetName(opacity, "패널 불투명도");
         GroupSections(content);
         return new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
@@ -229,7 +224,6 @@ public sealed class LayoutOptionsWindow : Window
         EndCapture();
         refreshing = true;
         draft = settings with { Monitors = new(settings.Monitors), Hotkeys = new(settings.Hotkeys) };
-        opacity.Value = settings.OverlayOpacity * 100;
         monitors = available; selectedId = null;
         monitorBox.ItemsSource = monitors;
         monitorBox.SelectedItem = monitors.FirstOrDefault(m => m.Id == settings.SelectedMonitor) ?? monitors.FirstOrDefault();
@@ -359,7 +353,7 @@ public sealed class LayoutOptionsWindow : Window
         try
         {
             HotkeyService.Validate(draft.Hotkeys);
-            var candidate = draft with { AutoArrange = false, OverlayOpacity = opacity.Value / 100, SelectedMonitor = selectedId, PanelLeft = Left, PanelTop = Top, Monitors = new(draft.Monitors), Hotkeys = new(draft.Hotkeys) };
+            var candidate = draft with { AutoArrange = false, SelectedMonitor = selectedId, PanelLeft = Left, PanelTop = Top, Monitors = new(draft.Monitors), Hotkeys = new(draft.Hotkeys) };
             candidate.Validate();
             ApplyRequested?.Invoke(candidate, autoStart.IsChecked == true);
         }

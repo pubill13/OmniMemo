@@ -12,7 +12,7 @@ public partial class App
     private void ToggleOverlayPanel()
     {
         if (overlayPanel?.IsVisible == true) { overlayPanel.Close(); return; }
-        ShowOverlayPanel();
+        ShowOverlayPanel(true);
     }
 
     private void RestoreOverlayPanel()
@@ -20,7 +20,7 @@ public partial class App
         if (layoutSettings.OverlayVisible) ShowOverlayPanel();
     }
 
-    private void ShowOverlayPanel()
+    private void ShowOverlayPanel(bool activate = false)
     {
         if (overlayPanel is null)
         {
@@ -32,27 +32,42 @@ public partial class App
             overlayPanel.Left = layoutSettings.OverlayLeft ?? SystemParameters.WorkArea.Right - overlayPanel.Width - 16;
             overlayPanel.Top = layoutSettings.OverlayTop ?? SystemParameters.WorkArea.Top + 16;
         }
+        overlayPanel.FlushPreferences();
         overlayPanel.RefreshSettings(layoutSettings);
         overlayPanel.SetNotes(notes.Values.Select(n => n.Snapshot));
         overlayPanel.SetHasVisibleNotes(windows.Values.Any(w => w.IsVisible));
+        overlayPanel.ShowActivated = activate;
         overlayPanel.Show();
         WindowPlacement.KeepOnScreen(overlayPanel);
+        if (activate)
+        {
+            if (overlayPanel.WindowState == WindowState.Minimized) overlayPanel.WindowState = WindowState.Normal;
+            overlayPanel.Activate();
+        }
         SaveOverlayPreferences();
     }
 
     private void SaveOverlayPreferences()
     {
         if (overlayPanel is null) return;
-        try
-        {
-            SaveLayoutSettings(layoutSettings with
+        var candidate = layoutSettings with
             {
                 OverlayLeft = overlayPanel.Left, OverlayTop = overlayPanel.Top,
                 OverlayTopmost = overlayPanel.SelectedTopmost,
-                OverlayColor = overlayPanel.SelectedColor, OverlayVisible = overlayPanel.IsVisible
-            });
+                OverlayColor = overlayPanel.SelectedColor, OverlayVisible = overlayPanel.IsVisible,
+                OverlayOpacity = overlayPanel.SelectedOpacity
+            };
+        try
+        {
+            SaveLayoutSettings(candidate);
         }
-        catch (Exception ex) { Error("데스크톱 패널 설정을 저장하지 못했습니다.", ex); }
+        catch (Exception ex)
+        {
+            // Retain the visible preferences so a retry writes the value the user sees.
+            layoutSettings = candidate;
+            layoutSaveFailed = true;
+            overlayPanel.ShowStatus("패널 설정 저장 실패 · 트레이에서 저장 다시 시도: " + ex.Message, true);
+        }
     }
 
     private void CloseOverlayPanel()

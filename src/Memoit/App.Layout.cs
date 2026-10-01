@@ -237,10 +237,12 @@ public partial class App
     {
         try
         {
+            overlayPanel?.FlushPreferences();
             candidate = candidate with
             {
                 OverlayLeft = layoutSettings.OverlayLeft, OverlayTop = layoutSettings.OverlayTop,
                 OverlayTopmost = layoutSettings.OverlayTopmost,
+                OverlayOpacity = layoutSettings.OverlayOpacity,
                 OverlayColor = layoutSettings.OverlayColor, OverlayVisible = layoutSettings.OverlayVisible,
                 ArrangementOrder = layoutSettings.ArrangementOrder, NeedsManualArrangementNotice = layoutSettings.NeedsManualArrangementNotice,
                 NeedsShortcutSimplificationNotice = layoutSettings.NeedsShortcutSimplificationNotice

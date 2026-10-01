@@ -17,6 +17,34 @@ namespace Memoit.Tests;
 public sealed class NoteUiRegressionTests
 {
     [Fact]
+    public void FontMenuSupportsFineStepsAndBounds() => Sta(() =>
+    {
+        using var vm = new NoteViewModel(new Note { FontSize = 15 }, _ => Task.CompletedTask);
+        var window = new NoteWindow(vm);
+        try
+        {
+            var menu = (MenuItem)window.FindName("FontSizeMenu");
+            var sizes = menu.Items.OfType<MenuItem>().Where(item => item.IsCheckable).ToArray();
+            Assert.Equal(Enumerable.Range(10, 23).Concat([36, 40, 48, 56, 64, 72]), sizes.Select(item => (int)item.Tag));
+            Assert.Equal(15, (int)Assert.Single(sizes, item => item.IsChecked).Tag);
+            sizes.Single(item => (int)item.Tag == 17).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Assert.Equal(17, vm.FontSize);
+            Assert.Equal(17, (int)Assert.Single(sizes, item => item.IsChecked).Tag);
+            var smaller = (MenuItem)menu.Items[0];
+            var larger = (MenuItem)menu.Items[1];
+            larger.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Assert.Equal(18, vm.FontSize);
+            vm.FontSize = 10;
+            smaller.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Assert.Equal(10, vm.FontSize); Assert.False(smaller.IsEnabled);
+            vm.FontSize = 72;
+            larger.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Assert.Equal(72, vm.FontSize); Assert.False(larger.IsEnabled);
+        }
+        finally { window.AllowClose = true; window.Close(); }
+    });
+
+    [Fact]
     public void IndividualExpandUsesClickedTileAndCollapseReturnsToTile() => Sta(() =>
     {
         using var vm = new NoteViewModel(new Note { Left = 160, Top = 170, IsCollapsed = true,

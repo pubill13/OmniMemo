@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.9.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.9.1-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -22,9 +22,9 @@ GitHub 릴리스의 `OmniMemo-1.9.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실
 
 설정은 `배치 / 단축키 / 일반 / 백업`으로 나뉩니다. 배치에는 **접었을 때 / 펼쳤을 때 / 순서와 간격**을 모았습니다. `여러 줄로 배치`는 한 줄을 채우고 다음 줄로 넘어가며, 가로·세로 한 줄은 줄바꿈하지 않습니다. 여러 줄 배치의 `한 줄에 놓을 메모 수`는 자동 또는 1~30개를 지정합니다. 자동은 시작점 오른쪽의 가용 폭으로 계산합니다. 색상순이면 새 색에서 줄을 바꾸고 같은 색은 먼저 만든 순서입니다.
 
-`화면에서 지정`으로 시작점을 고르고, 세부 조정에서 X·Y를 입력합니다. 미리보기 버튼은 별도 창을 열며 적용 전 설정과 보이는 메모를 반영합니다. 실제 메모를 움직이지 않습니다. **적용은 설정만 저장**합니다. 일반 탭에서 패널 불투명도(30~100%)와 로그인 자동 실행을 적용하고, 백업 탭의 백업·복원 버튼은 즉시 실행합니다.
+`화면에서 지정`으로 시작점을 고르고, 세부 조정에서 X·Y를 입력합니다. 미리보기 버튼은 별도 창을 열며 적용 전 설정과 보이는 메모를 반영합니다. 실제 메모를 움직이지 않습니다. **적용은 설정만 저장**합니다. 일반 탭에서 로그인 자동 실행을 적용하고, 백업 탭의 백업·복원 버튼은 즉시 실행합니다.
 
-트레이에서는 새 메모, 목록, 숨김/보임 전환, 미니 패널, 설정, 종료를 제공합니다. 정돈은 패널 버튼이나 통합 단축키를 사용하세요.
+트레이에서는 새 메모, 목록, 모두 숨기기, 모두 보이기, 미니 패널, 설정, 종료를 제공합니다. 미니 패널을 누르면 한 번에 표시하고 앞으로 가져옵니다. 패널 하단에서 불투명도(30~100%)를 바로 조절합니다. 정돈은 패널 버튼이나 통합 단축키를 사용하세요.
 
 ## 새 메모 위치
 
@@ -47,7 +47,7 @@ GitHub 릴리스의 `OmniMemo-1.9.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실
 
 ## 편집과 데이터 보호
 
-일반 텍스트·한글·복사/붙여넣기·실행 취소/다시 실행을 지원합니다. 메모 메뉴에서 글꼴과 크기·색상을 선택하고 압정 아이콘으로 항상 위를 설정합니다. 제목은 본문의 첫 비어 있지 않은 줄입니다. X는 숨기기이며 삭제는 휴지통으로 이동합니다. 목록의 체크박스와 우클릭으로 여러 메모를 관리할 수 있습니다. 휴지통 이동 후 목록·패널 또는 작은 안내 창에 10초간 실행 취소를 제공합니다. 안내 위에 마우스나 키보드 포커스가 있으면 만료를 잠시 멈춥니다. 가장 최근 삭제 묶음만 되돌리며 재실행 후에는 유지하지 않습니다. 성공적으로 삭제된 항목의 표시·접힘 상태와 위치를 복구하고, 복원 실패 항목은 다시 시도할 수 있습니다.
+일반 텍스트·한글·복사/붙여넣기·실행 취소/다시 실행을 지원합니다. 메모 메뉴에서 글꼴과 10~32 1단위 및 36·40·48·56·64·72 크기·색상을 선택하고 압정 아이콘으로 항상 위를 설정합니다. 제목은 본문의 첫 비어 있지 않은 줄입니다. X는 숨기기이며 삭제는 휴지통으로 이동합니다. 목록의 체크박스와 우클릭으로 여러 메모를 관리할 수 있습니다. 휴지통 이동 후 목록·패널 또는 작은 안내 창에 10초간 실행 취소를 제공합니다. 안내 위에 마우스나 키보드 포커스가 있으면 만료를 잠시 멈춥니다. 가장 최근 삭제 묶음만 되돌리며 재실행 후에는 유지하지 않습니다. 성공적으로 삭제된 항목의 표시·접힘 상태와 위치를 복구하고, 복원 실패 항목은 다시 시도할 수 있습니다.
 
 상단의 빈 곳이나 타일을 드래그하면 화면·다른 메모 가장자리에 자석처럼 붙으며, 더 끌면 떨어집니다. 화면 밖에 일부 걸치거나 다른 모니터로 옮길 수 있습니다.
 
@@ -66,19 +66,19 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.9.0/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.9.1/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.9.0/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.9.0/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/Ux19Smoke.ps1 -Executable artifacts/OmniMemo-1.9.0/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.9.1/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.9.1/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/Ux19Smoke.ps1 -Executable artifacts/OmniMemo-1.9.1/win-x64/OmniMemo.exe
 dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-1.9.json
 ```
 
-1.9 검증: 단위/STA 테스트 197개, Release 빌드 통과. 실제 실행 파일에서 4개 설정 탭, 별도 미리보기의 단일 창·재열기·부모 닫기, 6개 단축키, 불투명도 적용, 적용 시 메모 위치 유지, 삭제 실행 취소, 입력·자동 저장·창 이동과 일괄 전환을 확인했습니다. 트레이의 간소화 메뉴와 숨김/보임 전환도 확인했습니다.
+1.9 검증: 단위/STA 테스트 206개, Release 빌드 통과. 실제 실행 파일에서 4개 설정 탭, 별도 미리보기의 단일 창·재열기·부모 닫기, 6개 단축키, 불투명도 적용, 적용 시 메모 위치 유지, 삭제 실행 취소, 입력·자동 저장·창 이동과 일괄 전환을 확인했습니다. 트레이의 간소화 메뉴와 숨김/보임 전환도 확인했습니다.
 
 100/150/200% 설정 화면 오프스크린 렌더링을 확인했습니다. 실제 물리 다중 모니터·배율 전환, 한글 IME 조합은 미검증입니다. 자석 드래그 정밀 좌표 검사는 기대 좌표와 차이가 있어 통과하지 못했습니다. 저장 실패 재시도 메뉴의 실제 복구 검사는 중복 트레이 아이콘으로 테스트 앱을 안전하게 식별할 수 없어 완료하지 못했습니다. 저장 실패·재시도 상태와 설정 복구 로직은 자동 테스트로 검증했습니다.
 

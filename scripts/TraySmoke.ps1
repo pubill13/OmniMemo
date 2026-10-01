@@ -10,6 +10,7 @@ public static class TrayMouse {
  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd,out RECT rect);
  [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT point);
  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+ [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
  [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT point);
  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
  [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint dx,uint dy,uint data,UIntPtr extra);
@@ -53,7 +54,15 @@ function Find-ClickableOmniIcon {
  # FindAll avoids selecting the first stale, empty shell placeholder after a prior run.
  $icons=[System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Descendants,(Condition ([System.Windows.Automation.AutomationElement]::NameProperty) 'OmniMemo · 개인용 메모'))
  $visible=@(foreach ($candidate in $icons) { if ($null -ne (Clickable-Bounds $candidate)) { $candidate } })
- if ($visible.Count -gt 1) { throw 'Multiple clickable OmniMemo tray icons; cannot safely choose the test icon.' }
+ if ($visible.Count -gt 1) {
+  foreach($candidate in $visible) {
+   $bounds=Clickable-Bounds $candidate
+   if($bounds){[void][TrayMouse]::SetCursorPos([int]($bounds.X+$bounds.Width/2),[int]($bounds.Y+$bounds.Height/2));Start-Sleep -Milliseconds 200}
+  }
+  $icons=[System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Descendants,(Condition ([System.Windows.Automation.AutomationElement]::NameProperty) 'OmniMemo · 개인용 메모'))
+  $visible=@(foreach($candidate in $icons){if($null -ne (Clickable-Bounds $candidate)){$candidate}})
+  if($visible.Count -gt 1){throw 'Multiple live OmniMemo icons remain after stale-icon hover cleanup; refusing ambiguous click.'}
+ }
  if ($visible.Count -eq 1) { return $visible[0] }
 }
 function Open-TrayMenu {
@@ -121,7 +130,7 @@ try {
  $process=Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden -PassThru
  Start-Sleep -Seconds 3
  $menu=Open-TrayMenu
- foreach ($name in @('새 메모','메모 목록','모두 숨기기','미니 패널','설정','종료')) {
+ foreach ($name in @('새 메모','메모 목록','모두 숨기기','모두 보이기','미니 패널','설정','종료')) {
   if (-not (Named $menu $name)) { throw ('Missing tray action: '+$name) }
  }
  foreach ($name in @('접어서 정돈','모두 펼치기','저장 다시 시도','전체 숨기기','전체 보이기')) {
@@ -137,7 +146,7 @@ try {
  Start-Sleep -Milliseconds 400
  $menu=Open-TrayMenu
  if (-not (Named $menu '모두 숨기기')) { throw 'Visibility menu did not change back to Hide all.' }
- Record 'Single tray visibility command changes label and toggles both ways'
+ Record 'Separate tray hide and show commands both remain available'
  Invoke-Element (Named $menu '메모 목록')
  $null=Wait-Element { Named ([System.Windows.Automation.AutomationElement]::RootElement) '메모 내용 검색' } 'list search opened from tray'
  Record 'Tray list action opens note list'
@@ -187,6 +196,19 @@ try {
   $condition=New-Object System.Windows.Automation.AndCondition ((Condition ([System.Windows.Automation.AutomationElement]::ProcessIdProperty) $process.Id)),((Condition ([System.Windows.Automation.AutomationElement]::NameProperty) 'OmniMemo · 데스크톱 패널'))
   [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$condition)
  } 'mini panel for isolated save failure'
+ foreach($attempt in 1..3) {
+  $menu=Open-TrayMenu
+  Invoke-Element (Named $menu '미니 패널')
+  Start-Sleep -Milliseconds 400
+  if($panel.Current.IsOffscreen){throw 'Repeated tray panel action hid the panel.'}
+  if([TrayMouse]::GetForegroundWindow() -ne [IntPtr]$panel.Current.NativeWindowHandle){throw 'Tray panel action did not bring panel foreground on first click.'}
+ }
+ Record 'Repeated mini panel tray click keeps panel visible and foreground'
+ Invoke-Element (Named $panel '패널 숨기기')
+ $menu=Open-TrayMenu;Invoke-Element (Named $menu '미니 패널')
+ Start-Sleep -Milliseconds 400
+ if($panel.Current.IsOffscreen -or [TrayMouse]::GetForegroundWindow() -ne [IntPtr]$panel.Current.NativeWindowHandle){throw 'Hidden panel did not appear on first tray click.'}
+ Record 'Hidden mini panel opens on first tray click'
  # Holding only the isolated test settings file prevents its atomic replacement.
  # Read access remains available so the app can report and recover from a real I/O failure.
  $layoutPath=Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json'

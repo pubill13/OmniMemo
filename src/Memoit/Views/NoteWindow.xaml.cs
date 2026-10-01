@@ -41,6 +41,7 @@ public partial class NoteWindow : Window
         this.vm = vm;
         InitializeComponent();
         DataContext = vm;
+        InitializeFontSizes();
         Left = vm.Snapshot.Left; Top = vm.Snapshot.Top;
         ApplyLayout(); UpdateTileTitle();
         vm.PropertyChanged += OnViewModelChanged;
@@ -226,7 +227,46 @@ public partial class NoteWindow : Window
         var button = (Button)sender; button.ContextMenu!.PlacementTarget = button; button.ContextMenu.IsOpen = true;
     }
     private void OnColor(object sender, RoutedEventArgs e) => vm.Color = (string)((MenuItem)sender).Tag;
-    private void OnFont(object sender, RoutedEventArgs e) => vm.FontSize = double.Parse((string)((MenuItem)sender).Tag, CultureInfo.InvariantCulture);
+    private void InitializeFontSizes()
+    {
+        var smaller = new MenuItem { Header = "1 작게", Tag = -1 };
+        var larger = new MenuItem { Header = "1 크게", Tag = 1 };
+        smaller.Click += OnFontStep;
+        larger.Click += OnFontStep;
+        FontSizeMenu.Items.Add(smaller);
+        FontSizeMenu.Items.Add(larger);
+        FontSizeMenu.Items.Add(new Separator());
+        foreach (int size in Enumerable.Range(10, 23).Concat([36, 40, 48, 56, 64, 72]))
+        {
+            var item = new MenuItem { Header = size.ToString(CultureInfo.InvariantCulture), Tag = size, IsCheckable = true };
+            item.Click += OnFont;
+            FontSizeMenu.Items.Add(item);
+        }
+        UpdateFontSizeMenu();
+    }
+
+    private void OnFontMenuOpened(object sender, RoutedEventArgs e) => UpdateFontSizeMenu();
+
+    private void UpdateFontSizeMenu()
+    {
+        ((MenuItem)FontSizeMenu.Items[0]).IsEnabled = vm.FontSize > 10;
+        ((MenuItem)FontSizeMenu.Items[1]).IsEnabled = vm.FontSize < 72;
+        foreach (var item in FontSizeMenu.Items.OfType<MenuItem>().Where(item => item.IsCheckable))
+            item.IsChecked = (int)item.Tag == vm.FontSize;
+        FontSizeMenu.Header = $"글자 크기 · {vm.FontSize.ToString(CultureInfo.InvariantCulture)}";
+    }
+
+    private void OnFontStep(object sender, RoutedEventArgs e)
+    {
+        vm.FontSize = Math.Clamp(vm.FontSize + (int)((MenuItem)sender).Tag, 10, 72);
+        UpdateFontSizeMenu();
+    }
+
+    private void OnFont(object sender, RoutedEventArgs e)
+    {
+        vm.FontSize = (int)((MenuItem)sender).Tag;
+        UpdateFontSizeMenu();
+    }
     private void OnFontFamily(object sender, RoutedEventArgs e) => vm.FontFamily = (string)((MenuItem)sender).Tag;
     private void OnKeyDown(object sender, KeyEventArgs e)
     {

@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using Memoit.Services;
@@ -112,7 +112,7 @@ public sealed class LayoutOptionsTests
     {
         Sta(() =>
         {
-            var window = new LayoutOptionsWindow(new LayoutSettings(), [], "C:/data", true);
+            var window = new LayoutOptionsWindow(new LayoutSettings { OverlayOpacity = .55 }, [], "C:/data", true);
             try
             {
                 var tabs = Field<TabControl>(window, "tabs");
@@ -122,7 +122,7 @@ public sealed class LayoutOptionsTests
                 Field<CheckBox>(window, "autoStart").IsChecked = true;
                 Assert.DoesNotContain("ToggleAuto", Field<Dictionary<string, TextBox>>(window, "recorders").Keys);
                 LayoutSettings? candidate = null; window.ApplyRequested += (value, startup) => { candidate = value; Assert.True(startup); };
-                Field<Slider>(window, "opacity").Value = 55; window.Left = 0; window.Top = 0;
+                Assert.Null(typeof(LayoutOptionsWindow).GetField("opacity", BindingFlags.Instance | BindingFlags.NonPublic)); window.Left = 0; window.Top = 0;
                 typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
                 Assert.NotNull(candidate); Assert.Equal(.55, candidate.OverlayOpacity);
             }
@@ -156,8 +156,6 @@ public sealed class LayoutOptionsTests
                 typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
                 Assert.Equal(LayoutShape.Horizontal, applied.GetMonitor("A").Shape);
                 Assert.Equal(0, applied.GetMonitor("A").Columns);
-                Field<Slider>(window, "opacity").Value = 65;
-                Assert.Contains("65%", Field<TextBlock>(window, "opacitySummary").Text);
             }
             finally { window.AllowClose = true; window.Close(); }
         });

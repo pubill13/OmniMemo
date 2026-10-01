@@ -33,6 +33,26 @@ public sealed class NoteStoreTests : IDisposable
         Assert.Equal("99", Assert.Single(await store.LoadAsync()).Body);
     }
 
+    [Theory]
+    [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(17)]
+    [InlineData(31)]
+    [InlineData(36)]
+    [InlineData(71)]
+    [InlineData(72)]
+    public async Task FineFontSizesSurviveReload(double size)
+    {
+        var note = new Note { FontSize = size };
+        using (var store = new NoteStore(Database))
+        {
+            await store.InitializeAsync(); await store.SaveAsync(note);
+        }
+        using var reopened = new NoteStore(Database);
+        await reopened.InitializeAsync();
+        Assert.Equal(size, Assert.Single(await reopened.LoadAsync()).FontSize);
+    }
+
     [Fact]
     public async Task OnlyTrashCanBePermanentlyDeleted()
     {

@@ -18,6 +18,42 @@ namespace Memoit.Tests;
 public sealed class OverlayPanelTests
 {
     [Fact]
+    public void OpacityUpdatesImmediatelyAndDebouncesOrFlushesPreferences()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var panel = new OverlayPanelWindow(new LayoutSettings());
+                try
+                {
+                    var slider = Descendants(panel).OfType<Slider>().Single();
+                    Assert.Equal(30, slider.Minimum); Assert.Equal(100, slider.Maximum);
+                    Assert.Equal(5, slider.TickFrequency); Assert.True(slider.IsSnapToTickEnabled);
+                    int changes = 0; panel.PreferencesChanged += () => changes++;
+                    slider.Value = 55; slider.Value = 60;
+                    Assert.Equal(.6, panel.Opacity); Assert.Equal(.6, panel.SelectedOpacity); Assert.Equal(0, changes);
+                    var frame = new System.Windows.Threading.DispatcherFrame();
+                    var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
+                    timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; };
+                    timer.Start(); System.Windows.Threading.Dispatcher.PushFrame(frame);
+                    Assert.Equal(1, changes);
+                    slider.Value = 65; panel.FlushPreferences(); panel.FlushPreferences();
+                    Assert.Equal(2, changes);
+                    panel.RefreshSettings(new LayoutSettings { OverlayOpacity = .7 });
+                    Assert.Equal(70, slider.Value); Assert.Equal(2, changes);
+                    slider.Value = 75; panel.AllowClose = true; panel.Close();
+                    Assert.Equal(3, changes);
+                }
+                finally { panel.AllowClose = true; panel.Close(); }
+            }
+            catch (Exception ex) { failure = ex; }
+        });
+        thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
+        if (failure is not null) throw failure;
+    }
+    [Fact]
     public void OverlayPreferencesRoundTripAndRejectInvalidValuesWithoutReplacingFile()
     {
         string file = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
@@ -104,7 +140,7 @@ public sealed class OverlayPanelTests
                     panel.SetHasVisibleNotes(false); Assert.Contains(buttons, b => Equals(b.Content, "모두 보이기"));
                     panel.SetHasVisibleNotes(true); Assert.Contains(buttons, b => Equals(b.Content, "모두 숨기기"));
                     Assert.DoesNotContain(buttons, b => Equals(b.Content, "이전 배치로"));
-                    Assert.Empty(Descendants(panel).OfType<Slider>());
+                    Assert.Single(Descendants(panel).OfType<Slider>());
                     panel.ShowStatus("저장 실패", true); Assert.Contains(Descendants(panel).OfType<TextBlock>(), b => b.Text == "저장 실패");
                     int changes = 0; panel.PreferencesChanged += () => changes++;
                     panel.RefreshSettings(new LayoutSettings { OverlayOpacity = .3, OverlayTopmost = false });
