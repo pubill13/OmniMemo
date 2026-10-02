@@ -34,6 +34,23 @@ public sealed class NoteStoreTests : IDisposable
     }
 
     [Theory]
+    [InlineData("Pretendard")]
+    [InlineData("NanumGothic")]
+    [InlineData("NanumMyeongjo")]
+    [InlineData("Nanum Pen")]
+    public async Task BundledFontNamesSurviveReload(string family)
+    {
+        using (var store = new NoteStore(Database))
+        {
+            await store.InitializeAsync();
+            await store.SaveAsync(new Note { FontFamily = family });
+        }
+        using var reopened = new NoteStore(Database);
+        await reopened.InitializeAsync();
+        Assert.Equal(family, Assert.Single(await reopened.LoadAsync()).FontFamily);
+    }
+
+    [Theory]
     [InlineData(10)]
     [InlineData(11)]
     [InlineData(17)]

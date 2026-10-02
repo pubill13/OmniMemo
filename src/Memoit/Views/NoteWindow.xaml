@@ -42,13 +42,13 @@
       <MenuItem Header="메모 색상">
        <MenuItem Header="노랑" Tag="#FFF2B3" Click="OnColor"/><MenuItem Header="분홍" Tag="#FFDDE7" Click="OnColor"/><MenuItem Header="초록" Tag="#DEF0D8" Click="OnColor"/><MenuItem Header="파랑" Tag="#DCEBFA" Click="OnColor"/><MenuItem Header="보라" Tag="#EAE0F7" Click="OnColor"/><MenuItem Header="흰색" Tag="#FAFAF5" Click="OnColor"/>
       </MenuItem>
-      <MenuItem Header="글꼴"><MenuItem Header="맑은 고딕" Tag="Malgun Gothic" Click="OnFontFamily"/><MenuItem Header="굴림" Tag="Gulim" Click="OnFontFamily"/><MenuItem Header="Segoe UI" Tag="Segoe UI" Click="OnFontFamily"/><MenuItem Header="Arial" Tag="Arial" Click="OnFontFamily"/><MenuItem Header="Consolas" Tag="Consolas" Click="OnFontFamily"/><MenuItem Header="Times New Roman" Tag="Times New Roman" Click="OnFontFamily"/></MenuItem><MenuItem x:Name="FontSizeMenu" Header="글자 크기" SubmenuOpened="OnFontMenuOpened"/>
+      <MenuItem x:Name="FontFamilyMenu" Header="글꼴" SubmenuOpened="OnFontFamilyMenuOpened"/><MenuItem x:Name="FontSizeMenu" Header="글자 크기" SubmenuOpened="OnFontMenuOpened"/>
       <MenuItem Header="메모 목록 / 검색" InputGestureText="Ctrl+F" Click="OnSearch"/><MenuItem Header="설정…" Click="OnLayoutOptions"/><Separator/><MenuItem Header="휴지통으로 이동" Click="OnDelete"/>
      </ContextMenu></Button.ContextMenu>
     </Button>
     <Button Grid.Column="5" Content="×" ToolTip="메모 숨기기 (목록에서 다시 열 수 있습니다)" AutomationProperties.Name="메모 숨기기" Click="OnHide"/>
    </Grid>
-   <TextBox x:Name="Editor" x:FieldModifier="public" Grid.Row="1" Text="{Binding Body, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontFamily="{Binding EffectiveFontFamily}" FontSize="{Binding FontSize}" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" BorderThickness="0" Background="Transparent" Padding="8,7" IsUndoEnabled="True" SpellCheck.IsEnabled="False" AutomationProperties.Name="메모 내용">
+   <TextBox x:Name="Editor" x:FieldModifier="public" Grid.Row="1" Text="{Binding Body, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontFamily="{Binding ResolvedFontFamily}" FontSize="{Binding FontSize}" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" BorderThickness="0" Background="Transparent" Padding="8,7" IsUndoEnabled="True" SpellCheck.IsEnabled="False" AutomationProperties.Name="메모 내용">
     <TextBox.Resources>
      <Style TargetType="Thumb">
       <Setter Property="Tag" Value="{DynamicResource {x:Static SystemParameters.HighContrastKey}}"/>

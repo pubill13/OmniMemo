@@ -17,6 +17,33 @@ namespace Memoit.Tests;
 public sealed class NoteUiRegressionTests
 {
     [Fact]
+    public void BundledFontsResolveRealKoreanGlyphsAndMenuSelection() => Sta(() =>
+    {
+        using var vm = new NoteViewModel(new Note(), _ => Task.CompletedTask);
+        var window = new NoteWindow(vm);
+        try
+        {
+            var menu = (MenuItem)window.FindName("FontFamilyMenu");
+            foreach (var font in NoteFonts.Bundled)
+            {
+                var family = NoteFonts.Create(font.Name);
+                Assert.True(new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal).TryGetGlyphTypeface(out var glyph), font.Name + " available: " + string.Join(";", Fonts.GetFontFamilies(new Uri("pack://application:,,,/OmniMemo;component/Assets/Fonts/")).SelectMany(f => f.FamilyNames.Values)));
+                Assert.Contains("omnimemo", glyph.FontUri.ToString().ToLowerInvariant());
+                Assert.True(glyph.CharacterToGlyphMap.ContainsKey('한'));
+                var item = menu.Items.OfType<MenuItem>().Single(i => Equals(i.Tag, font.Name));
+                item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                Pump();
+                Assert.Equal(font.Name, vm.Snapshot.FontFamily);
+                Assert.Equal(NoteFonts.Resolve(font.Name), vm.EffectiveFontFamily);
+                Assert.True(new Typeface(window.Editor.FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal).TryGetGlyphTypeface(out var editorGlyph));
+                Assert.Equal(glyph.FontUri, editorGlyph.FontUri);
+            }
+            Assert.Contains(menu.Items.OfType<MenuItem>(), i => Equals(i.Header, "설치된 글꼴 더 보기…"));
+        }
+        finally { window.AllowClose = true; window.Close(); }
+    });
+
+    [Fact]
     public void FontMenuSupportsFineStepsAndBounds() => Sta(() =>
     {
         using var vm = new NoteViewModel(new Note { FontSize = 15 }, _ => Task.CompletedTask);

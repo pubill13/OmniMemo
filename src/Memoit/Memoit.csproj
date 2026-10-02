@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/OmniMemo.ico</ApplicationIcon>
-    <Version>1.9.1</Version>
+    <Version>1.10.0</Version>
     <AssemblyName>OmniMemo</AssemblyName>
     <Product>OmniMemo</Product>
     <Title>OmniMemo</Title>
@@ -18,6 +18,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets/OmniMemo.ico" />
+    <Resource Include="Assets/Fonts/*.ttf;Assets/Fonts/*.otf" />
+    <Content Include="Assets/Fonts/*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
   </ItemGroup>

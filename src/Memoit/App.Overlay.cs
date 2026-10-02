@@ -25,7 +25,12 @@ public partial class App
         if (overlayPanel is null)
         {
             overlayPanel = new OverlayPanelWindow(layoutSettings);
-            overlayPanel.CommandRequested += ExecuteCommand;
+            overlayPanel.CommandRequested += command =>
+            {
+                if (command == "NewNote")
+                { if (!busy && !shuttingDown) RunOperation(() => NewNoteAsync(null, overlayPanel.SelectedColor)); }
+                else ExecuteCommand(command);
+            };
             overlayPanel.CollapseRequested += (collapsed, color) => RunFilteredCollapsed(collapsed, color);
             overlayPanel.PreferencesChanged += SaveOverlayPreferences;
             overlayPanel.Hidden += SaveOverlayPreferences;

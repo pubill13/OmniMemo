@@ -19,8 +19,6 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
     private bool failed;
     private string status = "저장됨";
     private string saveState = "Saved";
-    private static readonly Lazy<HashSet<string>> InstalledFonts = new(() =>
-        System.Windows.Media.Fonts.SystemFontFamilies.Select(f => f.Source).ToHashSet(StringComparer.OrdinalIgnoreCase));
 
     public NoteViewModel(Note note, Func<Note, Task> save, bool isNew = false)
     {
@@ -47,8 +45,9 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
     }
     public string Color { get => note.Color; set { if (value != note.Color) { note = note with { Color = value }; Changed(); Notify(); } } }
     public double FontSize { get => note.FontSize; set { if (value != note.FontSize) { note = note with { FontSize = value }; Changed(); Notify(); } } }
-    public string FontFamily { get => note.FontFamily; set { if (!string.IsNullOrWhiteSpace(value) && value.Length <= 100 && value != note.FontFamily) { note = note with { FontFamily = value }; Changed(); Notify(); Notify(nameof(EffectiveFontFamily)); } } }
-    public string EffectiveFontFamily => InstalledFonts.Value.Contains(note.FontFamily) ? note.FontFamily : "Malgun Gothic";
+    public string FontFamily { get => note.FontFamily; set { if (!string.IsNullOrWhiteSpace(value) && value.Length <= 100 && value != note.FontFamily) { note = note with { FontFamily = value }; Changed(); Notify(); Notify(nameof(EffectiveFontFamily)); Notify(nameof(ResolvedFontFamily)); } } }
+    public System.Windows.Media.FontFamily ResolvedFontFamily => Memoit.Services.NoteFonts.Create(note.FontFamily);
+    public string EffectiveFontFamily => Memoit.Services.NoteFonts.Resolve(note.FontFamily);
     public bool IsCollapsed
     {
         get => note.IsCollapsed;

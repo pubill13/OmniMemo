@@ -42,6 +42,7 @@ public partial class NoteWindow : Window
         InitializeComponent();
         DataContext = vm;
         InitializeFontSizes();
+        InitializeFontFamilies();
         Left = vm.Snapshot.Left; Top = vm.Snapshot.Top;
         ApplyLayout(); UpdateTileTitle();
         vm.PropertyChanged += OnViewModelChanged;
@@ -267,7 +268,32 @@ public partial class NoteWindow : Window
         vm.FontSize = (int)((MenuItem)sender).Tag;
         UpdateFontSizeMenu();
     }
-    private void OnFontFamily(object sender, RoutedEventArgs e) => vm.FontFamily = (string)((MenuItem)sender).Tag;
+    private void InitializeFontFamilies()
+    {
+        foreach (var font in NoteFonts.Bundled)
+            AddFontFamily(font.Name, font.Label, "앱에 포함된 글꼴 · 별도 설치 없이 사용");
+        FontFamilyMenu.Items.Add(new Separator());
+        foreach (var font in NoteFonts.Familiar) AddFontFamily(font.Name, font.Label, null);
+        FontFamilyMenu.Items.Add(new Separator());
+        var more = new MenuItem { Header = "설치된 글꼴 더 보기…" };
+        more.Click += (_, _) =>
+        {
+            var picker = new FontPickerWindow(vm.FontFamily) { Owner = this };
+            if (picker.ShowDialog() == true && picker.SelectedFont is { } font) vm.FontFamily = font;
+        };
+        FontFamilyMenu.Items.Add(more);
+    }
+    private void AddFontFamily(string name, string label, string? tooltip)
+    {
+        var item = new MenuItem { Header = label, Tag = name, IsCheckable = true, ToolTip = tooltip };
+        item.Click += (_, _) => vm.FontFamily = name;
+        FontFamilyMenu.Items.Add(item);
+    }
+    private void OnFontFamilyMenuOpened(object sender, RoutedEventArgs e)
+    {
+        foreach (var item in FontFamilyMenu.Items.OfType<MenuItem>().Where(i => i.IsCheckable))
+            item.IsChecked = string.Equals((string)item.Tag, vm.FontFamily, StringComparison.OrdinalIgnoreCase);
+    }
     private void OnKeyDown(object sender, KeyEventArgs e)
     {
         if (HotkeyService.Matches(CollapseGesture, e.Key == Key.System ? e.SystemKey : e.Key, Keyboard.Modifiers))

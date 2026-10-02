@@ -68,13 +68,13 @@ function Drag-Note($w, [int]$localX, [int]$localY) {
  [HotkeySmokeNative]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
  try {
   Start-Sleep -Milliseconds 150
-  for($i=1;$i -le 10;$i++) { [void][HotkeySmokeNative]::SetCursorPos($sx-10*$i,$sy+6*$i); Start-Sleep -Milliseconds 40 }
+  for($i=1;$i -le 10;$i++) { [void][HotkeySmokeNative]::SetCursorPos($sx+10*$i,$sy+6*$i); Start-Sleep -Milliseconds 40 }
   $during=Rect $w
  } finally { [HotkeySmokeNative]::mouse_event(4,0,0,0,[UIntPtr]::Zero) }
  Start-Sleep -Milliseconds 300
  $after=Rect $w
  Write-Output "Drag ($localX,$localY): before=$($r.Left),$($r.Top) during=$($during.Left),$($during.Top) after=$($after.Left),$($after.Top)"
- Check ([Math]::Abs($during.Left-$r.Left+100) -le 15 -and [Math]::Abs($during.Top-$r.Top-60) -le 15) 'Dragging moves note with cursor'
+ Check ([Math]::Abs($during.Left-$r.Left-100) -le 15 -and [Math]::Abs($during.Top-$r.Top-60) -le 15) 'Dragging moves note with cursor'
  Check ($after.Left -eq $during.Left -and $after.Top -eq $during.Top) 'Released expanded note stays at manually dragged position'
 }
 Add-Type -ReferencedAssemblies @([System.Windows.Automation.AutomationElement].Assembly.Location,[System.Windows.Automation.AutomationProperty].Assembly.Location) @"
