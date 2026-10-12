@@ -15,7 +15,6 @@ public partial class MainWindow : Window
     public string SearchText => SearchBox.Text;
     public bool ShowingTrash => false;
     public event Action? RefreshRequested;
-    private readonly System.Windows.Threading.DispatcherTimer refreshNotice = new() { Interval = TimeSpan.FromSeconds(1.5) };
     public event Action? NewNoteRequested;
     public event Action? SettingsRequested;
     public event Action? TrashRequested;
@@ -32,8 +31,6 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        refreshNotice.Tick += (_, _) => { refreshNotice.Stop(); ActiveButton.Content = "전체 메모"; };
-        Closed += (_, _) => refreshNotice.Stop();
         Closing += (_, e) => { if (!AllowClose) { e.Cancel = true; Hide(); } };
     }
 
@@ -79,7 +76,6 @@ public partial class MainWindow : Window
     private void OnActive(object sender, RoutedEventArgs e)
     {
         RefreshRequested?.Invoke(); RefreshList(); SearchChanged?.Invoke();
-        ActiveButton.Content = "새로고침 완료"; refreshNotice.Stop(); refreshNotice.Start();
     }
     private void OnTrash(object sender, RoutedEventArgs e) => TrashRequested?.Invoke();
     private void OnNew(object sender, RoutedEventArgs e) => NewNoteRequested?.Invoke();

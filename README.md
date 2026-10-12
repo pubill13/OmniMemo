@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.11.1-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.11.2-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -68,15 +68,15 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.11.1/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.11.2/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.11.1/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.11.1/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.11.1/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.11.2/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.11.2/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.11.2/win-x64/OmniMemo.exe
 dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-1.9.json
 ```
 
@@ -101,3 +101,10 @@ dotnet run --project scripts/ArrangementVerification -c Release -- --output arti
 - 격리된 데이터의 실제 WPF 창으로 100개 메모 페이지 전환, 목록 열기, 전체 접기·숨김·보임, 입력·드래그, 페이지 재구성, 휴지통 창 재사용을 검증했습니다.
 - 단일 1920×1032 작업 영역·100% 배율에서 타일 100개와 메모 20개의 전환을 측정했습니다. 결과는 docs/verification-1.11.1.md에 기록합니다.
 - 실제 물리 다중 모니터, 배율 전환, 한글 IME 조합, 모든 메뉴의 수동 클릭 및 흰색 깜빡임의 육안 검사는 이번 검증에 포함하지 못했습니다.
+
+## 1.11.2 변경 사항
+
+- 전체 메모 새로고침은 버튼 문구나 완료 알림을 바꾸지 않습니다.
+- 휴지통의 제목·삭제 날짜·작업 버튼을 분리하고 긴 제목을 말줄임 처리합니다.
+- 휴지통 비우기는 검색 결과와 관계없이 모든 삭제된 메모를 대상으로 합니다. 전체 개수와 복구 불가 안내를 한 번 확인하고, 취소가 기본값입니다.
+- 236개 테스트 통과. 기본/최소 폭 렌더링에서 버튼 배치와 긴 제목 처리를 확인했습니다.

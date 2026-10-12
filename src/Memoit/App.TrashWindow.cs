@@ -14,17 +14,20 @@ public partial class App
             trashWindow.RestoreRequested += id => RunOperation(() => RestoreTrashAsync(id));
             trashWindow.PermanentDeleteRequested += id => RunOperation(() => PermanentDeleteTrashAsync([id]));
             trashWindow.PermanentDeleteSelectedRequested += ids => RunOperation(() => PermanentDeleteTrashAsync(ids));
+            trashWindow.EmptyTrashRequested += ids => RunOperation(() => PermanentDeleteTrashAsync(ids, true));
             trashWindow.Closed += (_, _) => trashWindow = null;
         }
         trashWindow.SetNotes(notes.Values.Select(n => n.Snapshot));
         trashWindow.Show(); trashWindow.WindowState = WindowState.Normal; trashWindow.Activate();
     }
 
-    private async Task PermanentDeleteTrashAsync(IReadOnlyList<Guid> ids)
+    private async Task PermanentDeleteTrashAsync(IReadOnlyList<Guid> ids, bool emptyTrash = false)
     {
         var targets = ids.Distinct().Where(id => notes.TryGetValue(id, out var vm) && vm.Snapshot.DeletedAt is not null).ToArray();
         if (targets.Length == 0) return;
-        if (MessageBox.Show(trashWindow!, $"선택한 {targets.Length}개 메모를 영구 삭제할까요? 복구할 수 없습니다.", "영구 삭제", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        string message = emptyTrash ? $"휴지통의 모든 메모 {targets.Length}개를 영구 삭제할까요?\n검색 결과에 없는 메모도 포함되며, 복구할 수 없습니다."
+            : $"선택한 {targets.Length}개 메모를 영구 삭제할까요? 복구할 수 없습니다.";
+        if (MessageBox.Show(trashWindow!, message, emptyTrash ? "휴지통 비우기" : "영구 삭제", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         var failures = new List<string>();
         foreach (var id in targets)
         {
