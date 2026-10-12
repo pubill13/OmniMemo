@@ -18,6 +18,7 @@ public partial class App : Application
     private Forms.NotifyIcon? tray;
     private System.Drawing.Icon? trayIcon;
     private Views.MainWindow? list;
+    private TrashWindow? trashWindow;
     private LayoutOptionsWindow? layoutPanel;
     private HotkeyService? hotkeys;
     private LayoutSettings layoutSettings = new();
@@ -116,6 +117,27 @@ public partial class App : Application
             if (await vm.FlushAsync() && windows.Remove(id, out var window)) { window.Hide(); windows[id] = window; }
         });
         list.SettingsRequested += () => { if (!busy) ShowSettings(); };
+        list.TrashRequested += ShowTrashWindow;
+    }
+
+    private void ShowTrashWindow()
+    {
+        if (trashWindow is null)
+        {
+            trashWindow = new TrashWindow();
+            trashWindow.RestoreRequested += id => RunOperation(() => RestoreTrashAsync(id));
+            trashWindow.PermanentDeleteRequested += id => RunOperation(async () =>
+            {
+                if (MessageBox.Show(trashWindow, "이 메모를 영구 삭제할까요? 휴지통에서 복구할 수 없습니다.", "영구 삭제", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                if (!notes.TryGetValue(id, out var vm)) return;
+                await store.DeletePermanentlyAsync(id);
+                if (windows.Remove(id, out var window)) { window.AllowClose = true; window.Close(); }
+                vm.Dispose(); notes.Remove(id); RefreshList();
+            });
+            trashWindow.Closed += (_, _) => trashWindow = null;
+        }
+        trashWindow.SetNotes(notes.Values.Select(n => n.Snapshot));
+        trashWindow.Show(); trashWindow.Activate();
     }
 
     private void CreateTray()
@@ -201,7 +223,8 @@ public partial class App : Application
 
     private void RefreshList()
     {
-        list?.SetNotes(notes.Values.Select(n => n.Snapshot), list.ShowingTrash);
+        list?.SetNotes(notes.Values.Where(n => n.Snapshot.DeletedAt is null).Select(n => n.Snapshot), false);
+        trashWindow?.SetNotes(notes.Values.Select(n => n.Snapshot));
         overlayPanel?.SetNotes(notes.Values.Select(n => n.Snapshot));
         overlayPanel?.SetHasVisibleNotes(windows.Values.Any(w => w.IsVisible));
         if (layoutPanel?.IsVisible == true) layoutPanel.RefreshPreview();
@@ -281,6 +304,7 @@ public partial class App : Application
         ClearDeleteUndo();
         CloseNoteWindows();
         if (list is not null) { list.AllowClose = true; list.Close(); }
+        if (trashWindow is not null) { trashWindow.AllowClose = true; trashWindow.Close(); trashWindow = null; }
         if (layoutPanel is not null) { layoutPanel.AllowClose = true; layoutPanel.Close(); }
         CloseOverlayPanel();
         Shutdown();

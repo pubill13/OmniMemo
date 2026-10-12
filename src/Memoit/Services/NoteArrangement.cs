@@ -61,34 +61,21 @@ public static class NoteArrangement
         double margin = 8 * scale, gap = options.Gap * scale;
         double x = margin, y = margin, rowHeight = 0;
         var result = new Dictionary<Guid, Rect>();
-        bool overflow = false;
         foreach (var note in ordered)
         {
             var size = sizes[note.Id];
             if (x > margin && x + size.Width > areaPixels.Width - margin)
             { x = margin; y += rowHeight + gap; rowHeight = 0; }
             if (x + size.Width > areaPixels.Width - margin || y + size.Height > areaPixels.Height - margin)
-            { overflow = true; break; }
+            { break; }
             result.Add(note.Id, FromCorner(areaPixels, corner, x, y, size));
             x += size.Width + gap;
             rowHeight = Math.Max(rowHeight, size.Height);
         }
-        if (!overflow) return new(result);
-
-        // Cascade the entire group so the fallback does not depend on where grid overflow occurred.
-        result.Clear();
-        double offset = 0;
-        foreach (var note in ordered)
-        {
-            var size = sizes[note.Id];
-            double insetX = Math.Min(margin, Math.Max(0, (areaPixels.Width - size.Width) / 2));
-            double insetY = Math.Min(margin, Math.Max(0, (areaPixels.Height - size.Height) / 2));
-            if (insetX + offset + size.Width > areaPixels.Width - insetX
-                || insetY + offset + size.Height > areaPixels.Height - insetY) offset = 0;
-            result.Add(note.Id, FromCorner(areaPixels, corner, insetX + offset, insetY + offset, size));
-            offset += 24 * scale;
-        }
-        return new(result, UsedCascade: true);
+        // Keep the windows that fit and leave the remainder at their current positions.
+        // Overlapping fallback made the expanded view unreadable; the caller can expose the
+        // skipped count as a page/next-batch affordance without changing visibility state.
+        return new(result, ordered.Length - result.Count);
     }
 
     private static Rect FromCorner(Rect area, ExpandedCorner corner, double x, double y, Size size)

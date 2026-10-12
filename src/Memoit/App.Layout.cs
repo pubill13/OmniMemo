@@ -114,6 +114,7 @@ public partial class App
                     result = NoteArrangement.ArrangeExpanded(snapshots, monitor.WorkArea, options, options.ExpandedCorner,
                         monitor.Scale, sizes, orders.GetValueOrDefault(monitor.Id));
                     stacking.AddRange(result.Bounds.Keys.Select(id => (Window)windows[id]));
+                    skipped += result.SkippedTiles;
                 }
                 foreach (var item in group)
                     moves[item.Id] = result.Bounds.TryGetValue(item.Id, out var bounds) ? bounds : new Rect(item.Bounds.Location, sizes[item.Id]);
@@ -141,7 +142,7 @@ public partial class App
             double storedMs = clock.Elapsed.TotalMilliseconds;
             LastArrangementTiming = new ArrangementTiming(calculatedMs, movedMs - calculatedMs, storedMs - movedMs, changed.Length);
             if (!saved) throw new IOException("화면은 변경했지만 저장하지 못했습니다. 트레이의 저장 다시 시도를 눌러 주세요.");
-            ArrangementNotice(skipped > 0 ? $"일부 타일을 배치하지 못했습니다 ({skipped}개). 시작점·간격·열 수를 조정해 주세요."
+            ArrangementNotice(skipped > 0 ? $"화면에 겹치지 않게 {skipped}개 메모를 다음 묶음으로 남겼습니다."
                 : collapsed ? "접어서 정돈했습니다." : "모두 펼쳤습니다.", skipped > 0);
         }
         catch (Exception ex) { ArrangementNotice(ex.Message, true); }

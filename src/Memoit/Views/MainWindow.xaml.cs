@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     public bool ShowingTrash { get; private set; }
     public event Action? NewNoteRequested;
     public event Action? SettingsRequested;
+    public event Action? TrashRequested;
     public event Action<Guid>? OpenNoteRequested;
     public event Action<Guid>? RestoreNoteRequested;
     public event Action<Guid>? PermanentDeleteRequested;
@@ -68,7 +69,7 @@ public partial class MainWindow : Window
 
     private void OnSearchTextChanged(object sender, TextChangedEventArgs e) { RefreshList(); SearchChanged?.Invoke(); }
     private void OnActive(object sender, RoutedEventArgs e) { ShowingTrash = false; RefreshList(); SearchChanged?.Invoke(); }
-    private void OnTrash(object sender, RoutedEventArgs e) { ShowingTrash = true; RefreshList(); SearchChanged?.Invoke(); }
+    private void OnTrash(object sender, RoutedEventArgs e) => TrashRequested?.Invoke();
     private void OnNew(object sender, RoutedEventArgs e) => NewNoteRequested?.Invoke();
     private void OnSettings(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke();
     private void OnOpen(object sender, MouseButtonEventArgs e) { if (!ShowingTrash && NoteList.SelectedItem is NoteRow row) OpenNoteRequested?.Invoke(row.Id); }

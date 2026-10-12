@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.10.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.11.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -68,22 +68,29 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.10.0/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.11.0/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.10.0/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.10.0/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.10.0/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.11.0/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.11.0/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.11.0/win-x64/OmniMemo.exe
 dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-1.9.json
 ```
 
-1.10 검증: 단위/STA 테스트 221개와 Release 게시 빌드 통과. 같은 색 타일 옆 생성, 연속 생성, 원본·패널·최근 활성 색상 상속, 입력 포커스, 포함 글꼴 4종과 설치 글꼴 검색 선택을 실제 실행 파일에서 확인했습니다. 위치 계산은 음수 좌표·100/150/200% 배율·화면 부족·크기 제한을 자동 테스트했습니다. 포함 글꼴의 실제 한글 글리프와 DB 저장 왕복도 확인했습니다.
+1.11 검증: 단위/STA 테스트 221개와 Release 게시 빌드 통과. 같은 색 타일 옆 생성, 연속 생성, 원본·패널·최근 활성 색상 상속, 입력 포커스, 포함 글꼴 4종과 설치 글꼴 검색 선택을 실제 실행 파일에서 확인했습니다. 위치 계산은 음수 좌표·100/150/200% 배율·화면 부족·크기 제한을 자동 테스트했습니다. 포함 글꼴의 실제 한글 글리프와 DB 저장 왕복도 확인했습니다.
 
 이전 1.9 검증: 단위/STA 테스트 206개, Release 빌드 통과. 실제 실행 파일에서 4개 설정 탭, 별도 미리보기의 단일 창·재열기·부모 닫기, 6개 단축키, 불투명도 적용, 적용 시 메모 위치 유지, 삭제 실행 취소, 입력·자동 저장·창 이동과 일괄 전환을 확인했습니다. 트레이의 간소화 메뉴와 숨김/보임 전환도 확인했습니다.
 
 100/150/200% 설정 화면 오프스크린 렌더링을 확인했습니다. 실제 물리 다중 모니터·배율 전환, 한글 IME 조합은 미검증입니다. 자석 드래그 정밀 좌표 검사는 기대 좌표와 차이가 있어 통과하지 못했습니다. 저장 실패 재시도 메뉴의 실제 복구 검사는 중복 트레이 아이콘으로 테스트 앱을 안전하게 식별할 수 없어 완료하지 못했습니다. 저장 실패·재시도 상태와 설정 복구 로직은 자동 테스트로 검증했습니다.
 
 동기화·이미지·일정 알림·부분 글자 서식은 포함하지 않습니다. 소스의 Memoit 네임스페이스는 호환성을 위해 유지합니다.
+
+
+## 1.11 변경 사항
+
+- 메인 목록은 활성 메모만 표시하고 휴지통은 별도 창으로 엽니다.
+- 전체 펼치기는 화면에 겹치지 않는 메모만 배치하며 공간이 부족한 메모는 현재 위치를 유지합니다.
+- 미니 패널은 항상 100% 불투명하게 표시합니다.

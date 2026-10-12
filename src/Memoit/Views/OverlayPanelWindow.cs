@@ -24,9 +24,6 @@ public sealed class OverlayPanelWindow : Window
     private readonly Button visibility;
     private readonly TextBlock status = new() { MinHeight = 18, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 7, 2, 0) };
     private readonly DispatcherTimer statusTimer = new() { Interval = TimeSpan.FromSeconds(3) };
-    private double selectedOpacity;
-    private readonly Slider opacitySlider = new() { Minimum = 30, Maximum = 100, TickFrequency = 5, SmallChange = 5, LargeChange = 10, IsSnapToTickEnabled = true };
-    private readonly TextBlock opacityLabel = new();
     private readonly DispatcherTimer preferencesTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private bool refreshing;
     public bool AllowClose { get; set; }
@@ -35,7 +32,7 @@ public sealed class OverlayPanelWindow : Window
     public event Action? PreferencesChanged;
     public event Action? Hidden;
     public string? SelectedColor => selectedColor;
-    public double SelectedOpacity => selectedOpacity;
+    public double SelectedOpacity => 1;
     public bool SelectedTopmost => pinned.IsChecked == true;
 
     public OverlayPanelWindow(LayoutSettings settings)
@@ -88,18 +85,6 @@ public sealed class OverlayPanelWindow : Window
         filtered.Children.Add(chips);
         filtered.Children.Add(Row(Button("선택 색상 접기", () => CollapseRequested?.Invoke(true, SelectedColor)), Button("선택 색상 펼치기", () => CollapseRequested?.Invoke(false, SelectedColor))));
         content.Children.Add(new Expander { Header = "색상별 조작", IsExpanded = false, Content = filtered, Margin = new Thickness(2, 12, 2, 0), Foreground = Brush("#526079") });
-        var opacityHeading = new DockPanel { Margin = new Thickness(2, 12, 2, 4) };
-        DockPanel.SetDock(opacityLabel, Dock.Right); opacityHeading.Children.Add(opacityLabel);
-        opacityHeading.Children.Add(new TextBlock { Text = "불투명도" }); content.Children.Add(opacityHeading);
-        opacitySlider.ToolTip = "패널 불투명도 · 100%가 가장 진합니다";
-        AutomationProperties.SetName(opacitySlider, "패널 불투명도"); content.Children.Add(opacitySlider);
-        opacitySlider.ValueChanged += (_, _) =>
-        {
-            opacityLabel.Text = $"{opacitySlider.Value:0}%";
-            if (refreshing) return;
-            selectedOpacity = opacitySlider.Value / 100; Opacity = selectedOpacity;
-            preferencesTimer.Stop(); preferencesTimer.Start();
-        };
         content.Children.Add(status); AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
         content.Children.Add(undoHost);
         RefreshSettings(settings);
@@ -166,9 +151,7 @@ public sealed class OverlayPanelWindow : Window
         hotkeys = new Dictionary<string, string>(settings.Hotkeys);
         foreach (var item in shortcutButtons) SetShortcutTip(item.Button, item.Description, item.Commands);
         SetHasVisibleNotes(Equals(visibility.Content, "모두 숨기기"));
-        selectedOpacity = settings.OverlayOpacity; Opacity = selectedOpacity;
-        opacitySlider.Value = selectedOpacity * 100;
-        opacityLabel.Text = $"{opacitySlider.Value:0}%";
+        Opacity = 1;
         pinned.IsChecked = settings.OverlayTopmost; Topmost = settings.OverlayTopmost;
         refreshing = false;
     }

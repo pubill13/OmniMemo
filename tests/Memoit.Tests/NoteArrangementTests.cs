@@ -79,19 +79,15 @@ public sealed class NoteArrangementTests
     [InlineData(ExpandedCorner.TopRight)]
     [InlineData(ExpandedCorner.BottomLeft)]
     [InlineData(ExpandedCorner.BottomRight)]
-    public void OverflowCascadesWholeGroupAndRestartsAtEdge(ExpandedCorner corner)
+    public void OverflowLeavesLaterNotesForNextPageWithoutOverlap(ExpandedCorner corner)
     {
         var notes = Notes(5);
         var area = new Rect(-300, -100, 160, 140);
         var result = NoteArrangement.ArrangeExpanded(notes, area, new MonitorLayout(), corner);
-        Assert.True(result.UsedCascade);
-        Assert.Equal(5, result.Bounds.Count);
+        Assert.False(result.UsedCascade);
+        Assert.Equal(1, result.Bounds.Count);
+        Assert.Equal(4, result.SkippedTiles);
         Assert.All(result.Bounds.Values, b => Assert.True(area.Contains(b)));
-        var first = result.Bounds[notes[0].Id];
-        var second = result.Bounds[notes[1].Id];
-        Assert.Equal(24, Math.Abs(first.X - second.X));
-        Assert.Equal(24, Math.Abs(first.Y - second.Y));
-        Assert.Equal(first, result.Bounds[notes[2].Id]);
     }
 
     [Fact]
@@ -101,7 +97,7 @@ public sealed class NoteArrangementTests
         var area = new Rect(-500, -300, 300, 200);
         var result = NoteArrangement.ArrangeExpanded([note], area, new MonitorLayout());
         Assert.Equal(area, result.Bounds[note.Id]);
-        Assert.True(result.UsedCascade);
+        Assert.False(result.UsedCascade);
     }
 
     [Theory]
