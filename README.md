@@ -4,14 +4,14 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.11.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.11.1-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
 ## 두 가지 핵심 조작
 
 - **접어서 정돈:** 현재 보이는 메모를 모두 36×36 DIP 타일로 접고, 모니터별 타일 시작점·배치 형태·간격·순서로 정리합니다.
-- **모두 펼치기:** 보이는 메모를 모두 펼쳐 모니터별 선택한 모서리에서 배치합니다. 마지막 정돈 순서를 재실행 후에도 유지하며 신규 메모는 현재 기준으로 뒤에 추가합니다. 공간이 부족하면 계단식으로 겹칩니다. 압정 상태는 유지합니다.
+- **모두 펼치기:** 보이는 메모를 모두 펼쳐 모니터별 선택한 모서리에서 배치합니다. 마지막 정돈 순서를 재실행 후에도 유지하며 신규 메모는 현재 기준으로 뒤에 추가합니다. 공간이 부족하면 겹치지 않는 페이지로 나눕니다. 패널의 이전·다음으로 이동하며 패널을 닫으면 작은 페이지 조작 창을 제공합니다. 다른 페이지 메모의 저장된 표시 상태는 유지합니다. 압정 상태는 유지합니다.
 - 숨긴 메모와 휴지통은 제외합니다. 타일 공간이 부족하면 들어가는 타일만 이동하고 나머지는 유지하며 안내합니다.
 - 타일을 클릭하거나 Enter/Space를 누르면 **그 자리에서** 펼칩니다. 가장자리에서는 같은 화면 안으로 필요한 만큼 보정합니다. 다시 접으면 마지막 타일 자리로 돌아갑니다. 다른 메모는 움직이지 않습니다.
 - 입력하거나 드래그해도 자동 재배치하지 않습니다. 기존 자동 정렬·이전 배치 복원·접힌/펼친 메모별 정돈 명령은 제거했습니다.
@@ -24,7 +24,7 @@ GitHub 릴리스의 `OmniMemo-1.11.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 �
 
 `화면에서 지정`으로 시작점을 고르고, 세부 조정에서 X·Y를 입력합니다. 미리보기 버튼은 별도 창을 열며 적용 전 설정과 보이는 메모를 반영합니다. 실제 메모를 움직이지 않습니다. **적용은 설정만 저장**합니다. 일반 탭에서 로그인 자동 실행을 적용하고, 백업 탭의 백업·복원 버튼은 즉시 실행합니다.
 
-트레이에서는 새 메모, 목록, 모두 숨기기, 모두 보이기, 미니 패널, 설정, 종료를 제공합니다. 미니 패널을 누르면 한 번에 표시하고 앞으로 가져옵니다. 패널 하단에서 불투명도(30~100%)를 바로 조절합니다. 정돈은 패널 버튼이나 통합 단축키를 사용하세요.
+트레이에서는 새 메모, 목록, 모두 숨기기, 모두 보이기, 미니 패널, 설정, 종료를 제공합니다. 미니 패널을 누르면 한 번에 표시하고 앞으로 가져옵니다. 패널은 항상 100% 불투명하게 표시합니다. 정돈은 패널 버튼이나 통합 단축키를 사용하세요.
 
 ## 새 메모 위치
 
@@ -68,19 +68,19 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.11.0/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.11.1/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.11.0/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.11.0/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.11.0/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.11.1/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.11.1/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.11.1/win-x64/OmniMemo.exe
 dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-1.9.json
 ```
 
-1.11 검증: 단위/STA 테스트 221개와 Release 게시 빌드 통과. 같은 색 타일 옆 생성, 연속 생성, 원본·패널·최근 활성 색상 상속, 입력 포커스, 포함 글꼴 4종과 설치 글꼴 검색 선택을 실제 실행 파일에서 확인했습니다. 위치 계산은 음수 좌표·100/150/200% 배율·화면 부족·크기 제한을 자동 테스트했습니다. 포함 글꼴의 실제 한글 글리프와 DB 저장 왕복도 확인했습니다.
+이전 1.10 검증: 단위/STA 테스트 221개와 Release 게시 빌드 통과. 같은 색 타일 옆 생성, 연속 생성, 원본·패널·최근 활성 색상 상속, 입력 포커스, 포함 글꼴 4종과 설치 글꼴 검색 선택을 실제 실행 파일에서 확인했습니다. 위치 계산은 음수 좌표·100/150/200% 배율·화면 부족·크기 제한을 자동 테스트했습니다. 포함 글꼴의 실제 한글 글리프와 DB 저장 왕복도 확인했습니다.
 
 이전 1.9 검증: 단위/STA 테스트 206개, Release 빌드 통과. 실제 실행 파일에서 4개 설정 탭, 별도 미리보기의 단일 창·재열기·부모 닫기, 6개 단축키, 불투명도 적용, 적용 시 메모 위치 유지, 삭제 실행 취소, 입력·자동 저장·창 이동과 일괄 전환을 확인했습니다. 트레이의 간소화 메뉴와 숨김/보임 전환도 확인했습니다.
 
@@ -92,5 +92,12 @@ dotnet run --project scripts/ArrangementVerification -c Release -- --output arti
 ## 1.11 변경 사항
 
 - 메인 목록은 활성 메모만 표시하고 휴지통은 별도 창으로 엽니다.
-- 전체 펼치기는 화면에 겹치지 않는 메모만 배치하며 공간이 부족한 메모는 현재 위치를 유지합니다.
+- 전체 펼치기는 모든 대상 메모를 겹치지 않는 페이지에 배치합니다. 목록에서 메모를 열면 해당 페이지로 이동합니다.
 - 미니 패널은 항상 100% 불투명하게 표시합니다.
+
+## 1.11.1 검증
+
+- 단위/STA 테스트 233개 통과. 페이지별 겹침 방지, 목록 새로고침, 휴지통 검색·선택·동작 연결과 불투명도 제거를 검사했습니다.
+- 격리된 데이터의 실제 WPF 창으로 100개 메모 페이지 전환, 목록 열기, 전체 접기·숨김·보임, 입력·드래그, 페이지 재구성, 휴지통 창 재사용을 검증했습니다.
+- 단일 1920×1032 작업 영역·100% 배율에서 타일 100개와 메모 20개의 전환을 측정했습니다. 결과는 docs/verification-1.11.1.md에 기록합니다.
+- 실제 물리 다중 모니터, 배율 전환, 한글 IME 조합, 모든 메뉴의 수동 클릭 및 흰색 깜빡임의 육안 검사는 이번 검증에 포함하지 못했습니다.

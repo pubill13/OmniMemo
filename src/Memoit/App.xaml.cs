@@ -74,6 +74,7 @@ public partial class App : Application
                 foreach (var vm in notes.Values.Where(n => n.Snapshot.IsVisible && n.Snapshot.DeletedAt is null)) ShowNote(vm);
                 if (windows.Count == 0) ShowList();
             }
+            if (layoutSettings.PagedExpansionActive) await RunArrangementAsync("RestorePages");
             RefreshList();
             ShowArrangementUpgradeNotice();
             RestoreOverlayPanel();
@@ -96,17 +97,7 @@ public partial class App : Application
         list.OpenNoteRequested += id => RunOperation(async () =>
         {
             if (notes.TryGetValue(id, out var vm) && vm.Snapshot.DeletedAt is null)
-            { vm.SetVisible(true); ShowNote(vm); await vm.FlushAsync(); }
-        });
-        list.RestoreNoteRequested += id => RunOperation(() => RestoreTrashAsync(id));
-        list.PermanentDeleteRequested += id => RunOperation(async () =>
-        {
-            if (MessageBox.Show(list, "이 메모를 영구 삭제할까요? 휴지통에서 복구할 수 없습니다.", "영구 삭제", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-            var vm = notes[id];
-            if (!await vm.FlushAsync()) throw new IOException(vm.SaveStatus);
-            await store.DeletePermanentlyAsync(id);
-            if (windows.Remove(id, out var deletedWindow)) { deletedWindow.AllowClose = true; deletedWindow.Close(); }
-            vm.Dispose(); notes.Remove(id);
+            { vm.SetVisible(true); RevealPage(id); ShowNote(vm); await vm.FlushAsync(); }
         });
         list.DeleteRequested += id => RunOperation(() => DeleteSelectedAsync([id]));
         list.DeleteSelectedRequested += ids => RunOperation(() => DeleteSelectedAsync(ids));
@@ -118,26 +109,7 @@ public partial class App : Application
         });
         list.SettingsRequested += () => { if (!busy) ShowSettings(); };
         list.TrashRequested += ShowTrashWindow;
-    }
-
-    private void ShowTrashWindow()
-    {
-        if (trashWindow is null)
-        {
-            trashWindow = new TrashWindow();
-            trashWindow.RestoreRequested += id => RunOperation(() => RestoreTrashAsync(id));
-            trashWindow.PermanentDeleteRequested += id => RunOperation(async () =>
-            {
-                if (MessageBox.Show(trashWindow, "이 메모를 영구 삭제할까요? 휴지통에서 복구할 수 없습니다.", "영구 삭제", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-                if (!notes.TryGetValue(id, out var vm)) return;
-                await store.DeletePermanentlyAsync(id);
-                if (windows.Remove(id, out var window)) { window.AllowClose = true; window.Close(); }
-                vm.Dispose(); notes.Remove(id); RefreshList();
-            });
-            trashWindow.Closed += (_, _) => trashWindow = null;
-        }
-        trashWindow.SetNotes(notes.Values.Select(n => n.Snapshot));
-        trashWindow.Show(); trashWindow.Activate();
+        list.RefreshRequested += RefreshList;
     }
 
     private void CreateTray()
@@ -223,6 +195,7 @@ public partial class App : Application
 
     private void RefreshList()
     {
+        RefreshPageControls();
         list?.SetNotes(notes.Values.Where(n => n.Snapshot.DeletedAt is null).Select(n => n.Snapshot), false);
         trashWindow?.SetNotes(notes.Values.Select(n => n.Snapshot));
         overlayPanel?.SetNotes(notes.Values.Select(n => n.Snapshot));
@@ -247,13 +220,15 @@ public partial class App : Application
 
     private async Task SetAllVisibleAsync(bool visible)
     {
+        ClearPageSession();
         foreach (var vm in notes.Values.Where(n => n.Snapshot.DeletedAt is null))
         {
             vm.SetVisible(visible);
             if (!await vm.FlushAsync()) { vm.SetVisible(true); ShowNote(vm); throw new IOException(vm.SaveStatus); }
-            if (visible) ShowNote(vm);
+            if (visible) ShowNote(vm, false);
             else if (windows.TryGetValue(vm.Snapshot.Id, out var window)) window.Hide();
         }
+        if (visible && layoutSettings.PagedExpansionActive) await RunArrangementAsync("RestorePages", true);
     }
 
     private void ShowSettings() => OpenSettings(SettingsTab.Layout);
@@ -276,6 +251,7 @@ public partial class App : Application
         await store.RestoreAsync(dialog.FileName);
 
         ClearDeleteUndo();
+        ClearPageSession();
         CloseNoteWindows();
         foreach (var vm in notes.Values) vm.Dispose();
         notes.Clear();
@@ -301,6 +277,7 @@ public partial class App : Application
             SaveLayoutSettings(layoutSettings with { PanelLeft = layoutPanel.Left, PanelTop = layoutPanel.Top,
                 SelectedMonitor = layoutPanel.SelectedMonitorId });
         shuttingDown = true;
+        if (pageWindow is not null) { pageWindow.AllowClose = true; pageWindow.Close(); }
         ClearDeleteUndo();
         CloseNoteWindows();
         if (list is not null) { list.AllowClose = true; list.Close(); }
@@ -334,11 +311,11 @@ public partial class App : Application
         }
     }
 
-    private void OnDisplayChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(() =>
+    private void OnDisplayChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(async () =>
     {
         foreach (Window window in Windows) if (window.IsVisible) WindowPlacement.KeepOnScreen(window);
         RefreshLayoutPanel();
-
+        if (pageSessions.Count > 0) await RunArrangementAsync("RestorePages");
     });
 
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)

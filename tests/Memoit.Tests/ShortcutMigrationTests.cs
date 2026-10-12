@@ -59,7 +59,7 @@ public sealed class ShortcutMigrationTests
     public void InvalidLegacySettingsDoNotCreateBackupOrOverwriteSource()
         => WithFile(file =>
         {
-            const string invalid = "{\"Version\":4,\"OverlayOpacity\":5}";
+            const string invalid = "{\"Version\":4,\"Monitors\":{\"display\":{\"X\":-1}}}";
             File.WriteAllText(file, invalid);
             Assert.Throws<InvalidDataException>(() => LayoutSettings.Load(file));
             Assert.Equal(invalid, File.ReadAllText(file));

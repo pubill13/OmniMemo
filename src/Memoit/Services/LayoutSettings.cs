@@ -30,6 +30,7 @@ public sealed record LayoutSettings
 {
     public int Version { get; init; } = 5;
     public bool AutoArrange { get; init; }
+    public bool PagedExpansionActive { get; init; }
     public bool NeedsManualArrangementNotice { get; init; }
     public bool NeedsShortcutSimplificationNotice { get; init; }
     public bool SortByColor { get; init; }
@@ -41,7 +42,7 @@ public sealed record LayoutSettings
     public double? PanelTop { get; init; }
     public double? OverlayLeft { get; init; }
     public double? OverlayTop { get; init; }
-    public double OverlayOpacity { get; init; } = .85;
+    [JsonIgnore] public double OverlayOpacity { get; init; } = 1;
     public bool OverlayTopmost { get; init; }
     public string? OverlayColor { get; init; }
     public bool OverlayVisible { get; init; }
@@ -51,11 +52,10 @@ public sealed record LayoutSettings
 
     public void Validate()
     {
-        if (!double.IsFinite(OverlayOpacity) || OverlayOpacity < .3 || OverlayOpacity > 1
-            || OverlayLeft.HasValue && !double.IsFinite(OverlayLeft.Value)
+        if (OverlayLeft.HasValue && !double.IsFinite(OverlayLeft.Value)
             || OverlayTop.HasValue && !double.IsFinite(OverlayTop.Value)
             || OverlayColor is not null && !NoteColors.Values.Any(c => NoteColors.Matches(c, OverlayColor)))
-            throw new InvalidDataException("미니 패널 위치 또는 투명도가 올바르지 않습니다.");
+            throw new InvalidDataException("미니 패널 위치 또는 색상이 올바르지 않습니다.");
         if (Version != 5) throw new InvalidDataException("지원하지 않는 타일 설정 버전입니다.");
         if (Monitors is null || Hotkeys is null || ArrangementOrder is null || PanelLeft.HasValue && !double.IsFinite(PanelLeft.Value)
             || PanelTop.HasValue && !double.IsFinite(PanelTop.Value))

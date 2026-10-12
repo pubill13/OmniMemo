@@ -13,13 +13,13 @@ public partial class MainWindow : Window
     private List<Note> _notes = [];
     public bool AllowClose { get; set; }
     public string SearchText => SearchBox.Text;
-    public bool ShowingTrash { get; private set; }
+    public bool ShowingTrash => false;
+    public event Action? RefreshRequested;
+    private readonly System.Windows.Threading.DispatcherTimer refreshNotice = new() { Interval = TimeSpan.FromSeconds(1.5) };
     public event Action? NewNoteRequested;
     public event Action? SettingsRequested;
     public event Action? TrashRequested;
     public event Action<Guid>? OpenNoteRequested;
-    public event Action<Guid>? RestoreNoteRequested;
-    public event Action<Guid>? PermanentDeleteRequested;
     public event Action<Guid>? DeleteRequested;
     public event Action<Guid>? HideRequested;
     public event Action<IReadOnlyList<Guid>>? DeleteSelectedRequested;
@@ -32,14 +32,15 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        refreshNotice.Tick += (_, _) => { refreshNotice.Stop(); ActiveButton.Content = "전체 메모"; };
+        Closed += (_, _) => refreshNotice.Stop();
         Closing += (_, e) => { if (!AllowClose) { e.Cancel = true; Hide(); } };
     }
 
     public void SetNotes(IEnumerable<Note> notes, bool trash = false)
     {
-        _notes = notes.ToList();
-        ShowingTrash = trash;
-        selected.RemoveWhere(id => !_notes.Any(n => n.Id == id && (n.DeletedAt != null) == trash));
+        _notes = notes.Where(n => n.DeletedAt is null).ToList();
+        selected.RemoveWhere(id => !_notes.Any(n => n.Id == id));
         RefreshList();
     }
 
@@ -48,6 +49,8 @@ public partial class MainWindow : Window
     private void RefreshList()
     {
         if (NoteList is null) return;
+        var focused = Keyboard.FocusedElement as FrameworkElement;
+        Guid? focusedId = NoteList.IsKeyboardFocusWithin && focused?.DataContext is NoteRow focusedRow ? focusedRow.Id : null;
         var query = SearchText.Trim();
         var items = _notes.Where(n => (n.DeletedAt != null) == ShowingTrash && n.Body.Contains(query, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(n => n.UpdatedAt).Select(n => new NoteRow(n, ShowingTrash, selected.Contains(n.Id))).ToList();
@@ -59,6 +62,11 @@ public partial class MainWindow : Window
             foreach (var row in items.Where(row => row.IsSelected)) NoteList.SelectedItems.Add(row);
         }
         finally { refreshingSelection = false; }
+        if (focusedId is Guid id && items.FirstOrDefault(row => row.Id == id) is { } replacement)
+        {
+            NoteList.UpdateLayout();
+            if (NoteList.ItemContainerGenerator.ContainerFromItem(replacement) is ListBoxItem container) container.Focus();
+        }
         SectionLabel.Text = $"{(ShowingTrash ? "휴지통" : "전체 메모")} · {items.Count}개";
         EmptyLabel.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         EmptyLabel.Text = query.Length > 0 ? "검색 결과가 없습니다." : ShowingTrash ? "휴지통이 비어 있습니다." : "메모가 없습니다. 새 메모로 시작하세요.";
@@ -68,14 +76,16 @@ public partial class MainWindow : Window
     }
 
     private void OnSearchTextChanged(object sender, TextChangedEventArgs e) { RefreshList(); SearchChanged?.Invoke(); }
-    private void OnActive(object sender, RoutedEventArgs e) { ShowingTrash = false; RefreshList(); SearchChanged?.Invoke(); }
+    private void OnActive(object sender, RoutedEventArgs e)
+    {
+        RefreshRequested?.Invoke(); RefreshList(); SearchChanged?.Invoke();
+        ActiveButton.Content = "새로고침 완료"; refreshNotice.Stop(); refreshNotice.Start();
+    }
     private void OnTrash(object sender, RoutedEventArgs e) => TrashRequested?.Invoke();
     private void OnNew(object sender, RoutedEventArgs e) => NewNoteRequested?.Invoke();
     private void OnSettings(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke();
     private void OnOpen(object sender, MouseButtonEventArgs e) { if (!ShowingTrash && NoteList.SelectedItem is NoteRow row) OpenNoteRequested?.Invoke(row.Id); }
     private void OnOpenButton(object sender, RoutedEventArgs e) => OpenNoteRequested?.Invoke((Guid)((Button)sender).Tag);
-    private void OnRestore(object sender, RoutedEventArgs e) => RestoreNoteRequested?.Invoke((Guid)((Button)sender).Tag);
-    private void OnPermanentDelete(object sender, RoutedEventArgs e) => PermanentDeleteRequested?.Invoke((Guid)((Button)sender).Tag);
     private void OnDeleteSelected(object sender, RoutedEventArgs e) => DeleteSelectedRequested?.Invoke(SelectedIds);
     private void OnCheckSelection(object sender, RoutedEventArgs e)
     { if (sender is CheckBox box && box.Tag is Guid id) { if (box.IsChecked == true) selected.Add(id); else selected.Remove(id); DeleteSelectedButton.IsEnabled = !ShowingTrash && selected.Count > 0; } }

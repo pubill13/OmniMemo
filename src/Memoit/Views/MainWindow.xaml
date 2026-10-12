@@ -17,7 +17,7 @@
       <StackPanel>
       <DockPanel><CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" Tag="{Binding Id}" Click="OnCheckSelection" Margin="0,0,8,0" AutomationProperties.Name="메모 선택"/><TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="16" TextTrimming="CharacterEllipsis"/></DockPanel>
       <TextBlock Text="{Binding Preview}" Foreground="#56594F" Margin="0,7,0,10" TextWrapping="Wrap" MaxHeight="42"/>
-      <DockPanel><TextBlock Text="{Binding Modified}" FontSize="11" Foreground="#6B7062" VerticalAlignment="Center"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="열기" Tag="{Binding Id}" Click="OnOpenButton" Visibility="{Binding ActiveVisibility}" Padding="10,4" Margin="0"/><Button Content="복원" Tag="{Binding Id}" Click="OnRestore" Visibility="{Binding TrashVisibility}" Padding="10,4"/><Button Content="영구 삭제" Tag="{Binding Id}" Click="OnPermanentDelete" Visibility="{Binding TrashVisibility}" Foreground="#9A3D3D" Padding="10,4" Margin="0"/></StackPanel></DockPanel>
+      <DockPanel><TextBlock Text="{Binding Modified}" FontSize="11" Foreground="#6B7062" VerticalAlignment="Center"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="열기" Tag="{Binding Id}" Click="OnOpenButton" Visibility="{Binding ActiveVisibility}" Padding="10,4" Margin="0"/></StackPanel></DockPanel>
      </StackPanel></Border>
     </DataTemplate></ListBox.ItemTemplate>
    </ListBox>

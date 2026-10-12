@@ -32,7 +32,8 @@ public sealed class WindowTests
             ((TextBox)window.FindName("SearchBox")).Text = "alpha";
             Assert.Equal(first.Id, Assert.Single(window.SelectedIds));
             window.SetNotes([first, second], true);
-            Assert.Empty(window.SelectedIds);
+            Assert.Equal(first.Id, Assert.Single(window.SelectedIds));
+            Assert.False(window.ShowingTrash);
         }
         finally { window.AllowClose = true; window.Close(); }
     });

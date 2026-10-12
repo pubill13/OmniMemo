@@ -32,8 +32,9 @@ public partial class App
                 else ExecuteCommand(command);
             };
             overlayPanel.CollapseRequested += (collapsed, color) => RunFilteredCollapsed(collapsed, color);
+            overlayPanel.PageRequested += ChangeExpandedPage;
             overlayPanel.PreferencesChanged += SaveOverlayPreferences;
-            overlayPanel.Hidden += SaveOverlayPreferences;
+            overlayPanel.Hidden += () => { SaveOverlayPreferences(); RefreshPageControls(); };
             overlayPanel.Left = layoutSettings.OverlayLeft ?? SystemParameters.WorkArea.Right - overlayPanel.Width - 16;
             overlayPanel.Top = layoutSettings.OverlayTop ?? SystemParameters.WorkArea.Top + 16;
         }
@@ -41,6 +42,8 @@ public partial class App
         overlayPanel.RefreshSettings(layoutSettings);
         overlayPanel.SetNotes(notes.Values.Select(n => n.Snapshot));
         overlayPanel.SetHasVisibleNotes(windows.Values.Any(w => w.IsVisible));
+
+
         overlayPanel.ShowActivated = activate;
         overlayPanel.Show();
         WindowPlacement.KeepOnScreen(overlayPanel);
@@ -50,6 +53,7 @@ public partial class App
             overlayPanel.Activate();
         }
         SaveOverlayPreferences();
+        RefreshPageControls();
     }
 
     private void SaveOverlayPreferences()
@@ -59,8 +63,8 @@ public partial class App
             {
                 OverlayLeft = overlayPanel.Left, OverlayTop = overlayPanel.Top,
                 OverlayTopmost = overlayPanel.SelectedTopmost,
-                OverlayColor = overlayPanel.SelectedColor, OverlayVisible = overlayPanel.IsVisible,
-                OverlayOpacity = overlayPanel.SelectedOpacity
+                OverlayColor = overlayPanel.SelectedColor, OverlayVisible = overlayPanel.IsVisible
+
             };
         try
         {

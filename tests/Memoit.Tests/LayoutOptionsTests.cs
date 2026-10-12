@@ -12,6 +12,30 @@ namespace Memoit.Tests;
 public sealed class LayoutOptionsTests
 {
     [Fact]
+    public void ExpandedPreviewShowsChosenPageWithoutMovingSourceNotes()
+    {
+        Sta(() =>
+        {
+            var notes = Enumerable.Range(0, 3).Select(i => new Note { Body = $"page {i}", Width = 300, Height = 200,
+                Left = 123, Top = 456, CreatedAt = DateTimeOffset.UnixEpoch.AddSeconds(i) }).ToArray();
+            var window = new LayoutOptionsWindow(new LayoutSettings(),
+                [new MonitorDescriptor("A", "화면", new Rect(-500, -300, 400, 300), 1)], previewNotes: _ => notes);
+            try
+            {
+                Field<ComboBox>(window, "previewMode").SelectedIndex = 1;
+                Assert.Equal(" 1 / 3 ", Field<TextBlock>(window, "previewPageLabel").Text);
+                Assert.Equal(Visibility.Visible, Field<StackPanel>(window, "previewPager").Visibility);
+                typeof(LayoutOptionsWindow).GetField("previewPage", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(window, 1);
+                window.RefreshPreview();
+                Assert.Equal(" 2 / 3 ", Field<TextBlock>(window, "previewPageLabel").Text);
+                Assert.Equal(notes[1].Title, Assert.Single(Field<Canvas>(window, "preview").Children.OfType<Border>()).ToolTip);
+                Assert.All(notes, n => { Assert.Equal(123, n.Left); Assert.Equal(456, n.Top); });
+            }
+            finally { window.AllowClose = true; window.Close(); }
+        });
+    }
+
+    [Fact]
     public void PreviewUsesSavedExpandedOrderAndDoesNotMutateNotes()
     {
         Sta(() =>

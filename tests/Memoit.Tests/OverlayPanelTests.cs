@@ -18,40 +18,54 @@ namespace Memoit.Tests;
 public sealed class OverlayPanelTests
 {
     [Fact]
-    public void OpacityUpdatesImmediatelyAndDebouncesOrFlushesPreferences()
+    public void RemovedOpacityIgnoresLegacyPreference()
     {
-        Exception? failure = null;
-        var thread = new Thread(() =>
+        RunSta(() =>
         {
+            var panel = new OverlayPanelWindow(new LayoutSettings { OverlayOpacity = .3 });
             try
             {
-                var panel = new OverlayPanelWindow(new LayoutSettings());
-                try
-                {
-                    var slider = Descendants(panel).OfType<Slider>().Single();
-                    Assert.Equal(30, slider.Minimum); Assert.Equal(100, slider.Maximum);
-                    Assert.Equal(5, slider.TickFrequency); Assert.True(slider.IsSnapToTickEnabled);
-                    int changes = 0; panel.PreferencesChanged += () => changes++;
-                    slider.Value = 55; slider.Value = 60;
-                    Assert.Equal(.6, panel.Opacity); Assert.Equal(.6, panel.SelectedOpacity); Assert.Equal(0, changes);
-                    var frame = new System.Windows.Threading.DispatcherFrame();
-                    var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
-                    timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; };
-                    timer.Start(); System.Windows.Threading.Dispatcher.PushFrame(frame);
-                    Assert.Equal(1, changes);
-                    slider.Value = 65; panel.FlushPreferences(); panel.FlushPreferences();
-                    Assert.Equal(2, changes);
-                    panel.RefreshSettings(new LayoutSettings { OverlayOpacity = .7 });
-                    Assert.Equal(70, slider.Value); Assert.Equal(2, changes);
-                    slider.Value = 75; panel.AllowClose = true; panel.Close();
-                    Assert.Equal(3, changes);
-                }
-                finally { panel.AllowClose = true; panel.Close(); }
+                Assert.Equal(1, panel.Opacity);
+                Assert.Empty(Descendants(panel).OfType<Slider>());
+                panel.RefreshSettings(new LayoutSettings { OverlayOpacity = .6 });
+                Assert.Equal(1, panel.Opacity);
             }
-            catch (Exception ex) { failure = ex; }
+            finally { panel.AllowClose = true; panel.Close(); }
         });
-        thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
-        if (failure is not null) throw failure;
+    }
+
+    [Fact]
+    public void PagerPreservesMonitorSelectionAndRestrictsBoundaries()
+    {
+        RunSta(() =>
+        {
+            var pages = new PagesControl();
+            string? monitor = null; int delta = 0;
+            pages.PageRequested += (id, change) => { monitor = id; delta = change; };
+            pages.SetPages([new("a", "화면 1", 0, 3, 2, 6), new("b", "화면 2", 1, 2, 1, 3)]);
+            var combo = Descendants(pages).OfType<ComboBox>().Single();
+            var buttons = Descendants(pages).OfType<Button>().ToArray();
+            Assert.Equal(Visibility.Visible, pages.Visibility);
+            Assert.False(buttons[0].IsEnabled); Assert.True(buttons[1].IsEnabled);
+            buttons[1].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal("a", monitor); Assert.Equal(1, delta);
+            combo.SelectedIndex = 1;
+            Assert.True(buttons[0].IsEnabled); Assert.False(buttons[1].IsEnabled);
+            pages.SetPages([new("a", "화면 1", 1, 3, 2, 6), new("b", "화면 2", 1, 2, 1, 3)]);
+            Assert.Equal("b", Assert.IsType<PageDisplay>(combo.SelectedItem).MonitorId);
+            Assert.Contains(Descendants(pages).OfType<TextBlock>(), t => t.Text == "2 / 2 · 현재 1개 / 전체 3개");
+            pages.SetPages([new("a", "화면 1", 0, 1, 2, 2)]);
+            Assert.Equal(Visibility.Collapsed, pages.Visibility);
+        });
+    }
+
+    private static void RunSta(Action action)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() => { try { action(); } catch (Exception ex) { failure = ex; } });
+        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(20)));
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
     [Fact]
     public void OverlayPreferencesRoundTripAndRejectInvalidValuesWithoutReplacingFile()
@@ -64,12 +78,25 @@ public sealed class OverlayPanelTests
             settings.Save(file);
             var restored = LayoutSettings.Load(file);
             Assert.Equal(-240, restored.OverlayLeft); Assert.Equal(80, restored.OverlayTop);
-            Assert.Equal(.55, restored.OverlayOpacity); Assert.True(restored.OverlayVisible);
+            Assert.Equal(1, restored.OverlayOpacity); Assert.True(restored.OverlayVisible);
             Assert.True(restored.OverlayTopmost); Assert.Equal("#FFF2B3", restored.OverlayColor);
             string original = File.ReadAllText(file);
-            Assert.Throws<InvalidDataException>(() => (settings with { OverlayOpacity = .1 }).Save(file));
+            Assert.DoesNotContain("OverlayOpacity", original);
+            Assert.Throws<InvalidDataException>(() => (settings with { OverlayLeft = double.NaN }).Save(file));
             Assert.Throws<InvalidDataException>(() => (settings with { OverlayColor = "unknown" }).Save(file));
             Assert.Equal(original, File.ReadAllText(file));
+        }
+        finally { File.Delete(file); }
+    }
+
+    [Fact]
+    public void InvalidLegacyOpacityIsIgnored()
+    {
+        string file = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            File.WriteAllText(file, "{\"Version\":5,\"OverlayOpacity\":-90}");
+            Assert.Equal(1, LayoutSettings.Load(file).OverlayOpacity);
         }
         finally { File.Delete(file); }
     }
@@ -98,10 +125,10 @@ public sealed class OverlayPanelTests
                 var panel = new OverlayPanelWindow(new LayoutSettings { OverlayOpacity = .55, OverlayTopmost = true, OverlayColor = "#FFF2B3" });
                 try
                 {
-                    Assert.Equal(.55, panel.Opacity); Assert.True(panel.Topmost); Assert.False(panel.ShowInTaskbar);
+                    Assert.Equal(1, panel.Opacity); Assert.True(panel.Topmost); Assert.False(panel.ShowInTaskbar);
                     Assert.Equal("#FFF2B3", panel.SelectedColor);
                     panel.SetNotes([new Note { Color = "#FFF2B2" }, new Note { Color = "#FFF2B3" }, new Note { Color = "#FFDDE7" }, new Note { IsVisible = false }, new Note { DeletedAt = DateTimeOffset.UtcNow }]);
-                    Assert.Empty(Descendants(panel).OfType<ComboBox>());
+                    Assert.Single(Descendants(panel).OfType<ComboBox>());
                     var chips = Descendants(panel).OfType<ToggleButton>().Where(c => AutomationProperties.GetName(c).Contains("보이는 메모")).ToArray();
                     Assert.Equal(7, chips.Length);
                     Assert.Contains("전체 · 보이는 메모 3개", AutomationProperties.GetName(chips[0]));
@@ -140,11 +167,11 @@ public sealed class OverlayPanelTests
                     panel.SetHasVisibleNotes(false); Assert.Contains(buttons, b => Equals(b.Content, "모두 보이기"));
                     panel.SetHasVisibleNotes(true); Assert.Contains(buttons, b => Equals(b.Content, "모두 숨기기"));
                     Assert.DoesNotContain(buttons, b => Equals(b.Content, "이전 배치로"));
-                    Assert.Single(Descendants(panel).OfType<Slider>());
+                    Assert.Empty(Descendants(panel).OfType<Slider>());
                     panel.ShowStatus("저장 실패", true); Assert.Contains(Descendants(panel).OfType<TextBlock>(), b => b.Text == "저장 실패");
                     int changes = 0; panel.PreferencesChanged += () => changes++;
                     panel.RefreshSettings(new LayoutSettings { OverlayOpacity = .3, OverlayTopmost = false });
-                    Assert.Equal(0, changes); Assert.Equal(.3, panel.Opacity); Assert.False(panel.Topmost); Assert.Null(panel.SelectedColor);
+                    Assert.Equal(0, changes); Assert.Equal(1, panel.Opacity); Assert.False(panel.Topmost); Assert.Null(panel.SelectedColor);
                 }
                 finally { panel.AllowClose = true; panel.Close(); }
             }

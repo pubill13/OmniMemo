@@ -22,17 +22,20 @@ public sealed class OverlayPanelWindow : Window
     private Dictionary<string, string> hotkeys = [];
     private readonly ToggleButton pinned = new();
     private readonly Button visibility;
+    private readonly PagesControl pages = new();
+
     private readonly TextBlock status = new() { MinHeight = 18, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 7, 2, 0) };
     private readonly DispatcherTimer statusTimer = new() { Interval = TimeSpan.FromSeconds(3) };
-    private readonly DispatcherTimer preferencesTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
+
     private bool refreshing;
     public bool AllowClose { get; set; }
     public event Action<string>? CommandRequested;
     public event Action<bool, string?>? CollapseRequested;
     public event Action? PreferencesChanged;
     public event Action? Hidden;
+    public event Action<string, int>? PageRequested;
     public string? SelectedColor => selectedColor;
-    public double SelectedOpacity => 1;
+
     public bool SelectedTopmost => pinned.IsChecked == true;
 
     public OverlayPanelWindow(LayoutSettings settings)
@@ -64,6 +67,8 @@ public sealed class OverlayPanelWindow : Window
         var expand = CommandButton("모두 펼치기", "ExpandAll", "ToggleCollapsed"); expand.Background = Brush("#E0EAF8");
         content.Children.Add(Row(arrange, expand));
         visibility = Button("모두 숨기기", () => CommandRequested?.Invoke("ToggleVisibility")); content.Children.Add(visibility);
+        pages.PageRequested += (monitor, delta) => PageRequested?.Invoke(monitor, delta);
+        content.Children.Add(pages);
         var filtered = new StackPanel();
         var chips = new UniformGrid { Columns = 4, Margin = new Thickness(0, 8, 0, 5) };
         for (int i = 0; i < ColorNames.Length; i++)
@@ -90,7 +95,7 @@ public sealed class OverlayPanelWindow : Window
         RefreshSettings(settings);
         pinned.Checked += (_, _) => Changed(); pinned.Unchecked += (_, _) => Changed();
         statusTimer.Tick += (_, _) => { statusTimer.Stop(); status.Text = ""; };
-        preferencesTimer.Tick += (_, _) => FlushPreferences();
+
         IsVisibleChanged += (_, _) => { if (!IsVisible) FlushPreferences(); };
         Closing += (_, e) => { FlushPreferences(); if (!AllowClose) { e.Cancel = true; Hide(); Hidden?.Invoke(); } else statusTimer.Stop(); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; Close(); } };
@@ -102,6 +107,7 @@ public sealed class OverlayPanelWindow : Window
         visibility.Content = label; AutomationProperties.SetName(visibility, label);
         SetShortcutTip(visibility, label, "ToggleVisibility", value ? "HideAll" : "ShowAll");
     }
+    public void SetPages(IReadOnlyList<PageDisplay> displays) => pages.SetPages(displays);
     public void SetUndoContent(UIElement? content) => undoHost.Content = content;
     public void SetNotes(IEnumerable<Note> notes)
     {
@@ -155,12 +161,8 @@ public sealed class OverlayPanelWindow : Window
         pinned.IsChecked = settings.OverlayTopmost; Topmost = settings.OverlayTopmost;
         refreshing = false;
     }
-    public void FlushPreferences()
-    {
-        if (!preferencesTimer.IsEnabled) return;
-        preferencesTimer.Stop(); PreferencesChanged?.Invoke();
-    }
-    private void Changed() { if (refreshing) return; preferencesTimer.Stop(); Topmost = SelectedTopmost; PreferencesChanged?.Invoke(); }
+    public void FlushPreferences() { }
+    private void Changed() { if (refreshing) return; Topmost = SelectedTopmost; PreferencesChanged?.Invoke(); }
     private static SolidColorBrush Brush(string value) => (SolidColorBrush)new BrushConverter().ConvertFromString(value)!;
     private static TextBlock Section(string text) => new() { Text = text, FontSize = 11, Foreground = Brush("#64748B"), Margin = new Thickness(2, 9, 2, 5) };
     private static Grid Row(params UIElement[] children)

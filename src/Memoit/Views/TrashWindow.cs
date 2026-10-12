@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Automation;
 using Memoit.Models;
 
 namespace Memoit.Views;
@@ -7,34 +9,45 @@ namespace Memoit.Views;
 public sealed class TrashWindow : Window
 {
     public bool AllowClose { get; set; }
-    private readonly ListBox list = new();
+    private readonly ListBox list = new() { SelectionMode = SelectionMode.Extended };
     private readonly TextBox search = new();
+    private readonly Button deleteSelected = new() { Content = "선택 영구 삭제", IsEnabled = false, Padding = new Thickness(10, 6, 10, 6) };
+    private readonly TextBlock status = new() { Margin = new Thickness(0, 8, 0, 8) };
     private IReadOnlyList<Note> notes = [];
     public event Action<Guid>? RestoreRequested;
     public event Action<Guid>? PermanentDeleteRequested;
+    public event Action<IReadOnlyList<Guid>>? PermanentDeleteSelectedRequested;
+    public IReadOnlyList<Guid> SelectedIds => list.SelectedItems.Cast<Note>().Select(n => n.Id).ToArray();
 
     public TrashWindow()
     {
-        Title = "OmniMemo · 휴지통"; Width = 520; Height = 620; MinWidth = 380; MinHeight = 360;
-        ShowInTaskbar = false; WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        Title = "OmniMemo · 휴지통"; Width = 560; Height = 620; MinWidth = 430; MinHeight = 360;
+        ShowInTaskbar = false; WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        FontFamily = new System.Windows.Media.FontFamily("Malgun Gothic");
         var root = new DockPanel { Margin = new Thickness(20) };
         var heading = new TextBlock { Text = "휴지통", FontSize = 24, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 12) };
         DockPanel.SetDock(heading, Dock.Top); root.Children.Add(heading);
         search.Margin = new Thickness(0, 0, 0, 12); search.Padding = new Thickness(9); search.ToolTip = "휴지통 검색";
+        AutomationProperties.SetName(search, "휴지통 검색"); AutomationProperties.SetName(list, "휴지통 목록");
         search.TextChanged += (_, _) => Refresh(); DockPanel.SetDock(search, Dock.Top); root.Children.Add(search);
+        deleteSelected.Click += (_, _) => PermanentDeleteSelectedRequested?.Invoke(SelectedIds);
+        DockPanel.SetDock(deleteSelected, Dock.Top); root.Children.Add(deleteSelected);
+        DockPanel.SetDock(status, Dock.Top); root.Children.Add(status);
+        list.SelectionChanged += (_, _) => deleteSelected.IsEnabled = list.SelectedItems.Count > 0;
         list.BorderThickness = new Thickness(0); list.Background = System.Windows.Media.Brushes.Transparent;
         list.ItemTemplate = CreateTemplate(); root.Children.Add(list); Content = root;
-        Activated += (_, _) => Refresh();
-        Closing += (_, e) => { if (!AllowClose) { e.Cancel = true; Hide(); } };
+        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { Close(); e.Handled = true; } };
     }
 
     public void SetNotes(IEnumerable<Note> values) { notes = values.Where(n => n.DeletedAt is not null).ToArray(); Refresh(); }
     private void Refresh()
     {
-        if (list is null) return;
+        var selected = SelectedIds.ToHashSet();
         var q = search.Text.Trim();
-        list.ItemsSource = notes.Where(n => n.Body.Contains(q, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(n => n.UpdatedAt).ToArray();
+        var rows = notes.Where(n => n.Body.Contains(q, StringComparison.OrdinalIgnoreCase)).OrderByDescending(n => n.DeletedAt).ToArray();
+        list.ItemsSource = rows;
+        foreach (var note in rows.Where(n => selected.Contains(n.Id))) list.SelectedItems.Add(note);
+        status.Text = rows.Length == 0 ? "휴지통이 비어 있거나 검색 결과가 없습니다." : $"휴지통 · {rows.Length}개 · Ctrl/Shift로 여러 개 선택";
     }
     private DataTemplate CreateTemplate()
     {

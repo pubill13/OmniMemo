@@ -23,6 +23,9 @@ $runDirectory = Join-Path ([IO.Path]::GetFullPath($ArtifactsDirectory)) ('smoke-
 New-Item -ItemType Directory -Path $runDirectory | Out-Null
 $priorDataDirectory = $env:OMNIMEMO_DATA_DIR
 $env:OMNIMEMO_DATA_DIR = Join-Path $runDirectory 'data'
+New-Item -ItemType Directory -Path $env:OMNIMEMO_DATA_DIR | Out-Null
+# Avoid global shortcut conflicts with a user's running copy during isolated UI verification.
+'{"Version":5,"Hotkeys":{"NewNote":"","Search":"","ToggleCurrent":"","ToggleVisibility":"","ToggleCollapsed":"","ToggleOverlay":""}}' | Set-Content -LiteralPath (Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json') -Encoding UTF8
 $ownedProcesses = New-Object 'System.Collections.Generic.List[System.Diagnostics.Process]'
 $results = New-Object 'System.Collections.Generic.List[string]'
 $testText = "스모크 한글 저장 테스트`r`n받침: 읽었다. 😀"
@@ -42,7 +45,8 @@ function Wait-For([scriptblock]$Probe, [string]$Description, [int]$Seconds=15) {
     throw "Timed out: $Description"
 }
 function Start-Owned {
-    $process = Start-Process -FilePath $exePath -WorkingDirectory (Split-Path $exePath) -WindowStyle Hidden -PassThru
+    # This UI test needs a visible first window to inspect its editor.
+    $process = Start-Process -FilePath $exePath -WorkingDirectory (Split-Path $exePath) -WindowStyle Normal -PassThru
     $ownedProcesses.Add($process)
     return $process
 }
@@ -121,7 +125,12 @@ try {
     } 'persisted collapsed note after relaunch'
     Assert-Smoke (Test-Tile $tile) 'Collapsed state survives restart'
     $handle = [IntPtr]$tile.Current.NativeWindowHandle
-    $tileButton = Find-Name $tile '접힌 메모, 클릭하여 펼치기'
+    $tileButton = Wait-For {
+        foreach ($current in @(Get-OwnWindows $process.Id)) {
+            $button = Find-Name $current '접힌 메모, 클릭하여 펼치기'
+            if ($button) { return $button }
+        }
+    } 'collapsed tile accessibility loaded'
     Assert-Smoke ($null -ne $tileButton) 'Collapsed tile exposes accessible expand action'
     $tileButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     $note = Wait-For { Find-Editor $process.Id } 'tile expands on click'

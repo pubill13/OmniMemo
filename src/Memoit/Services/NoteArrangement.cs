@@ -45,37 +45,51 @@ public static class NoteArrangement
         MonitorLayout options, ExpandedCorner corner = ExpandedCorner.TopRight, double scale = 1,
         IReadOnlyDictionary<Guid, Size>? sizesPixels = null, IReadOnlyList<Guid>? orderedIds = null)
     {
+        var pages = ArrangeExpandedPages(notes, areaPixels, options, corner, scale, sizesPixels, orderedIds);
+        return new(pages.Count == 0 ? new Dictionary<Guid, Rect>() : pages[0],
+            pages.Skip(1).Sum(page => page.Count));
+    }
+
+    public static IReadOnlyList<IReadOnlyDictionary<Guid, Rect>> ArrangeExpandedPages(IEnumerable<Note> notes,
+        Rect areaPixels, MonitorLayout options, ExpandedCorner corner = ExpandedCorner.TopRight, double scale = 1,
+        IReadOnlyDictionary<Guid, Size>? sizesPixels = null, IReadOnlyList<Guid>? orderedIds = null)
+    {
         Validate(areaPixels, options, scale);
         if (!Enum.IsDefined(corner)) throw new ArgumentOutOfRangeException(nameof(corner));
         var ordered = OrderNotes(notes, options.Sort).Where(n => !n.IsCollapsed).ToArray();
         if (orderedIds is not null)
         {
-            var ranks = orderedIds.Select((id, index) => (id, index)).ToDictionary(pair => pair.id, pair => pair.index);
+            var ranks = orderedIds.Distinct().Select((id, index) => (id, index)).ToDictionary(pair => pair.id, pair => pair.index);
             ordered = ordered.OrderBy(n => ranks.GetValueOrDefault(n.Id, int.MaxValue)).ToArray();
         }
+        double margin = 8 * scale, gap = options.Gap * scale;
+        if (areaPixels.Width <= 2 * margin || areaPixels.Height <= 2 * margin)
+            throw new ArgumentException("메모를 배치할 작업 영역이 너무 작습니다.", nameof(areaPixels));
         var sizes = ordered.ToDictionary(n => n.Id, n =>
         {
             var size = GetSize(n, scale, sizesPixels);
-            return new Size(Math.Min(size.Width, areaPixels.Width), Math.Min(size.Height, areaPixels.Height));
+            return new Size(Math.Min(size.Width, areaPixels.Width - 2 * margin), Math.Min(size.Height, areaPixels.Height - 2 * margin));
         });
-        double margin = 8 * scale, gap = options.Gap * scale;
         double x = margin, y = margin, rowHeight = 0;
+        var pages = new List<IReadOnlyDictionary<Guid, Rect>>();
         var result = new Dictionary<Guid, Rect>();
         foreach (var note in ordered)
         {
             var size = sizes[note.Id];
             if (x > margin && x + size.Width > areaPixels.Width - margin)
             { x = margin; y += rowHeight + gap; rowHeight = 0; }
-            if (x + size.Width > areaPixels.Width - margin || y + size.Height > areaPixels.Height - margin)
-            { break; }
+            if (y + size.Height > areaPixels.Height - margin)
+            {
+                pages.Add(result);
+                result = new Dictionary<Guid, Rect>();
+                x = margin; y = margin; rowHeight = 0;
+            }
             result.Add(note.Id, FromCorner(areaPixels, corner, x, y, size));
             x += size.Width + gap;
             rowHeight = Math.Max(rowHeight, size.Height);
         }
-        // Keep the windows that fit and leave the remainder at their current positions.
-        // Overlapping fallback made the expanded view unreadable; the caller can expose the
-        // skipped count as a page/next-batch affordance without changing visibility state.
-        return new(result, ordered.Length - result.Count);
+        if (result.Count > 0) pages.Add(result);
+        return pages;
     }
 
     private static Rect FromCorner(Rect area, ExpandedCorner corner, double x, double y, Size size)

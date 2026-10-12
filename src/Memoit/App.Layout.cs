@@ -10,6 +10,8 @@ public partial class App
 {
     private bool arranging;
     private bool layoutSaveFailed;
+
+
     private readonly object layoutFileGate = new();
 
     private void ExecuteCommand(string command)
@@ -66,9 +68,9 @@ public partial class App
 
     private async void RunArrangement(string command) => await RunArrangementAsync(command);
 
-    private async Task RunArrangementAsync(string command)
+    private async Task RunArrangementAsync(string command, bool allowBusy = false)
     {
-        if (arranging || busy || shuttingDown) return;
+        if (arranging || busy && !allowBusy || shuttingDown) return;
         arranging = true;
         try
         {
@@ -82,17 +84,19 @@ public partial class App
             }
             var clock = Stopwatch.StartNew();
             var monitors = MonitorCatalog.All();
-            var candidates = windows.Where(p => p.Value.IsVisible && notes[p.Key].Snapshot.DeletedAt is null)
+            var candidates = windows.Where(p => IsLogicallyVisible(p.Key) && (p.Value.IsVisible || IsPageMember(p.Key)))
+                .Where(p => command != "RestorePages" || !p.Value.IsCollapsed)
                 .Select(p => (Id: p.Key, Window: p.Value, Bounds: WindowPlacement.GetBounds(p.Value))).ToArray();
-            bool collapsed = command != "ExpandAll";
+            bool collapsed = command is not ("ExpandAll" or "RestorePages");
             if (command == "ToggleCollapsed") collapsed = candidates.Any(p => !p.Window.IsCollapsed);
             LayoutSort? sort = command switch { "SortCreated" => LayoutSort.Created, "SortColor" => LayoutSort.Color, "SortTitle" => LayoutSort.Title, _ => null };
             LayoutShape? shape = command switch { "ShapeGrid" => LayoutShape.Grid, "ShapeHorizontal" => LayoutShape.Horizontal, "ShapeVertical" => LayoutShape.Vertical, _ => null };
             var updated = new Dictionary<string, MonitorLayout>(layoutSettings.Monitors);
             var orders = layoutSettings.ArrangementOrder.ToDictionary(p => p.Key, p => new List<Guid>(p.Value));
             var moves = new Dictionary<Guid, Rect>();
-            var stacking = new List<Window>();
+
             int skipped = 0;
+            ClearPageSession();
             foreach (var group in candidates.GroupBy(p => MonitorCatalog.Nearest(p.Bounds, monitors)))
             {
                 var monitor = group.Key;
@@ -102,25 +106,32 @@ public partial class App
                 var snapshots = group.Select(p => notes[p.Id].Snapshot with { IsCollapsed = collapsed }).ToArray();
                 var sizes = group.ToDictionary(p => p.Id, p => collapsed ? new Size(36 * monitor.Scale, 36 * monitor.Scale)
                     : p.Window.IsCollapsed ? new Size(notes[p.Id].Snapshot.Width * monitor.Scale, notes[p.Id].Snapshot.Height * monitor.Scale) : p.Bounds.Size);
-                ArrangementResult result;
                 if (collapsed)
                 {
                     orders[monitor.Id] = NoteArrangement.OrderNotes(snapshots, options.Sort).Select(n => n.Id).ToList();
-                    result = NoteArrangement.ArrangeCollapsed(snapshots, monitor.WorkArea, options, monitor.Scale, sizes);
+                    var result = NoteArrangement.ArrangeCollapsed(snapshots, monitor.WorkArea, options, monitor.Scale, sizes);
                     skipped += result.SkippedTiles;
+                    foreach (var item in group)
+                        moves[item.Id] = result.Bounds.TryGetValue(item.Id, out var bounds) ? bounds : new Rect(item.Bounds.Location, sizes[item.Id]);
                 }
                 else
                 {
-                    result = NoteArrangement.ArrangeExpanded(snapshots, monitor.WorkArea, options, options.ExpandedCorner,
+                    var pages = NoteArrangement.ArrangeExpandedPages(snapshots, monitor.WorkArea, options, options.ExpandedCorner,
                         monitor.Scale, sizes, orders.GetValueOrDefault(monitor.Id));
-                    stacking.AddRange(result.Bounds.Keys.Select(id => (Window)windows[id]));
-                    skipped += result.SkippedTiles;
+                    if (pages.Count > 1 && monitor.WorkArea.Height > 220 * monitor.Scale)
+                    {
+                        var area = monitor.WorkArea; area.Height -= 120 * monitor.Scale;
+                        pages = NoteArrangement.ArrangeExpandedPages(snapshots, area, options, options.ExpandedCorner,
+                            monitor.Scale, sizes, orders.GetValueOrDefault(monitor.Id));
+                    }
+                    pageSessions[monitor.Id] = new ExpandedSession(monitor.Name, pages.Select(p => new Dictionary<Guid, Rect>(p)).ToList());
+                    foreach (var page in pages)
+                        foreach (var pair in page) moves[pair.Key] = pair.Value;
                 }
-                foreach (var item in group)
-                    moves[item.Id] = result.Bounds.TryGetValue(item.Id, out var bounds) ? bounds : new Rect(item.Bounds.Location, sizes[item.Id]);
             }
             // Keep a fresh immutable settings snapshot before asynchronous persistence; UI edits can still replace it.
-            layoutSettings = layoutSettings with { Monitors = updated, ArrangementOrder = orders };
+            layoutSettings = layoutSettings with { Monitors = updated, ArrangementOrder = orders, PagedExpansionActive = !collapsed && pageSessions.Values.Any(p => p.Pages.Count > 1) };
+            ApplyPageVisibility();
             var originals = candidates.ToDictionary(p => p.Id, p => p.Bounds);
             var changed = moves.Where(p => windows[p.Key].IsCollapsed != collapsed || !NearlyEqual(originals[p.Key], p.Value)).ToArray();
             double calculatedMs = clock.Elapsed.TotalMilliseconds;
@@ -135,14 +146,16 @@ public partial class App
                 WindowPlacement.MoveTogether(changed.Select(p => ((Window)windows[p.Key], p.Value)).ToArray());
             }
             finally { foreach (var window in prepared) window.EndArrangement(); }
-            if (!collapsed) WindowPlacement.StackInOrder(stacking);
+            ApplyPageVisibility();
+            if (collapsed) foreach (var item in candidates) { item.Window.ShowActivated = false; item.Window.Show(); }
+            RefreshPageControls();
             double movedMs = clock.Elapsed.TotalMilliseconds;
             bool saved = await NoteViewModel.FlushManyAsync(changed.Select(p => notes[p.Key]).ToArray(), store.SaveManyAsync);
             await PersistLayoutAsync();
             double storedMs = clock.Elapsed.TotalMilliseconds;
             LastArrangementTiming = new ArrangementTiming(calculatedMs, movedMs - calculatedMs, storedMs - movedMs, changed.Length);
             if (!saved) throw new IOException("화면은 변경했지만 저장하지 못했습니다. 트레이의 저장 다시 시도를 눌러 주세요.");
-            ArrangementNotice(skipped > 0 ? $"화면에 겹치지 않게 {skipped}개 메모를 다음 묶음으로 남겼습니다."
+            ArrangementNotice(skipped > 0 ? $"일부 타일을 배치하지 못했습니다 ({skipped}개). 시작점·간격을 조정해 주세요."
                 : collapsed ? "접어서 정돈했습니다." : "모두 펼쳤습니다.", skipped > 0);
         }
         catch (Exception ex) { ArrangementNotice(ex.Message, true); }
@@ -186,7 +199,7 @@ public partial class App
     private IReadOnlyList<Memoit.Models.Note> GetPreviewNotes(string monitorId)
     {
         var monitors = MonitorCatalog.All();
-        return windows.Where(p => p.Value.IsVisible && notes[p.Key].Snapshot.DeletedAt is null)
+        return windows.Where(p => IsLogicallyVisible(p.Key) && (p.Value.IsVisible || IsPageMember(p.Key)))
             .Select(p => (p.Key, Window: p.Value, Bounds: WindowPlacement.GetBounds(p.Value)))
             .Where(p => MonitorCatalog.Nearest(p.Bounds, monitors).Id == monitorId)
             .Select(p => notes[p.Key].Snapshot with { Width = p.Window.IsCollapsed ? notes[p.Key].Snapshot.Width : p.Bounds.Width / monitors.First(m => m.Id == monitorId).Scale,
@@ -243,8 +256,9 @@ public partial class App
             {
                 OverlayLeft = layoutSettings.OverlayLeft, OverlayTop = layoutSettings.OverlayTop,
                 OverlayTopmost = layoutSettings.OverlayTopmost,
-                OverlayOpacity = layoutSettings.OverlayOpacity,
+
                 OverlayColor = layoutSettings.OverlayColor, OverlayVisible = layoutSettings.OverlayVisible,
+                PagedExpansionActive = layoutSettings.PagedExpansionActive,
                 ArrangementOrder = layoutSettings.ArrangementOrder, NeedsManualArrangementNotice = layoutSettings.NeedsManualArrangementNotice,
                 NeedsShortcutSimplificationNotice = layoutSettings.NeedsShortcutSimplificationNotice
             };

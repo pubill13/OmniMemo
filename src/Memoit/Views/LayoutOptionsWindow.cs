@@ -32,6 +32,10 @@ public sealed class LayoutOptionsWindow : Window
     private readonly ComboBox previewMode = new() { ItemsSource = new[] { "접힌 모습", "펼친 모습" }, SelectedIndex = 0 };
     private readonly Canvas preview = new() { Width = 250, Height = 140, Background = Brushes.White, ClipToBounds = true };
     private readonly TextBlock previewStatus = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray };
+    private readonly StackPanel previewPager = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly TextBlock previewPageLabel = new() { VerticalAlignment = VerticalAlignment.Center };
+    private Button? previewPrevious, previewNext;
+    private int previewPage;
     private readonly Func<string, IReadOnlyList<Note>>? previewNotes;
     private string? selectedId;
     private bool refreshing;
@@ -152,7 +156,12 @@ public sealed class LayoutOptionsWindow : Window
     {
         if (previewWindow is not null) { previewWindow.Activate(); return; }
         var content = new StackPanel { Margin = new Thickness(18) }; content.Children.Add(previewMode);
-        var frame = new Border { Child = preview, BorderBrush = Brushes.LightGray, BorderThickness = new Thickness(1), Margin = new Thickness(0, 12, 0, 12), HorizontalAlignment = HorizontalAlignment.Center }; content.Children.Add(frame); content.Children.Add(previewStatus);
+        var frame = new Border { Child = preview, BorderBrush = Brushes.LightGray, BorderThickness = new Thickness(1), Margin = new Thickness(0, 12, 0, 12), HorizontalAlignment = HorizontalAlignment.Center }; content.Children.Add(frame);
+        previewPager.Children.Clear();
+        previewPrevious = Button("이전 페이지", () => { previewPage--; RefreshPreview(); });
+        previewNext = Button("다음 페이지", () => { previewPage++; RefreshPreview(); });
+        previewPager.Children.Add(previewPrevious); previewPager.Children.Add(previewPageLabel); previewPager.Children.Add(previewNext);
+        content.Children.Add(previewPager); content.Children.Add(previewStatus);
         var window = new Window { Title = "OmniMemo · 배치 미리보기", Width = 440, Height = 360, MinWidth = 300, MinHeight = 250, Content = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, ShowInTaskbar = false, FontFamily = FontFamily, Background = Brushes.WhiteSmoke, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         if (IsVisible) window.Owner = this;
         window.PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; window.Close(); } };
@@ -278,6 +287,7 @@ public sealed class LayoutOptionsWindow : Window
         shapeHint.Text = shape.SelectedIndex switch { 0 => "▦  오른쪽으로 채운 뒤 다음 줄로 내려갑니다", 1 => "▪ ▪ ▪ →  한 줄로 오른쪽에 놓습니다", _ => "▤ ↓  한 줄로 아래에 놓습니다" };
         colorHint.Visibility = sort.SelectedIndex == (int)LayoutSort.Color ? Visibility.Visible : Visibility.Collapsed;
         preview.Children.Clear();
+        previewPager.Visibility = Visibility.Collapsed;
         if (!TryReadMonitor(out var options)) { previewStatus.Text = "위치·간격·메모 수를 확인하세요. 간격 0–24, 직접 지정 1–30."; return; }
         if (monitorBox.SelectedItem is not MonitorDescriptor monitor) { previewStatus.Text = "모니터를 선택하세요."; return; }
         if (!double.IsFinite(options.X * monitor.Scale) || !double.IsFinite(options.Y * monitor.Scale))
@@ -287,9 +297,26 @@ public sealed class LayoutOptionsWindow : Window
         if (sample) source = Enumerable.Range(0, 6).Select(i => new Note { Color = i < 3 ? "#FFF2B2" : "#FFDDE7", Body = $"예시 {i + 1}", CreatedAt = DateTimeOffset.UnixEpoch.AddSeconds(i) }).ToArray();
         bool collapsed = previewMode.SelectedIndex == 0;
         var notes = source.Where(n => n.IsVisible && n.DeletedAt is null).Select(n => n with { IsCollapsed = collapsed }).ToArray();
-        var result = collapsed ? NoteArrangement.ArrangeCollapsed(notes, monitor.WorkArea, options, monitor.Scale)
-            : NoteArrangement.ArrangeExpanded(notes, monitor.WorkArea, options, options.ExpandedCorner, monitor.Scale,
+        ArrangementResult result;
+        if (collapsed) result = NoteArrangement.ArrangeCollapsed(notes, monitor.WorkArea, options, monitor.Scale);
+        else
+        {
+            var pages = NoteArrangement.ArrangeExpandedPages(notes, monitor.WorkArea, options, options.ExpandedCorner, monitor.Scale,
                 orderedIds: draft.ArrangementOrder.GetValueOrDefault(monitor.Id));
+            if (pages.Count > 1 && monitor.WorkArea.Height > 220 * monitor.Scale)
+            {
+                var area = monitor.WorkArea;
+                area.Height -= 120 * monitor.Scale;
+                pages = NoteArrangement.ArrangeExpandedPages(notes, area, options, options.ExpandedCorner, monitor.Scale,
+                    orderedIds: draft.ArrangementOrder.GetValueOrDefault(monitor.Id));
+            }
+            previewPage = Math.Clamp(previewPage, 0, Math.Max(0, pages.Count - 1));
+            result = new(pages.Count == 0 ? new Dictionary<Guid, Rect>() : pages[previewPage]);
+            previewPager.Visibility = pages.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+            previewPageLabel.Text = $" {previewPage + 1} / {pages.Count} ";
+            if (previewPrevious is not null) previewPrevious.IsEnabled = previewPage > 0;
+            if (previewNext is not null) previewNext.IsEnabled = previewPage < pages.Count - 1;
+        }
         double ratio = Math.Min(360 / monitor.WorkArea.Width, 220 / monitor.WorkArea.Height);
         preview.Width = monitor.WorkArea.Width * ratio; preview.Height = monitor.WorkArea.Height * ratio;
         var lookup = notes.ToDictionary(n => n.Id);
@@ -302,7 +329,7 @@ public sealed class LayoutOptionsWindow : Window
             preview.Children.Add(item);
         }
         previewStatus.Text = (sample ? "예시 메모 · " : $"보이는 메모 {notes.Length}개 · ")
-            + (result.SkippedTiles > 0 ? $"일부 타일을 배치하지 못했습니다 ({result.SkippedTiles}개)." : result.UsedCascade ? "공간에 맞춰 계단식으로 배치합니다." : "실제 메모는 이동하지 않습니다.");
+            + (result.SkippedTiles > 0 ? $"일부 타일을 배치하지 못했습니다 ({result.SkippedTiles}개)." : "실제 메모는 이동하지 않습니다.");
     }
     private void BuildRecorders()
     {

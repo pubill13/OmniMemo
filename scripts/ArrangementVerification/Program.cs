@@ -60,6 +60,9 @@ internal sealed class VerificationApp : App
                     await Measure("ExpandAll", 20, panel, $"expanded-cycle-{repeat + 1}");
                 }
             }
+            await Populate(100, false, false);
+            await Measure("ExpandAll", 100, false, "overflow-pages");
+            await VerifyPageLifecycle();
             checks.Add("No note was disabled by a bulk command; sentinel keyboard and foreground focus stayed unchanged.");
             WriteResult(true, null);
             Console.WriteLine(output);
@@ -81,6 +84,7 @@ internal sealed class VerificationApp : App
 
     private async Task Populate(int count, bool collapsed, bool panel)
     {
+        typeof(App).GetMethod("ClearPageSession", Private)!.Invoke(this, null);
         foreach (var window in NoteWindows.Values) { window.AllowClose = true; window.Close(); }
         foreach (var vm in Notes.Values) vm.Dispose();
         NoteWindows.Clear(); Notes.Clear();
@@ -118,7 +122,7 @@ internal sealed class VerificationApp : App
         int disabledBefore = disabledEvents;
         var foreground = GetForegroundWindow();
         var watch = Stopwatch.StartNew();
-        var task = (Task)typeof(App).GetMethod("RunArrangementAsync", Private)!.Invoke(this, [command])!;
+        var task = (Task)typeof(App).GetMethod("RunArrangementAsync", Private)!.Invoke(this, [command, false])!;
         double synchronousReturnMs = watch.Elapsed.TotalMilliseconds;
         await RenderSettled();
         double renderSettledMs = watch.Elapsed.TotalMilliseconds;
@@ -139,19 +143,84 @@ internal sealed class VerificationApp : App
             within200Ms = renderSettledMs <= 200 });
         if (command == "ExpandAll")
         {
+            var visible = NoteWindows.Where(p => p.Value.IsVisible).ToArray();
+            VerifyNoOverlap(visible.Select(p => p.Value));
+            Require(Notes.Values.All(n => n.Snapshot.IsVisible), "Paging persisted a hidden state.");
+            var firstIds = visible.Select(p => p.Key).ToHashSet();
             var monitors = MonitorCatalog.All();
-            foreach (var group in NoteWindows.GroupBy(p => MonitorCatalog.Nearest(WindowPlacement.GetBounds(p.Value), monitors)))
+            foreach (var monitor in monitors)
+                typeof(App).GetMethod("ChangeExpandedPage", Private)!.Invoke(this, [monitor.Id, 1]);
+            var next = NoteWindows.Where(p => p.Value.IsVisible).ToArray();
+            VerifyNoOverlap(next.Select(p => p.Value));
+            if (firstIds.Count < count)
+                Require(!firstIds.SetEquals(next.Select(p => p.Key)), "Next page did not replace the visible group.");
+            Require(Notes.Values.All(n => n.Snapshot.IsVisible), "Page switch altered logical visibility.");
+            var absent = NoteWindows.FirstOrDefault(p => !p.Value.IsVisible);
+            if (absent.Value is not null)
             {
-                var options = settings.GetMonitor(group.Key.Id);
-                var actualSizes = group.ToDictionary(p => p.Key, p => WindowPlacement.GetBounds(p.Value).Size);
-                var expected = NoteArrangement.ArrangeExpanded(group.Select(p => Notes[p.Key].Snapshot), group.Key.WorkArea,
-                    options, options.ExpandedCorner, group.Key.Scale, actualSizes, settings.ArrangementOrder[group.Key.Id]);
-                foreach (var pair in expected.Bounds)
-                    Require(Near(pair.Value, WindowPlacement.GetBounds(NoteWindows[pair.Key])), "Expanded placement did not preserve saved order.");
+                typeof(App).GetMethod("RevealPage", Private)!.Invoke(this, [absent.Key]);
+                Require(absent.Value.IsVisible, "List reveal did not show the target page.");
             }
+            var persisted = await Store.LoadAsync();
+            Require(persisted.Where(n => Notes.ContainsKey(n.Id)).All(n => n.IsVisible), "Persisted visibility differs after paging.");
+            checks.Add($"{count} notes: non-overlapping pages, next/reveal, logical and persisted visibility preserved (panel={panel}).");
         }
     }
 
+    private static void VerifyNoOverlap(IEnumerable<NoteWindow> windows)
+    {
+        var bounds = windows.Select(WindowPlacement.GetBounds).ToArray();
+        for (int i = 0; i < bounds.Length; i++)
+            for (int j = i + 1; j < bounds.Length; j++)
+            {
+                var intersection = Rect.Intersect(bounds[i], bounds[j]);
+                Require(intersection.IsEmpty || intersection.Width < 1 || intersection.Height < 1, "Visible expanded notes overlap.");
+            }
+    }
+    private async Task VerifyPageLifecycle()
+    {
+        Require(NoteWindows.Values.Count(w => w.IsVisible) < 100, "Overflow case did not paginate.");
+        var first = NoteWindows.First(p => p.Value.IsVisible);
+        first.Value.Editor.Text = "Updated while paged";
+        await Notes[first.Key].FlushAsync();
+        var dragged = WindowPlacement.GetBounds(first.Value); dragged.Offset(-20, 15);
+        WindowPlacement.Move(first.Value, dragged.Location);
+        var monitor = MonitorCatalog.All().First();
+        typeof(App).GetMethod("ChangeExpandedPage", Private)!.Invoke(this, [monitor.Id, 1]);
+        typeof(App).GetMethod("RevealPage", Private)!.Invoke(this, [first.Key]);
+        Require(Near(dragged, WindowPlacement.GetBounds(first.Value)), "Paging overwrote manual drag.");
+        Require(Notes[first.Key].Body == "Updated while paged", "Paging overwrote input.");
+        var hidden = NoteWindows.First(p => !p.Value.IsVisible);
+        Notes[hidden.Key].SetVisible(false); await Notes[hidden.Key].FlushAsync();
+        typeof(App).GetMethod("RefreshList", Private)!.Invoke(this, null);
+        await (Task)typeof(App).GetMethod("RunArrangementAsync", Private)!.Invoke(this, ["CollapseAll", false])!;
+        Require(NoteWindows.Count(p => p.Value.IsVisible && p.Value.IsCollapsed) == 99, "Collapse omitted off-page notes or revealed hidden note.");
+        await (Task)typeof(App).GetMethod("SetAllVisibleAsync", Private)!.Invoke(this, [true])!;
+        Require(Notes.Values.All(n => n.Snapshot.IsVisible), "ShowAll did not include hidden note.");
+        Require(NoteWindows.Values.Count(w => w.IsVisible && w.IsCollapsed) == 99, "ShowAll changed collapsed states.");
+        await (Task)typeof(App).GetMethod("RunArrangementAsync", Private)!.Invoke(this, ["ExpandAll", false])!;
+        await (Task)typeof(App).GetMethod("SetAllVisibleAsync", Private)!.Invoke(this, [false])!;
+        await (Task)typeof(App).GetMethod("SetAllVisibleAsync", Private)!.Invoke(this, [true])!;
+        Require(NoteWindows.Values.Count(w => w.IsVisible) < 100, "ShowAll did not restore pages.");
+        Require(((LayoutSettings)Field("layoutSettings")!).PagedExpansionActive, "Restart marker missing.");
+        typeof(App).GetMethod("ClearPageSession", Private)!.Invoke(this, null);
+        foreach (var w in NoteWindows.Values) { w.ShowActivated = false; w.Show(); }
+        await (Task)typeof(App).GetMethod("RunArrangementAsync", Private)!.Invoke(this, ["RestorePages", false])!;
+        Require(NoteWindows.Values.Count(w => w.IsVisible) < 100, "Restart pages not rebuilt.");
+        VerifyNoOverlap(NoteWindows.Values.Where(w => w.IsVisible));
+        typeof(App).GetMethod("CreateList", Private)!.Invoke(this, null);
+        typeof(App).GetMethod("ShowList", Private)!.Invoke(this, [false]);
+        var list = (Memoit.Views.MainWindow)Field("list")!;
+        ((Button)list.FindName("ActiveButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        ((Button)list.FindName("TrashButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var trash = (TrashWindow)Field("trashWindow")!;
+        Require(trash.IsVisible, "Trash button did not open separate window.");
+        ((Button)list.FindName("TrashButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(ReferenceEquals(trash, Field("trashWindow")), "Duplicate trash window created.");
+        trash.Close(); Require(Field("trashWindow") is null, "Trash close retained stale window.");
+        list.AllowClose = true; list.Close();
+        checks.Add("100-note overflow: paging, manual input/drag, hidden exclusion, global collapse/show, restart rebuild, list refresh and trash open/reuse/close verified.");
+    }
     private async Task VerifyIndividual()
     {
         var window = NoteWindows.Values.First();

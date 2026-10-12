@@ -96,7 +96,7 @@ public sealed class NoteArrangementTests
         var note = new Note { Width = 2000, Height = 1000 };
         var area = new Rect(-500, -300, 300, 200);
         var result = NoteArrangement.ArrangeExpanded([note], area, new MonitorLayout());
-        Assert.Equal(area, result.Bounds[note.Id]);
+        Assert.Equal(new Rect(-492, -292, 284, 184), result.Bounds[note.Id]);
         Assert.False(result.UsedCascade);
     }
 
