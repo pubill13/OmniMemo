@@ -8,7 +8,7 @@ using Memoit.Models;
 
 namespace Memoit.Views;
 
-public enum SettingsTab { Layout, Hotkeys, General, Backup }
+public enum SettingsTab { Layout, Hotkeys, General, Backup, Help, About }
 
 public sealed class LayoutOptionsWindow : Window
 {
@@ -70,6 +70,7 @@ public sealed class LayoutOptionsWindow : Window
         footer.Children.Add(status);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         actions.Children.Add(Button("적용", Dispatch)); footer.Children.Add(actions); root.Children.Add(footer);
+        tabs.SelectionChanged += (_, _) => footer.Visibility = tabs.SelectedIndex >= (int)SettingsTab.Help ? Visibility.Collapsed : Visibility.Visible;
         root.Children.Add(tabs);
         var layout = new StackPanel { Margin = new Thickness(10), Background = Brushes.WhiteSmoke };
         var heading = new DockPanel(); var previewButton = Button("미리보기", OpenPreview); DockPanel.SetDock(previewButton, Dock.Right); heading.Children.Add(previewButton); heading.Children.Add(Label("배치할 화면")); layout.Children.Add(heading); layout.Children.Add(monitorBox);
@@ -104,7 +105,9 @@ public sealed class LayoutOptionsWindow : Window
         hotkeys.Children.Add(new ScrollViewer { Content = hotkeyRows, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         tabs.Items.Add(new TabItem { Header = "단축키", Content = hotkeys });
         tabs.Items.Add(new TabItem { Header = "일반", Content = BuildGeneral() });
-        tabs.Items.Add(new TabItem { Header = "백업", Content = BuildBackup(dataPath) }); Content = root;
+        tabs.Items.Add(new TabItem { Header = "백업", Content = BuildBackup(dataPath) });
+        tabs.Items.Add(new TabItem { Header = "도움말", Content = BuildHelp(dataPath) });
+        tabs.Items.Add(new TabItem { Header = "버전", Content = BuildAbout() }); Content = root;
         SetAutoStart(autoStart);
         Loaded += (_, _) => FitToWorkArea();
         monitorBox.SelectionChanged += (_, _) => SwitchMonitor();
@@ -143,6 +146,44 @@ public sealed class LayoutOptionsWindow : Window
         GroupSections(content);
         return new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
+    private UIElement BuildHelp(string dataPath)
+    {
+        var content = new StackPanel { Margin = new Thickness(10), Background = Brushes.WhiteSmoke };
+        content.Children.Add(Section("기본 조작"));
+        content.Children.Add(HelpText("메모를 바로 입력하고, 상단의 접기 버튼을 누르면 현재 위치에 작은 타일로 접힙니다. 타일을 클릭하면 그 자리에서 다시 펼쳐집니다."));
+        content.Children.Add(HelpText("‘접어서 정돈’은 설정한 시작점과 배치 규칙으로 타일을 정리합니다. ‘모두 펼치기’는 선택한 모서리부터 메모를 페이지로 나누어 배치합니다."));
+        content.Children.Add(HelpText("페이지가 여러 개면 패널의 이전·다음으로 이동합니다. 목록에서 메모를 열면 해당 페이지로 이동합니다. 숨긴 메모와 휴지통 메모는 정돈 대상에서 제외됩니다."));
+        content.Children.Add(HelpText("메모의 X는 삭제가 아니라 숨기기입니다. 목록에서 다시 열거나 트레이의 ‘모두 보이기’를 사용하세요. 압정은 항상 위 표시, ⋯ 메뉴는 색상·글꼴·글자 크기와 삭제를 제공합니다."));
+        content.Children.Add(Section("목록과 삭제"));
+        content.Children.Add(HelpText("메모 목록에서 검색·체크박스·우클릭 메뉴를 사용할 수 있습니다. 삭제한 메모는 휴지통에서 복원하거나 확인 후 영구 삭제할 수 있습니다."));
+        content.Children.Add(HelpText("휴지통 비우기는 검색어와 관계없이 휴지통 전체를 대상으로 합니다. 확인창에서 취소를 선택하면 삭제하지 않습니다."));
+        content.Children.Add(Section("기본 단축키"));
+        content.Children.Add(HelpText("아래는 기본값입니다. 변경하거나 해제한 키는 ‘단축키’ 탭에서 확인하세요. 메모 안에서는 Ctrl+N으로 새 메모, Ctrl+F로 목록·검색을 엽니다."));
+        content.Children.Add(HelpText("새 메모  Ctrl+Alt+Shift+N\n목록·검색  Ctrl+Alt+Shift+F\n현재 메모 접기·펼치기  Ctrl+Shift+Space\n모두 숨기기·보이기  Ctrl+Alt+Shift+H\n접어서 정돈·모두 펼치기  Ctrl+Alt+Shift+C\n미니 패널 열기·닫기  Ctrl+Alt+Shift+P"));
+        content.Children.Add(Section("데이터와 복구"));
+        content.Children.Add(HelpText("입력이 멈춘 뒤 약 500ms, 계속 입력할 때도 최대 2초 간격으로 자동 저장합니다. 저장 실패 시 상단 상태 표시에서 원인을 확인하고 트레이의 ‘저장 다시 시도’를 사용하세요. 강제 종료 직전의 미저장 입력은 복구되지 않을 수 있습니다."));
+        content.Children.Add(HelpText($"메모는 이 PC에만 저장됩니다.\n{dataPath}\n백업 탭에서 수동 백업과 복원을 사용할 수 있습니다. 자동 백업은 하루 첫 저장 후 생성되며 최근 7개를 보관합니다."));
+        GroupSections(content);
+        return new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+    }
+    private UIElement BuildAbout()
+    {
+        var version = typeof(LayoutOptionsWindow).Assembly.GetName().Version?.ToString(3) ?? "알 수 없음";
+        var content = new StackPanel { Margin = new Thickness(10), Background = Brushes.WhiteSmoke };
+        content.Children.Add(new TextBlock { Text = "OmniMemo", FontSize = 26, FontWeight = FontWeights.Bold });
+        content.Children.Add(new TextBlock { Text = "개인용 로컬 스티커 메모", Foreground = Brushes.DimGray, Margin = new Thickness(0, 4, 0, 16) });
+        content.Children.Add(Section("현재 버전"));
+        content.Children.Add(new TextBlock { Text = version, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
+        content.Children.Add(Section("최근 변경"));
+        content.Children.Add(HelpText("1.11.4\n설정에 도움말과 버전 탭을 추가했습니다. 현재 버전은 실행 중인 프로그램에서 자동으로 읽습니다."));
+        content.Children.Add(HelpText("1.11.3\n직접 접기 시 현재 메모 위치에 타일을 남깁니다. 이전 정돈 위치는 명시적인 ‘접어서 정돈’에서만 사용합니다."));
+        content.Children.Add(HelpText("1.11.2\n휴지통 화면의 제목·날짜·버튼 정렬을 개선하고 휴지통 비우기를 추가했습니다."));
+        content.Children.Add(HelpText("1.11.1\n펼친 메모를 겹치지 않는 페이지로 나누고 목록에서 해당 페이지를 열 수 있게 했습니다."));
+        content.Children.Add(new TextBlock { Text = ".NET 10 · WPF · SQLite · Windows x64", Foreground = Brushes.DimGray, Margin = new Thickness(0, 16, 0, 0) });
+        GroupSections(content);
+        return new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+    }
+    private static TextBlock HelpText(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
     private void FitToWorkArea()
     {
         var screen = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle).WorkingArea;

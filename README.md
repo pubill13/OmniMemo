@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.11.3-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.11.4-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -20,7 +20,7 @@ GitHub 릴리스의 `OmniMemo-1.11.3-win-x64.zip`을 풀고 `OmniMemo.exe`를 �
 
 미니 패널은 새 메모·목록/검색, 접어서 정돈·모두 펼치기, 모두 숨기기/보이기를 제공합니다. **색상별 조작**을 펼치면 선택 색상의 보이는 메모만 접거나 펼칠 수 있습니다. 색상 칩은 보이는 메모 수를 표시하고, 버튼 툴팁에는 현재 지정된 단축키를 함께 표시합니다. 색상별 동작은 전체 정돈하지 않습니다. 헤더에서 압정·설정·닫기를 사용할 수 있고 제목을 드래그하면 패널을 옮깁니다.
 
-설정은 `배치 / 단축키 / 일반 / 백업`으로 나뉩니다. 배치에는 **접었을 때 / 펼쳤을 때 / 순서와 간격**을 모았습니다. `여러 줄로 배치`는 한 줄을 채우고 다음 줄로 넘어가며, 가로·세로 한 줄은 줄바꿈하지 않습니다. 여러 줄 배치의 `한 줄에 놓을 메모 수`는 자동 또는 1~30개를 지정합니다. 자동은 시작점 오른쪽의 가용 폭으로 계산합니다. 색상순이면 새 색에서 줄을 바꾸고 같은 색은 먼저 만든 순서입니다.
+설정은 `배치 / 단축키 / 일반 / 백업 / 도움말 / 버전`으로 나뉩니다. 배치에는 **접었을 때 / 펼쳤을 때 / 순서와 간격**을 모았습니다. `여러 줄로 배치`는 한 줄을 채우고 다음 줄로 넘어가며, 가로·세로 한 줄은 줄바꿈하지 않습니다. 여러 줄 배치의 `한 줄에 놓을 메모 수`는 자동 또는 1~30개를 지정합니다. 자동은 시작점 오른쪽의 가용 폭으로 계산합니다. 색상순이면 새 색에서 줄을 바꾸고 같은 색은 먼저 만든 순서입니다.
 
 `화면에서 지정`으로 시작점을 고르고, 세부 조정에서 X·Y를 입력합니다. 미리보기 버튼은 별도 창을 열며 적용 전 설정과 보이는 메모를 반영합니다. 실제 메모를 움직이지 않습니다. **적용은 설정만 저장**합니다. 일반 탭에서 로그인 자동 실행을 적용하고, 백업 탭의 백업·복원 버튼은 즉시 실행합니다.
 
@@ -68,15 +68,15 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.11.3/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.11.4/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.11.3/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.11.3/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.11.3/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.11.4/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.11.4/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.11.4/win-x64/OmniMemo.exe
 dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-1.9.json
 ```
 
@@ -114,3 +114,8 @@ dotnet run --project scripts/ArrangementVerification -c Release -- --output arti
 - 메모 상단 접기 버튼과 현재 메모 접기 단축키는 펼친 창의 현재 위치에 타일을 남깁니다.
 - 이전 정돈 위치는 직접 접기에서 사용하지 않습니다. 접어서 정돈을 실행한 경우에만 설정된 정렬 위치로 이동합니다.
 - 직접 접기 위치 저장·왕복 회귀 테스트를 추가했습니다. 전체 테스트 237개 통과.
+
+## 1.11.4 변경 사항
+
+- 설정에 도움말·버전 탭을 추가했습니다. 도움말은 직접 접기와 정돈의 차이, 페이지 이동, 숨김·휴지통, 기본 단축키, 저장·복구 방법을 안내합니다.
+- 버전 탭은 실행 중인 프로그램의 버전과 최근 변경 내역을 표시합니다. 두 안내 탭에서는 적용 버튼을 숨깁니다.

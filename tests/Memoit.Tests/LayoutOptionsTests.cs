@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using Memoit.Services;
 using Memoit.Views;
 using Memoit.Models;
@@ -132,7 +133,7 @@ public sealed class LayoutOptionsTests
         });
     }
     [Fact]
-    public void UnifiedSettingsExposeFourTabsAndStartupOnlyOnApply()
+    public void UnifiedSettingsExposeHelpAndVersionTabsAndStartupOnlyOnApply()
     {
         Sta(() =>
         {
@@ -140,7 +141,9 @@ public sealed class LayoutOptionsTests
             try
             {
                 var tabs = Field<TabControl>(window, "tabs");
-                Assert.Equal(new[] { "배치", "단축키", "일반", "백업" }, tabs.Items.Cast<TabItem>().Select(t => t.Header));
+                Assert.Equal(new[] { "배치", "단축키", "일반", "백업", "도움말", "버전" }, tabs.Items.Cast<TabItem>().Select(t => t.Header));
+                Assert.Contains("단축키", FindText(tabs.Items[4]));
+                Assert.Contains(typeof(LayoutOptionsWindow).Assembly.GetName().Version!.ToString(3), FindText(tabs.Items[5]));
                 window.SelectTab(SettingsTab.General); Assert.Equal(2, tabs.SelectedIndex);
                 window.SetAutoStart(false);
                 Field<CheckBox>(window, "autoStart").IsChecked = true;
@@ -152,6 +155,19 @@ public sealed class LayoutOptionsTests
             }
             finally { window.AllowClose = true; window.Close(); }
         });
+    }
+    private static string FindText(object tab)
+    {
+        var root = ((TabItem)tab).Content as DependencyObject;
+        return root is null ? "" : string.Join("\n", Descendants<TextBlock>(root).Select(t => t.Text));
+    }
+    private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            if (child is T value) yield return value;
+            foreach (var descendant in Descendants<T>(child)) yield return descendant;
+        }
     }
     [Fact]
     public void ColumnModeValidatesManualCountAndPreviewIsNotEmbedded()
