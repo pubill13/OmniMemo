@@ -128,8 +128,10 @@ public partial class NoteWindow : Window
         var work = WindowPlacement.GetWorkArea(this);
         var note = vm.Snapshot;
         var target = collapse
-            ? new Rect((note.CollapsedLeft ?? Left) * dpi.DpiScaleX,
-                (note.CollapsedTop ?? Top) * dpi.DpiScaleY, 36 * dpi.DpiScaleX, 36 * dpi.DpiScaleY)
+            // Directly collapsing a note follows the position the user is looking at.
+            // The saved collapsed anchor belongs to explicit arrange commands and may
+            // still point at an older grid position.
+            ? new Rect(current.Left, current.Top, 36 * dpi.DpiScaleX, 36 * dpi.DpiScaleY)
             : new Rect(current.Left, current.Top, Math.Min(note.Width * dpi.DpiScaleX, work.Width),
                 Math.Min(note.Height * dpi.DpiScaleY, work.Height));
         if (!collapse)

@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.11.2-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.11.3-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -68,15 +68,15 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.11.2/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.11.3/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.11.2/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.11.2/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.11.2/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.11.3/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.11.3/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.11.3/win-x64/OmniMemo.exe
 dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-1.9.json
 ```
 
@@ -108,3 +108,9 @@ dotnet run --project scripts/ArrangementVerification -c Release -- --output arti
 - 휴지통의 제목·삭제 날짜·작업 버튼을 분리하고 긴 제목을 말줄임 처리합니다.
 - 휴지통 비우기는 검색 결과와 관계없이 모든 삭제된 메모를 대상으로 합니다. 전체 개수와 복구 불가 안내를 한 번 확인하고, 취소가 기본값입니다.
 - 236개 테스트 통과. 기본/최소 폭 렌더링에서 버튼 배치와 긴 제목 처리를 확인했습니다.
+
+## 1.11.3 변경 사항
+
+- 메모 상단 접기 버튼과 현재 메모 접기 단축키는 펼친 창의 현재 위치에 타일을 남깁니다.
+- 이전 정돈 위치는 직접 접기에서 사용하지 않습니다. 접어서 정돈을 실행한 경우에만 설정된 정렬 위치로 이동합니다.
+- 직접 접기 위치 저장·왕복 회귀 테스트를 추가했습니다. 전체 테스트 237개 통과.

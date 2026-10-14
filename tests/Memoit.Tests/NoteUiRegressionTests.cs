@@ -84,8 +84,9 @@ public sealed class NoteUiRegressionTests
             window.ToggleCollapsed(false); Pump();
             Assert.Equal(tile, WindowPlacement.GetPosition(window));
             window.Left += 100; window.Top += 80; Pump();
+            var moved = WindowPlacement.GetPosition(window);
             window.ToggleCollapsed(false); Pump();
-            Assert.Equal(tile, WindowPlacement.GetPosition(window));
+            Assert.Equal(moved, WindowPlacement.GetPosition(window));
         }
         finally { window.AllowClose = true; window.Close(); }
     });
@@ -104,8 +105,9 @@ public sealed class NoteUiRegressionTests
             WindowPlacement.Move(window, tile); Pump();
             window.ToggleCollapsed(false); Pump();
             Assert.True(work.Contains(WindowPlacement.GetBounds(window)));
+            var expanded = WindowPlacement.GetPosition(window);
             window.ToggleCollapsed(false); Pump();
-            Assert.Equal(tile, WindowPlacement.GetPosition(window));
+            Assert.Equal(expanded, WindowPlacement.GetPosition(window));
         }
         finally { window.AllowClose = true; window.Close(); }
     });
@@ -167,6 +169,29 @@ public sealed class NoteUiRegressionTests
             window.Editor.CaretIndex = 3;
             window.ToggleCollapsed(); window.ToggleCollapsed(); Pump();
             Assert.Equal(3, window.Editor.CaretIndex);
+        }
+        finally { window.AllowClose = true; window.Close(); }
+    });
+
+    [Fact]
+    public void DirectCollapseUsesCurrentExpandedPositionInsteadOfOldArrangeAnchor() => Sta(() =>
+    {
+        using var vm = new NoteViewModel(new Note
+        {
+            Left = 180, Top = 140, Width = 360, Height = 260,
+            CollapsedLeft = 40, CollapsedTop = 50
+        }, _ => Task.CompletedTask);
+        var window = new NoteWindow(vm);
+        try
+        {
+            window.Show(); Pump();
+            window.Left = 620; window.Top = 280; Pump();
+            window.ToggleCollapsed(false); Pump();
+            Assert.True(window.IsCollapsed);
+            Assert.InRange(window.Left, 619, 621);
+            Assert.InRange(window.Top, 279, 281);
+            Assert.InRange(vm.Snapshot.CollapsedLeft ?? double.NaN, 619, 621);
+            Assert.InRange(vm.Snapshot.CollapsedTop ?? double.NaN, 279, 281);
         }
         finally { window.AllowClose = true; window.Close(); }
     });
