@@ -28,11 +28,12 @@ public sealed record MonitorLayout
 
 public sealed record LayoutSettings
 {
-    public int Version { get; init; } = 5;
+    public int Version { get; init; } = 6;
     public bool AutoArrange { get; init; }
     public bool PagedExpansionActive { get; init; }
     public bool NeedsManualArrangementNotice { get; init; }
     public bool NeedsShortcutSimplificationNotice { get; init; }
+    public bool NeedsOperationSeparationNotice { get; init; }
     public bool SortByColor { get; init; }
     public Dictionary<string, MonitorLayout> Monitors { get; init; } = [];
     public Dictionary<string, List<Guid>> ArrangementOrder { get; init; } = [];
@@ -56,7 +57,7 @@ public sealed record LayoutSettings
             || OverlayTop.HasValue && !double.IsFinite(OverlayTop.Value)
             || OverlayColor is not null && !NoteColors.Values.Any(c => NoteColors.Matches(c, OverlayColor)))
             throw new InvalidDataException("미니 패널 위치 또는 색상이 올바르지 않습니다.");
-        if (Version != 5) throw new InvalidDataException("지원하지 않는 타일 설정 버전입니다.");
+        if (Version != 6) throw new InvalidDataException("지원하지 않는 타일 설정 버전입니다.");
         if (Monitors is null || Hotkeys is null || ArrangementOrder is null || PanelLeft.HasValue && !double.IsFinite(PanelLeft.Value)
             || PanelTop.HasValue && !double.IsFinite(PanelTop.Value))
             throw new InvalidDataException("타일 설정 값이 올바르지 않습니다.");
@@ -92,21 +93,23 @@ public sealed record LayoutSettings
         var settings = JsonSerializer.Deserialize<LayoutSettings>(json, JsonOptions)
             ?? throw new InvalidDataException("타일 설정을 읽지 못했습니다.");
         bool missingVersion = !document.RootElement.TryGetProperty("Version", out _);
-        bool migrating = missingVersion || settings.Version is >= 1 and <= 4;
-        if (!migrating && settings.Version != 5)
+        bool simplifying = missingVersion || settings.Version is >= 1 and <= 4;
+        bool migrating = simplifying || settings.Version == 5;
+        if (!migrating && settings.Version != 6)
             throw new InvalidDataException("지원하지 않는 타일 설정 버전입니다.");
         if (settings.Hotkeys is null || settings.Hotkeys.Any(p => string.IsNullOrWhiteSpace(p.Key) || p.Value is null))
             throw new InvalidDataException("단축키 설정이 올바르지 않습니다.");
 
-        if (!migrating && settings.Hotkeys.Keys.Any(key => !HotkeyDefaults.Labels.ContainsKey(key)))
+        bool IsRetained(string key) => HotkeyDefaults.Labels.ContainsKey(key) && (!simplifying || key is not ("Arrange" or "ArrangeExpanded"));
+        if (!simplifying && settings.Hotkeys.Keys.Any(key => !HotkeyDefaults.Labels.ContainsKey(key) || settings.Version == 5 && document.RootElement.TryGetProperty("Hotkeys", out _) && key is ("Arrange" or "ArrangeExpanded")))
             throw new InvalidDataException("지원하지 않는 단축키 동작이 설정에 있습니다.");
 
         // Retired gestures cannot silently acquire a different meaning through a new default.
-        var retiredGestures = settings.Hotkeys.Where(p => !HotkeyDefaults.Labels.ContainsKey(p.Key))
+        var retiredGestures = settings.Hotkeys.Where(p => !IsRetained(p.Key))
             .Select(p => HotkeyService.Normalize(p.Value)).ToHashSet(StringComparer.Ordinal);
-        var hotkeys = settings.Hotkeys.Where(p => HotkeyDefaults.Labels.ContainsKey(p.Key))
+        var hotkeys = settings.Hotkeys.Where(p => IsRetained(p.Key))
             .ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
-        if (migrating && !settings.Hotkeys.ContainsKey("Search") && settings.Hotkeys.TryGetValue("ShowList", out var oldList))
+        if (simplifying && !settings.Hotkeys.ContainsKey("Search") && settings.Hotkeys.TryGetValue("ShowList", out var oldList))
             hotkeys["Search"] = oldList;
         var used = hotkeys.Values.Select(HotkeyService.Normalize).ToHashSet(StringComparer.Ordinal);
         used.UnionWith(retiredGestures);
@@ -119,17 +122,19 @@ public sealed record LayoutSettings
             }
         settings = settings with
         {
-            Version = 5,
+            Version = 6,
             AutoArrange = false,
             NeedsManualArrangementNotice = settings.NeedsManualArrangementNotice || missingVersion || settings.Version is 1 or 2,
-            NeedsShortcutSimplificationNotice = settings.NeedsShortcutSimplificationNotice || migrating,
+            NeedsShortcutSimplificationNotice = settings.NeedsShortcutSimplificationNotice || simplifying,
+            NeedsOperationSeparationNotice = settings.NeedsOperationSeparationNotice || migrating,
             Hotkeys = hotkeys
         };
         settings.Validate();
         if (migrating)
         {
-            // Load does not overwrite the source. Preserve it before any caller can save v5.
-            string backup = filePath + ".pre-v5.bak";
+            // Preserve the source before a caller saves migrated settings.
+            if (simplifying && !File.Exists(filePath + ".pre-v5.bak")) File.Copy(filePath, filePath + ".pre-v5.bak");
+            string backup = filePath + ".pre-v6.bak";
             if (!File.Exists(backup)) File.Copy(filePath, backup);
         }
         return settings;

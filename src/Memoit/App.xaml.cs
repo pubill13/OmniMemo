@@ -166,6 +166,7 @@ public partial class App : Application
             });
             window.DeleteRequested += () => RunOperation(() => DeleteNotesAsync([vm.Snapshot.Id], false));
             window.Activated += (_, _) => RecordNoteActivation(target);
+            window.CollapsedStateChanged += () => DetachFromPages(vm.Snapshot.Id);
             window.SourceInitialized += (_, _) => ApplyInitialNotePlacement(target, vm.Snapshot.Id);
             window.SourceInitialized += (_, _) => WindowPlacement.KeepVisible(target);
             window.Loaded += (_, _) => WindowPlacement.KeepVisible(target);
@@ -199,7 +200,6 @@ public partial class App : Application
         list?.SetNotes(notes.Values.Where(n => n.Snapshot.DeletedAt is null).Select(n => n.Snapshot), false);
         trashWindow?.SetNotes(notes.Values.Select(n => n.Snapshot));
         overlayPanel?.SetNotes(notes.Values.Select(n => n.Snapshot));
-        overlayPanel?.SetHasVisibleNotes(windows.Values.Any(w => w.IsVisible));
         if (layoutPanel?.IsVisible == true) layoutPanel.RefreshPreview();
     }
 
@@ -220,17 +220,22 @@ public partial class App : Application
 
     private async Task SetAllVisibleAsync(bool visible)
     {
-        ClearPageSession();
-        foreach (var vm in notes.Values.Where(n => n.Snapshot.DeletedAt is null))
+        var active = notes.Values.Where(n => n.Snapshot.DeletedAt is null).ToArray();
+        foreach (var vm in active)
         {
             vm.SetVisible(visible);
-            if (!await vm.FlushAsync()) { vm.SetVisible(true); ShowNote(vm); throw new IOException(vm.SaveStatus); }
-            if (visible) ShowNote(vm, false);
+            if (visible)
+            {
+                if (windows.TryGetValue(vm.Snapshot.Id, out var window))
+                { if (!IsPageMember(vm.Snapshot.Id)) { window.ShowActivated = false; window.Show(); } }
+                else ShowNote(vm, false);
+            }
             else if (windows.TryGetValue(vm.Snapshot.Id, out var window)) window.Hide();
         }
-        if (visible && layoutSettings.PagedExpansionActive) await RunArrangementAsync("RestorePages", true);
+        ApplyPageVisibility();
+        if (!await NoteViewModel.FlushManyAsync(active, store.SaveManyAsync))
+            throw new IOException("표시 상태를 저장하지 못했습니다. 저장 다시 시도를 이용하세요.");
     }
-
     private void ShowSettings() => OpenSettings(SettingsTab.Layout);
 
     private async Task BackupAsync()

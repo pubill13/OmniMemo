@@ -22,6 +22,7 @@ public partial class NoteWindow : Window
     private bool draggingHeader;
     public bool IsDragging => draggingHeader || tilePress.HasValue;
     public event Action? InteractionFinished;
+    public event Action? CollapsedStateChanged;
     public bool AllowClose { get; set; }
     public bool IsCollapsed => vm.IsCollapsed;
     public string CollapseGesture { get; set; } = "Ctrl+Shift+Space";
@@ -141,6 +142,7 @@ public partial class NoteWindow : Window
         try { WindowPlacement.MoveTogether([(this, target)]); }
         finally { EndArrangement(); }
         if (collapse) { WindowPlacement.KeepVisible(this); SaveBounds(); }
+        CollapsedStateChanged?.Invoke();
         if (!collapse && focusEditor) Editor.Focus();
     }
     private void OnClosing(object? sender, CancelEventArgs e)

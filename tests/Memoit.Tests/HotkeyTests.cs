@@ -22,7 +22,7 @@ public sealed class HotkeyTests
             Assert.Equal("Ctrl+Alt+Shift+F", loaded.Hotkeys["Search"]);
             HotkeyService.Validate(loaded.Hotkeys);
         }
-        finally { File.Delete(file); File.Delete(file + ".pre-v5.bak"); }
+        finally { File.Delete(file); File.Delete(file + ".pre-v5.bak"); File.Delete(file + ".pre-v6.bak"); }
     }
 
     [Theory]
@@ -38,10 +38,10 @@ public sealed class HotkeyTests
     {
         var defaults = HotkeyDefaults.Create();
         HotkeyService.Validate(defaults);
-        Assert.Equal(6, defaults.Count);
+        Assert.Equal(8, defaults.Count);
         Assert.DoesNotContain("ToggleAuto", defaults.Keys);
         Assert.DoesNotContain("ArrangeCollapsed", defaults.Keys);
-        Assert.DoesNotContain("ArrangeExpanded", defaults.Keys);
+        Assert.Equal("", defaults["Arrange"]); Assert.Equal("", defaults["ArrangeExpanded"]);
         Assert.DoesNotContain("UndoArrange", defaults.Keys);
         Assert.Equal("Ctrl+Alt+Shift+N", defaults["NewNote"]);
         Assert.Equal("Ctrl+Alt+Shift+F", defaults["Search"]);

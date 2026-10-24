@@ -53,20 +53,20 @@ public partial class App
         updatingPages = true;
         try
         {
-            // Prune explicitly hidden/deleted notes, never change logical visibility for paging.
+            // Visibility changes retain page membership and the current page.
             foreach (var pair in pageSessions.ToArray())
             {
                 var session = pair.Value;
                 var current = session.Pages.ElementAtOrDefault(session.Index);
                 foreach (var page in session.Pages)
-                    foreach (var id in page.Keys.Where(id => !IsLogicallyVisible(id) || !windows.ContainsKey(id)).ToArray()) page.Remove(id);
+                    foreach (var id in page.Keys.Where(id => !notes.TryGetValue(id, out var vm) || vm.Snapshot.DeletedAt is not null || !windows.ContainsKey(id)).ToArray()) page.Remove(id);
                 session.Pages.RemoveAll(p => p.Count == 0);
                 if (session.Pages.Count == 0) { pageSessions.Remove(pair.Key); continue; }
                 int retained = current is null ? -1 : session.Pages.IndexOf(current);
                 session.Index = retained >= 0 ? retained : Math.Min(session.Index, session.Pages.Count - 1);
             }
             ApplyPageVisibility();
-            var displays = pageSessions.Select(p => new PageDisplay(p.Key, p.Value.Label, p.Value.Index,
+            var displays = pageSessions.Where(p => p.Value.Pages.Any(page => page.Keys.Any(IsLogicallyVisible))).Select(p => new PageDisplay(p.Key, p.Value.Label, p.Value.Index,
                 p.Value.Pages.Count, p.Value.Pages[p.Value.Index].Count, p.Value.Pages.Sum(page => page.Count))).ToArray();
             overlayPanel?.SetPages(displays);
             bool standalone = overlayPanel?.IsVisible != true && displays.Any(p => p.Total > 1);
@@ -96,5 +96,18 @@ public partial class App
         pageSessions.Clear();
         pageWindow?.Hide();
         overlayPanel?.SetPages([]);
+    }
+
+    private async void DetachFromPages(Guid id)
+    {
+        bool removed = false;
+        foreach (var session in pageSessions.Values)
+            foreach (var page in session.Pages)
+                removed |= page.Remove(id);
+        if (!removed) return;
+        RefreshPageControls();
+        layoutSettings = layoutSettings with { PagedExpansionActive = pageSessions.Values.Any(s => s.Pages.Count > 1) };
+        try { await PersistLayoutAsync(); }
+        catch (Exception ex) { ArrangementNotice("페이지 상태를 저장하지 못했습니다: " + ex.Message, true); }
     }
 }

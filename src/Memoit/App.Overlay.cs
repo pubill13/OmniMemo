@@ -41,7 +41,6 @@ public partial class App
         overlayPanel.FlushPreferences();
         overlayPanel.RefreshSettings(layoutSettings);
         overlayPanel.SetNotes(notes.Values.Select(n => n.Snapshot));
-        overlayPanel.SetHasVisibleNotes(windows.Values.Any(w => w.IsVisible));
 
 
         overlayPanel.ShowActivated = activate;
@@ -94,13 +93,5 @@ public partial class App
         catch (Exception ex) { ArrangementNotice(ex.Message, true); }
         finally { arranging = false; RefreshList(); }
     }
-    private async Task SetFilteredCollapsedAsync(bool collapsed, string? color)
-    {
-        var selected = windows.Where(p => p.Value.IsVisible && notes[p.Key].Snapshot.DeletedAt is null
-            && NoteColors.Matches(notes[p.Key].Snapshot.Color, color)).ToArray();
-        foreach (var pair in selected)
-            if (pair.Value.IsCollapsed != collapsed) pair.Value.ToggleCollapsed(false);
-        bool saved = await NoteViewModel.FlushManyAsync(selected.Select(p => notes[p.Key]), store.SaveManyAsync);
-        if (!saved) throw new IOException("일부 메모를 저장하지 못했습니다. 변경 내용은 유지되며 다음 편집 또는 종료 때 다시 저장합니다.");
-    }
+    private Task SetFilteredCollapsedAsync(bool collapsed, string? color) => ChangeCollapsedStateAsync(collapsed, color, true);
 }

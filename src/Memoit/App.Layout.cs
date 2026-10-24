@@ -16,12 +16,14 @@ public partial class App
 
     private void ExecuteCommand(string command)
     {
-        if (busy || shuttingDown) return;
+        if (busy || arranging || shuttingDown) return;
         if (command == "TogglePanel") { ToggleLayoutPanel(); return; }
         if (command == "ToggleOverlay") { ToggleOverlayPanel(); return; }
         if (command == "ShowList") { ShowList(); return; }
         if (command == "Search") { ShowList(true); return; }
-        if (command is "Arrange" or "CollapseAll" or "ExpandAll" or "ToggleCollapsed" or "RetrySave"
+        if (command is "CollapseAll" or "ExpandAll" or "ToggleCollapsed")
+        { RunStateChange(command); return; }
+        if (command is "Arrange" or "ArrangeExpanded" or "RetrySave"
             or "SortCreated" or "SortColor" or "SortTitle" or "ShapeGrid" or "ShapeHorizontal" or "ShapeVertical")
         { RunArrangement(command); return; }
         RunOperation(async () =>
@@ -87,8 +89,7 @@ public partial class App
             var candidates = windows.Where(p => IsLogicallyVisible(p.Key) && (p.Value.IsVisible || IsPageMember(p.Key)))
                 .Where(p => command != "RestorePages" || !p.Value.IsCollapsed)
                 .Select(p => (Id: p.Key, Window: p.Value, Bounds: WindowPlacement.GetBounds(p.Value))).ToArray();
-            bool collapsed = command is not ("ExpandAll" or "RestorePages");
-            if (command == "ToggleCollapsed") collapsed = candidates.Any(p => !p.Window.IsCollapsed);
+            bool collapsed = command is not ("ArrangeExpanded" or "RestorePages");
             LayoutSort? sort = command switch { "SortCreated" => LayoutSort.Created, "SortColor" => LayoutSort.Color, "SortTitle" => LayoutSort.Title, _ => null };
             LayoutShape? shape = command switch { "ShapeGrid" => LayoutShape.Grid, "ShapeHorizontal" => LayoutShape.Horizontal, "ShapeVertical" => LayoutShape.Vertical, _ => null };
             var updated = new Dictionary<string, MonitorLayout>(layoutSettings.Monitors);
@@ -156,7 +157,7 @@ public partial class App
             LastArrangementTiming = new ArrangementTiming(calculatedMs, movedMs - calculatedMs, storedMs - movedMs, changed.Length);
             if (!saved) throw new IOException("화면은 변경했지만 저장하지 못했습니다. 트레이의 저장 다시 시도를 눌러 주세요.");
             ArrangementNotice(skipped > 0 ? $"일부 타일을 배치하지 못했습니다 ({skipped}개). 시작점·간격을 조정해 주세요."
-                : collapsed ? "접어서 정돈했습니다." : "모두 펼쳤습니다.", skipped > 0);
+                : collapsed ? "접어서 정돈했습니다." : "펼쳐서 정돈했습니다.", skipped > 0);
         }
         catch (Exception ex) { ArrangementNotice(ex.Message, true); }
         finally { arranging = false; RefreshList(); }
@@ -187,12 +188,14 @@ public partial class App
 
     private void ShowArrangementUpgradeNotice()
     {
-        if (!layoutSettings.NeedsManualArrangementNotice && !layoutSettings.NeedsShortcutSimplificationNotice) return;
-        string message = layoutSettings.NeedsShortcutSimplificationNotice
+        if (!layoutSettings.NeedsOperationSeparationNotice && !layoutSettings.NeedsManualArrangementNotice && !layoutSettings.NeedsShortcutSimplificationNotice) return;
+        string message = layoutSettings.NeedsOperationSeparationNotice
+            ? "모두 접기·펼치기는 현재 위치를 유지합니다. 기존 전환 단축키는 더 이상 정렬하지 않습니다. 위치 정리는 접어서 정돈·펼쳐서 정돈을 사용하세요."
+            : layoutSettings.NeedsShortcutSimplificationNotice
             ? "설정 화면을 정리하고 단축키를 6개로 줄였습니다. 숨김/보임과 정돈/펼치기는 각각 하나의 키로 전환합니다. 제거된 키는 해제했으며 이전 설정은 백업했습니다."
             : "자동 정렬이 정돈 명령으로 바뀌었습니다. 필요할 때 미니 패널에서 정돈하세요.";
         tray?.ShowBalloonTip(7000, "OmniMemo · 설정 변경 안내", message, System.Windows.Forms.ToolTipIcon.Info);
-        try { SaveLayoutSettings(layoutSettings with { NeedsManualArrangementNotice = false, NeedsShortcutSimplificationNotice = false }); }
+        try { SaveLayoutSettings(layoutSettings with { NeedsOperationSeparationNotice = false, NeedsManualArrangementNotice = false, NeedsShortcutSimplificationNotice = false }); }
         catch (Exception ex) { ArrangementNotice("변경 안내 상태를 저장하지 못했습니다: " + ex.Message, true); }
     }
 
@@ -260,7 +263,7 @@ public partial class App
                 OverlayColor = layoutSettings.OverlayColor, OverlayVisible = layoutSettings.OverlayVisible,
                 PagedExpansionActive = layoutSettings.PagedExpansionActive,
                 ArrangementOrder = layoutSettings.ArrangementOrder, NeedsManualArrangementNotice = layoutSettings.NeedsManualArrangementNotice,
-                NeedsShortcutSimplificationNotice = layoutSettings.NeedsShortcutSimplificationNotice
+                NeedsOperationSeparationNotice = layoutSettings.NeedsOperationSeparationNotice, NeedsShortcutSimplificationNotice = layoutSettings.NeedsShortcutSimplificationNotice
             };
             SettingsApply.Save(candidate, autoStart, StartupRegistration.IsEnabled,
                 StartupRegistration.SetEnabled, SaveLayoutSettings);

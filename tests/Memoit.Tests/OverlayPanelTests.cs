@@ -18,6 +18,43 @@ namespace Memoit.Tests;
 public sealed class OverlayPanelTests
 {
     [Fact]
+    public void PinIsFilledOnlyWhenEnabledAndTitleHasSeparateHitTarget() => RunSta(() =>
+    {
+        var panel = new OverlayPanelWindow(new LayoutSettings());
+        try
+        {
+            var root = (FrameworkElement)panel.Content;
+            root.Measure(new Size(280, double.PositiveInfinity));
+            root.Arrange(new Rect(0, 0, 280, root.DesiredSize.Height)); root.UpdateLayout();
+            var pin = Descendants(panel).OfType<ToggleButton>().Single(b => AutomationProperties.GetName(b) == "패널 항상 위");
+            var title = Descendants(panel).OfType<TextBlock>().Single(t => t.Text == "OmniMemo");
+            var pinRect = pin.TransformToAncestor(root).TransformBounds(new Rect(pin.RenderSize));
+            var titleRect = title.TransformToAncestor(root).TransformBounds(new Rect(title.RenderSize));
+            var overlap = Rect.Intersect(pinRect, titleRect);
+            Assert.True(overlap.IsEmpty || overlap.Width == 0 || overlap.Height == 0, $"pin={pinRect}; title={titleRect}");
+            var icon = Assert.IsType<System.Windows.Shapes.Path>(pin.Content);
+            int changes = 0; panel.PreferencesChanged += () => changes++;
+            Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(icon.Fill).Color);
+            var toggle = (IToggleProvider)new ToggleButtonAutomationPeer(pin);
+            toggle.Toggle();
+            Assert.True(panel.Topmost); Assert.Equal(1, changes);
+            Assert.Equal(SystemParameters.HighContrast ? SystemColors.WindowTextColor : Color.FromRgb(0x17, 0x6b, 0x61), Assert.IsType<SolidColorBrush>(icon.Fill).Color);
+            var surface = Assert.IsType<Border>(pin.Template.FindName("surface", pin));
+            Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(surface.BorderBrush).Color);
+            toggle.Toggle();
+            Assert.False(panel.Topmost); Assert.Equal(2, changes);
+            Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(icon.Fill).Color);
+            string? command = null; panel.CommandRequested += c => command = c;
+            foreach (var pair in new[] { ("모두 접기", "CollapseAll"), ("모두 펼치기", "ExpandAll"), ("모두 숨기기", "HideAll"), ("모두 보이기", "ShowAll"), ("접어서 정돈", "Arrange"), ("펼쳐서 정돈", "ArrangeExpanded") })
+            {
+                Descendants(panel).OfType<Button>().Single(b => Equals(b.Content, pair.Item1)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.Equal(pair.Item2, command);
+            }
+        }
+        finally { panel.AllowClose = true; panel.Close(); }
+    });
+
+    [Fact]
     public void RemovedOpacityIgnoresLegacyPreference()
     {
         RunSta(() =>
@@ -145,10 +182,10 @@ public sealed class OverlayPanelTests
                     var expand = buttons.Single(b => Equals(b.Content, "모두 펼치기"));
                     Assert.Equal(arrange.ActualWidth, expand.ActualWidth);
                     Assert.True(arrange.ActualWidth >= 110);
-                    Assert.Contains("Ctrl+Alt+Shift+C", arrange.ToolTip.ToString());
+                    Assert.DoesNotContain("Ctrl+Alt+Shift+C", arrange.ToolTip.ToString());
                     var custom = new LayoutSettings(); custom.Hotkeys["ToggleCollapsed"] = "Ctrl+Alt+Q";
                     panel.RefreshSettings(custom);
-                    Assert.Equal("접어서 정돈\nCtrl+Alt+Q", arrange.ToolTip);
+                    Assert.Equal("접어서 정돈", arrange.ToolTip);
                     Assert.Equal("모두 펼치기\nCtrl+Alt+Q", expand.ToolTip);
                     ((IToggleProvider)new ToggleButtonAutomationPeer(chips[1])).Toggle();
                     Assert.Equal("#FFF2B3", panel.SelectedColor);
@@ -164,8 +201,8 @@ public sealed class OverlayPanelTests
                     buttons.Single(b => Equals(b.Content, "접어서 정돈")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Assert.Equal("Arrange", command);
                     buttons.Single(b => Equals(b.Content, "모두 펼치기")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Assert.Equal("ExpandAll", command);
-                    panel.SetHasVisibleNotes(false); Assert.Contains(buttons, b => Equals(b.Content, "모두 보이기"));
-                    panel.SetHasVisibleNotes(true); Assert.Contains(buttons, b => Equals(b.Content, "모두 숨기기"));
+                    Assert.Contains(buttons, b => Equals(b.Content, "모두 보이기"));
+                    Assert.Contains(buttons, b => Equals(b.Content, "모두 숨기기"));
                     Assert.DoesNotContain(buttons, b => Equals(b.Content, "이전 배치로"));
                     Assert.Empty(Descendants(panel).OfType<Slider>());
                     panel.ShowStatus("저장 실패", true); Assert.Contains(Descendants(panel).OfType<TextBlock>(), b => b.Text == "저장 실패");

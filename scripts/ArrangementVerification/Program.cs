@@ -61,8 +61,10 @@ internal sealed class VerificationApp : App
                 }
             }
             await Populate(100, false, false);
-            await Measure("ExpandAll", 100, false, "overflow-pages");
+            await Measure("ArrangeExpanded", 100, false, "overflow-pages");
             await VerifyPageLifecycle();
+            await VerifyStateBoundaries();
+            await VerifyFilteredAndIndividualPaging();
             checks.Add("No note was disabled by a bulk command; sentinel keyboard and foreground focus stayed unchanged.");
             WriteResult(true, null);
             Console.WriteLine(output);
@@ -100,10 +102,10 @@ internal sealed class VerificationApp : App
                 Top = monitor.WorkArea.Top / monitor.Scale + 120 + (i / 10) * 42,
                 CreatedAt = DateTimeOffset.UnixEpoch.AddSeconds(i), IsPinned = i % 4 == 0 };
             var vm = new NoteViewModel(note, Store.SaveAsync);
-            var window = new NoteWindow(vm) { ShowActivated = false };
+            Notes.Add(note.Id, vm);
+            typeof(App).GetMethod("ShowNote", Private)!.Invoke(this, [vm, false]);
+            var window = NoteWindows[note.Id];
             window.IsEnabledChanged += (_, args) => { if (args.NewValue is false) disabledEvents++; };
-            Notes.Add(note.Id, vm); NoteWindows.Add(note.Id, window);
-            window.Show();
         }
         await Store.SaveManyAsync(Notes.Values.Select(vm => vm.Snapshot).ToArray());
         if (panel)
@@ -122,7 +124,8 @@ internal sealed class VerificationApp : App
         int disabledBefore = disabledEvents;
         var foreground = GetForegroundWindow();
         var watch = Stopwatch.StartNew();
-        var task = (Task)typeof(App).GetMethod("RunArrangementAsync", Private)!.Invoke(this, [command, false])!;
+        var beforeBounds = NoteWindows.ToDictionary(p => p.Key, p => WindowPlacement.GetBounds(p.Value));
+        var task = command is "CollapseAll" or "ExpandAll" ? ChangeState(command == "CollapseAll") : Arrange(command);
         double synchronousReturnMs = watch.Elapsed.TotalMilliseconds;
         await RenderSettled();
         double renderSettledMs = watch.Elapsed.TotalMilliseconds;
@@ -131,8 +134,15 @@ internal sealed class VerificationApp : App
         Require(disabledEvents == disabledBefore, "A bulk command disabled a note window.");
         Require(sentinelEditor!.IsKeyboardFocused && GetForegroundWindow() == foreground, "A bulk command stole keyboard or foreground focus.");
         Require(Notes.Values.All(vm => !vm.IsDirty), "Bulk persistence failed or left dirty notes: " + string.Join(";", Notes.Values.Where(v => v.IsDirty).Select(v => v.SaveStatus)));
-        bool collapsed = command != "ExpandAll";
+        bool collapsed = command is "CollapseAll" or "Arrange";
         Require(NoteWindows.Values.All(w => w.IsCollapsed == collapsed), "Bulk command did not update all note states.");
+        if (command is "CollapseAll" or "ExpandAll")
+            foreach (var pair in NoteWindows)
+            {
+                var after = WindowPlacement.GetBounds(pair.Value);
+                Require(Math.Abs(after.Left - beforeBounds[pair.Key].Left) < 2 && Math.Abs(after.Top - beforeBounds[pair.Key].Top) < 2,
+                    "State-only operation rearranged a note that fits on screen.");
+            }
         var settings = (LayoutSettings)Field("layoutSettings")!;
         var savedSettings = LayoutSettings.Load(Path.Combine(data, "layout.json"));
         Require(settings.ArrangementOrder.All(p => savedSettings.ArrangementOrder[p.Key].SequenceEqual(p.Value)), "Saved arrangement order differs after reload.");
@@ -141,7 +151,7 @@ internal sealed class VerificationApp : App
         measurements.Add(new { command, count, panel, scenario, calculationMs = Value("CalculationMs"), moveMs = Value("MoveMs"),
             saveMs = Value("SaveMs"), synchronousReturnMs, renderSettledMs, completedMs,
             within200Ms = renderSettledMs <= 200 });
-        if (command == "ExpandAll")
+        if (command == "ArrangeExpanded")
         {
             var visible = NoteWindows.Where(p => p.Value.IsVisible).ToArray();
             VerifyNoOverlap(visible.Select(p => p.Value));
@@ -193,19 +203,40 @@ internal sealed class VerificationApp : App
         var hidden = NoteWindows.First(p => !p.Value.IsVisible);
         Notes[hidden.Key].SetVisible(false); await Notes[hidden.Key].FlushAsync();
         typeof(App).GetMethod("RefreshList", Private)!.Invoke(this, null);
-        await (Task)typeof(App).GetMethod("RunArrangementAsync", Private)!.Invoke(this, ["CollapseAll", false])!;
+        var beforeCollapse = NoteWindows.ToDictionary(p => p.Key, p => WindowPlacement.GetBounds(p.Value));
+        await ChangeState(true);
         Require(NoteWindows.Count(p => p.Value.IsVisible && p.Value.IsCollapsed) == 99, "Collapse omitted off-page notes or revealed hidden note.");
+        foreach (var pair in NoteWindows.Where(p => p.Key != hidden.Key))
+        {
+            var bounds = WindowPlacement.GetBounds(pair.Value);
+            Require(Math.Abs(bounds.Left - beforeCollapse[pair.Key].Left) < 2 && Math.Abs(bounds.Top - beforeCollapse[pair.Key].Top) < 2,
+                "Collapse rearranged an off-page note.");
+        }
+        Require(!hidden.Value.IsCollapsed && !hidden.Value.IsVisible, "Hidden note changed state.");
+        Require(!((LayoutSettings)Field("layoutSettings")!).PagedExpansionActive, "State-only operation retained paging.");
         await (Task)typeof(App).GetMethod("SetAllVisibleAsync", Private)!.Invoke(this, [true])!;
         Require(Notes.Values.All(n => n.Snapshot.IsVisible), "ShowAll did not include hidden note.");
         Require(NoteWindows.Values.Count(w => w.IsVisible && w.IsCollapsed) == 99, "ShowAll changed collapsed states.");
-        await (Task)typeof(App).GetMethod("RunArrangementAsync", Private)!.Invoke(this, ["ExpandAll", false])!;
+        await Arrange("ArrangeExpanded");
+        typeof(App).GetMethod("ChangeExpandedPage", Private)!.Invoke(this, [monitor.Id, 1]);
+        var visibleBeforeHide = NoteWindows.Where(p => p.Value.IsVisible).Select(p => p.Key).ToHashSet();
+        var boundsBeforeHide = NoteWindows.ToDictionary(p => p.Key, p => WindowPlacement.GetBounds(p.Value));
+        var snapshotsBeforeHide = Notes.ToDictionary(p => p.Key, p => p.Value.Snapshot);
         await (Task)typeof(App).GetMethod("SetAllVisibleAsync", Private)!.Invoke(this, [false])!;
+        Require(NoteWindows.Values.All(w => !w.IsVisible), "HideAll left a note visible.");
         await (Task)typeof(App).GetMethod("SetAllVisibleAsync", Private)!.Invoke(this, [true])!;
         Require(NoteWindows.Values.Count(w => w.IsVisible) < 100, "ShowAll did not restore pages.");
+        Require(visibleBeforeHide.SetEquals(NoteWindows.Where(p => p.Value.IsVisible).Select(p => p.Key)), "Hide/show changed the current page.");
+        foreach (var pair in NoteWindows)
+        {
+            Require(Near(boundsBeforeHide[pair.Key], WindowPlacement.GetBounds(pair.Value)), "Hide/show rearranged a note.");
+            var before = snapshotsBeforeHide[pair.Key]; var after = Notes[pair.Key].Snapshot;
+            Require(before.IsCollapsed == after.IsCollapsed && before.IsPinned == after.IsPinned, "Hide/show changed collapse or pin state.");
+        }
         Require(((LayoutSettings)Field("layoutSettings")!).PagedExpansionActive, "Restart marker missing.");
         typeof(App).GetMethod("ClearPageSession", Private)!.Invoke(this, null);
         foreach (var w in NoteWindows.Values) { w.ShowActivated = false; w.Show(); }
-        await (Task)typeof(App).GetMethod("RunArrangementAsync", Private)!.Invoke(this, ["RestorePages", false])!;
+        await Arrange("RestorePages");
         Require(NoteWindows.Values.Count(w => w.IsVisible) < 100, "Restart pages not rebuilt.");
         VerifyNoOverlap(NoteWindows.Values.Where(w => w.IsVisible));
         typeof(App).GetMethod("CreateList", Private)!.Invoke(this, null);
@@ -219,8 +250,83 @@ internal sealed class VerificationApp : App
         Require(ReferenceEquals(trash, Field("trashWindow")), "Duplicate trash window created.");
         trash.Close(); Require(Field("trashWindow") is null, "Trash close retained stale window.");
         list.AllowClose = true; list.Close();
-        checks.Add("100-note overflow: paging, manual input/drag, hidden exclusion, global collapse/show, restart rebuild, list refresh and trash open/reuse/close verified.");
+        checks.Add("100-note overflow: state-only collapse includes off-page notes without moving; hidden notes excluded; hide/show retains page, bounds and pin/collapse states; restart/list/trash verified.");
     }
+    private Task ChangeState(bool collapsed) => (Task)typeof(App).GetMethod("ChangeCollapsedStateAsync", Private)!.Invoke(this, [collapsed, null, false])!;
+    private async Task VerifyStateBoundaries()
+    {
+        await Populate(6, false, false);
+        var ids = Notes.Keys.ToArray();
+        NoteWindows[ids[0]].ToggleCollapsed(false);
+        Notes[ids[4]].SetVisible(false); NoteWindows[ids[4]].Hide();
+        Notes[ids[5]].SetDeleted(true); NoteWindows[ids[5]].Hide();
+        await NoteViewModel.FlushManyAsync(Notes.Values, Store.SaveManyAsync);
+        var unchanged = new[] { ids[0], ids[4], ids[5] }.ToDictionary(id => id, id => Notes[id].Snapshot);
+        var unchangedBounds = unchanged.Keys.ToDictionary(id => id, id => WindowPlacement.GetBounds(NoteWindows[id]));
+        await ChangeState(true);
+        foreach (var pair in unchanged)
+        {
+            Require(Notes[pair.Key].Snapshot == pair.Value, "Collapse changed an already collapsed, hidden or deleted note snapshot.");
+            Require(Near(unchangedBounds[pair.Key], WindowPlacement.GetBounds(NoteWindows[pair.Key])), "Collapse moved an excluded note.");
+        }
+        Require(ids.Take(4).All(id => NoteWindows[id].IsCollapsed), "Mixed-state collapse failed.");
+        await ChangeState(false);
+        var allExpanded = Notes.ToDictionary(p => p.Key, p => p.Value.Snapshot);
+        var expandedBounds = NoteWindows.ToDictionary(p => p.Key, p => WindowPlacement.GetBounds(p.Value));
+        await ChangeState(false);
+        foreach (var pair in allExpanded)
+        {
+            Require(Notes[pair.Key].Snapshot == pair.Value, "Expand modified an already expanded or excluded note.");
+            Require(Near(expandedBounds[pair.Key], WindowPlacement.GetBounds(NoteWindows[pair.Key])), "Repeated expansion moved a note.");
+        }
+        var pinned = Notes[ids[1]];
+        pinned.IsPinned = true;
+        await pinned.FlushAsync();
+        var saved = (await Store.LoadAsync()).Single(n => n.Id == ids[1]);
+        using (var reloaded = new NoteViewModel(saved, Store.SaveAsync))
+        {
+            var restored = new NoteWindow(reloaded) { ShowActivated = false };
+            restored.Show();
+            Require(restored.Topmost, "Pinned state did not restore into a new window.");
+            reloaded.IsPinned = false;
+            Require(!restored.Topmost, "Unpin failed to clear native window Topmost binding.");
+            await reloaded.FlushAsync();
+            restored.AllowClose = true; restored.Close();
+        }
+        Require(!(await Store.LoadAsync()).Single(n => n.Id == ids[1]).IsPinned, "Unpinned state did not persist.");
+        checks.Add("Mixed-state no-op snapshots and coordinates, hidden/trash exclusion, repeated expansion, pinned window reload and unpin persistence verified.");
+    }
+
+    private async Task VerifyFilteredAndIndividualPaging()
+    {
+        await Populate(100, false, false);
+        await Arrange("ArrangeExpanded");
+        var offPage = NoteWindows.First(p => !p.Value.IsVisible);
+        Notes[offPage.Key].Color = "#F5C8D5";
+        var otherBounds = NoteWindows.Where(p => p.Key != offPage.Key).ToDictionary(p => p.Key, p => WindowPlacement.GetBounds(p.Value));
+        var before = WindowPlacement.GetBounds(offPage.Value);
+        await (Task)typeof(App).GetMethod("ChangeCollapsedStateAsync", Private)!.Invoke(this, [true, "#F5C8D5", true])!;
+        Require(offPage.Value.IsCollapsed && offPage.Value.IsVisible, "Color collapse omitted an off-page target.");
+        var after = WindowPlacement.GetBounds(offPage.Value);
+        Require(Math.Abs(before.Left - after.Left) < 2 && Math.Abs(before.Top - after.Top) < 2, "Filtered collapse moved its target.");
+        foreach (var pair in otherBounds)
+            Require(Near(pair.Value, WindowPlacement.GetBounds(NoteWindows[pair.Key])) && !NoteWindows[pair.Key].IsCollapsed,
+                "Filtered collapse changed another color.");
+        var individual = NoteWindows.First(p => p.Value.IsVisible && !p.Value.IsCollapsed);
+        var individualBounds = WindowPlacement.GetBounds(individual.Value);
+        individual.Value.ToggleCollapsed(false);
+        await Notes[individual.Key].FlushAsync();
+        await RenderSettled();
+        foreach (var monitor in MonitorCatalog.All())
+            typeof(App).GetMethod("ChangeExpandedPage", Private)!.Invoke(this, [monitor.Id, 1]);
+        Require(individual.Value.IsCollapsed && individual.Value.IsVisible, "Individual collapsed tile disappeared when changing pages.");
+        Require(offPage.Value.IsVisible, "Filtered detached tile disappeared when changing pages.");
+        var tile = WindowPlacement.GetBounds(individual.Value);
+        Require(Math.Abs(tile.Left - individualBounds.Left) < 2 && Math.Abs(tile.Top - individualBounds.Top) < 2,
+            "Individual collapse rearranged a paged note.");
+        checks.Add("Color operations include off-page notes without moving other colors; individually and color-collapsed tiles detach and survive page changes.");
+    }
+    private Task Arrange(string command) => (Task)typeof(App).GetMethod("RunArrangementAsync", Private)!.Invoke(this, [command, false])!;
     private async Task VerifyIndividual()
     {
         var window = NoteWindows.Values.First();

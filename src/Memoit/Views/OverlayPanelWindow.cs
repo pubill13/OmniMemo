@@ -21,7 +21,6 @@ public sealed class OverlayPanelWindow : Window
     private string? selectedColor;
     private Dictionary<string, string> hotkeys = [];
     private readonly ToggleButton pinned = new();
-    private readonly Button visibility;
     private readonly PagesControl pages = new();
 
     private readonly TextBlock status = new() { MinHeight = 18, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 7, 2, 0) };
@@ -55,18 +54,20 @@ public sealed class OverlayPanelWindow : Window
         shortcutButtons.Add((close, "패널 숨기기", ["ToggleOverlay"]));
         DockPanel.SetDock(settingsButton, Dock.Right); header.Children.Add(settingsButton);
         pinned.Content = CreateIcon("M 5,2 L 11,2 L 10,7 L 13,10 L 9,10 L 8,15 L 7,10 L 3,10 L 6,7 Z");
+        pinned.Style = ControlStyle(typeof(ToggleButton), false);
+        pinned.Background = Brushes.Transparent;
         pinned.Width = 28; pinned.Height = 28; pinned.Padding = new Thickness(5); pinned.ToolTip = "패널 항상 위";
         AutomationProperties.SetName(pinned, "패널 항상 위"); DockPanel.SetDock(pinned, Dock.Right); header.Children.Add(pinned);
         var title = new TextBlock { Text = "OmniMemo", VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold, FontSize = 14, Foreground = Brush("#243247"), Cursor = Cursors.SizeAll };
-        title.MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { DragMove(); PreferencesChanged?.Invoke(); } };
+        title.MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { e.Handled = true; DragMove(); PreferencesChanged?.Invoke(); } };
         header.Children.Add(title); content.Children.Add(header);
         content.Children.Add(Section("메모"));
         content.Children.Add(Row(CommandButton("새 메모", "NewNote"), CommandButton("목록·검색", "Search")));
         content.Children.Add(Section("전체 조작"));
-        var arrange = CommandButton("접어서 정돈", "Arrange", "ToggleCollapsed"); arrange.Background = Brush("#E0EAF8");
-        var expand = CommandButton("모두 펼치기", "ExpandAll", "ToggleCollapsed"); expand.Background = Brush("#E0EAF8");
-        content.Children.Add(Row(arrange, expand));
-        visibility = Button("모두 숨기기", () => CommandRequested?.Invoke("ToggleVisibility")); content.Children.Add(visibility);
+        content.Children.Add(Row(CommandButton("모두 접기", "CollapseAll", "ToggleCollapsed"), CommandButton("모두 펼치기", "ExpandAll", "ToggleCollapsed")));
+        content.Children.Add(Row(CommandButton("모두 숨기기", "HideAll", "ToggleVisibility"), CommandButton("모두 보이기", "ShowAll", "ToggleVisibility")));
+        content.Children.Add(Section("정돈"));
+        content.Children.Add(Row(CommandButton("접어서 정돈", "Arrange"), CommandButton("펼쳐서 정돈", "ArrangeExpanded")));
         pages.PageRequested += (monitor, delta) => PageRequested?.Invoke(monitor, delta);
         content.Children.Add(pages);
         var filtered = new StackPanel();
@@ -101,12 +102,6 @@ public sealed class OverlayPanelWindow : Window
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; Close(); } };
     }
 
-    public void SetHasVisibleNotes(bool value)
-    {
-        string label = value ? "모두 숨기기" : "모두 보이기";
-        visibility.Content = label; AutomationProperties.SetName(visibility, label);
-        SetShortcutTip(visibility, label, "ToggleVisibility", value ? "HideAll" : "ShowAll");
-    }
     public void SetPages(IReadOnlyList<PageDisplay> displays) => pages.SetPages(displays);
     public void SetUndoContent(UIElement? content) => undoHost.Content = content;
     public void SetNotes(IEnumerable<Note> notes)
@@ -156,13 +151,20 @@ public sealed class OverlayPanelWindow : Window
         RefreshChips();
         hotkeys = new Dictionary<string, string>(settings.Hotkeys);
         foreach (var item in shortcutButtons) SetShortcutTip(item.Button, item.Description, item.Commands);
-        SetHasVisibleNotes(Equals(visibility.Content, "모두 숨기기"));
         Opacity = 1;
         pinned.IsChecked = settings.OverlayTopmost; Topmost = settings.OverlayTopmost;
+        UpdatePin();
         refreshing = false;
     }
     public void FlushPreferences() { }
-    private void Changed() { if (refreshing) return; Topmost = SelectedTopmost; PreferencesChanged?.Invoke(); }
+    private void Changed() { if (refreshing) return; UpdatePin(); Topmost = SelectedTopmost; PreferencesChanged?.Invoke(); }
+    private void UpdatePin()
+    {
+        var icon = (System.Windows.Shapes.Path)pinned.Content;
+        var color = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : Brush(SelectedTopmost ? "#176B61" : "#595F5E");
+        icon.Stroke = color; icon.Fill = SelectedTopmost ? color : Brushes.Transparent;
+        pinned.ToolTip = SelectedTopmost ? "패널 고정됨 · 클릭하여 항상 위 해제" : "패널 고정 안 됨 · 클릭하여 항상 위에 표시";
+    }
     private static SolidColorBrush Brush(string value) => (SolidColorBrush)new BrushConverter().ConvertFromString(value)!;
     private static TextBlock Section(string text) => new() { Text = text, FontSize = 11, Foreground = Brush("#64748B"), Margin = new Thickness(2, 9, 2, 5) };
     private static Grid Row(params UIElement[] children)
@@ -181,7 +183,7 @@ public sealed class OverlayPanelWindow : Window
     {
         var button = Button(label, action); button.Content = CreateIcon(data); button.ToolTip = label; button.Width = 28; button.Height = 28; button.MinHeight = 28; button.Padding = new Thickness(5); return button;
     }
-    private static Style ControlStyle(Type type)
+    private static Style ControlStyle(Type type, bool showCheckedBorder = true)
     {
         var style = new Style(type);
         style.Setters.Add(new Setter(Control.BackgroundProperty, Brush("#EDF1F6")));
@@ -194,7 +196,7 @@ public sealed class OverlayPanelWindow : Window
         var template = new ControlTemplate(type) { VisualTree = border };
         foreach (var (property, background) in new[] { (UIElement.IsMouseOverProperty, "#DCE5F0"), (ButtonBase.IsPressedProperty, "#CAD8E9") })
         { var trigger = new Trigger { Property = property, Value = true }; trigger.Setters.Add(new Setter(Border.BackgroundProperty, Brush(background), "surface")); template.Triggers.Add(trigger); }
-        if (type == typeof(ToggleButton)) { var active = new Trigger { Property = ToggleButton.IsCheckedProperty, Value = true }; active.Setters.Add(new Setter(Border.BorderBrushProperty, Brush("#426FA6"), "surface")); template.Triggers.Add(active); }
+        if (type == typeof(ToggleButton) && showCheckedBorder) { var active = new Trigger { Property = ToggleButton.IsCheckedProperty, Value = true }; active.Setters.Add(new Setter(Border.BorderBrushProperty, Brush("#426FA6"), "surface")); template.Triggers.Add(active); }
         var focus = new Trigger { Property = UIElement.IsKeyboardFocusedProperty, Value = true }; focus.Setters.Add(new Setter(Border.BorderBrushProperty, Brush("#426FA6"), "surface")); template.Triggers.Add(focus);
         var disabled = new Trigger { Property = UIElement.IsEnabledProperty, Value = false }; disabled.Setters.Add(new Setter(UIElement.OpacityProperty, .45, "surface")); template.Triggers.Add(disabled);
         style.Setters.Add(new Setter(Control.TemplateProperty, template)); return style;

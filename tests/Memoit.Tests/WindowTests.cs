@@ -15,6 +15,28 @@ namespace Memoit.Tests;
 public sealed class WindowTests
 {
     [Fact]
+    public void PinClickUpdatesOnceAndUsesIconFillWithoutCheckedBackground() => RunSta(() =>
+    {
+        using var vm = new NoteViewModel(new Note(), _ => Task.CompletedTask);
+        var window = new NoteWindow(vm);
+        try
+        {
+            window.Show(); window.UpdateLayout();
+            var pin = (System.Windows.Controls.Primitives.ToggleButton)window.FindName("PinToggle");
+            Assert.True(System.Windows.Shell.WindowChrome.GetIsHitTestVisibleInChrome(pin));
+            var toggle = (System.Windows.Automation.Provider.IToggleProvider)new System.Windows.Automation.Peers.ToggleButtonAutomationPeer(pin);
+            toggle.Toggle();
+            Assert.True(vm.IsPinned); Assert.True(window.Topmost);
+            var head = (System.Windows.Shapes.Path)pin.Template.FindName("PinHead", pin);
+            Assert.Equal(System.Windows.SystemParameters.HighContrast ? System.Windows.SystemColors.WindowTextColor : System.Windows.Media.Color.FromRgb(0x17, 0x6b, 0x61), ((System.Windows.Media.SolidColorBrush)head.Fill).Color);
+            toggle.Toggle();
+            Assert.False(vm.IsPinned); Assert.False(window.Topmost);
+            Assert.Equal(System.Windows.Media.Colors.Transparent, ((System.Windows.Media.SolidColorBrush)head.Fill).Color);
+        }
+        finally { window.AllowClose = true; window.Close(); }
+    });
+
+    [Fact]
     public void ListSelectionSurvivesSavedNoteRefreshAndTracksVisibleSearchResults() => RunSta(() =>
     {
         var window = new MainWindow();
@@ -128,6 +150,35 @@ public sealed class WindowTests
             Assert.Equal(width, window.Width);
             window.AllowClose = true;
             window.Close();
+        });
+    }
+
+    [Fact]
+    public void DirectStateChange_NotifiesAfterFinalBounds_AndBatchDoesNotNotify()
+    {
+        RunSta(() =>
+        {
+            using var vm = new NoteViewModel(new Note(), _ => Task.CompletedTask);
+            var window = new NoteWindow(vm) { ShowActivated = false };
+            try
+            {
+                window.Show(); window.UpdateLayout();
+                int notifications = 0;
+                window.CollapsedStateChanged += () =>
+                {
+                    notifications++;
+                    Assert.Equal(window.Left, vm.Snapshot.Left);
+                    Assert.Equal(window.Top, vm.Snapshot.Top);
+                    Assert.Equal(window.IsCollapsed ? 36 : vm.Snapshot.Width, window.Width);
+                };
+                window.ToggleCollapsed(false);
+                window.ToggleCollapsed(false);
+                Assert.Equal(2, notifications);
+                window.PrepareState(false, new System.Windows.Rect(window.Left, window.Top, window.Width, window.Height));
+                window.EndArrangement();
+                Assert.Equal(2, notifications);
+            }
+            finally { window.AllowClose = true; window.Close(); }
         });
     }
 

@@ -6,6 +6,35 @@ namespace Memoit.Tests;
 public sealed class ShortcutMigrationTests
 {
     [Theory]
+    [InlineData("Ctrl+Alt+Shift+J")]
+    [InlineData("")]
+    public void V5PreservesToggleBindingAndAddsUnassignedArrangementCommands(string gesture)
+        => WithFile(file =>
+        {
+            var original = System.Text.Json.JsonSerializer.Serialize(new { Version = 5, Hotkeys = new Dictionary<string, string> { ["ToggleCollapsed"] = gesture } });
+            File.WriteAllText(file, original);
+            var loaded = LayoutSettings.Load(file);
+            Assert.Equal(original, File.ReadAllText(file + ".pre-v6.bak"));
+            Assert.Equal(original, File.ReadAllText(file));
+            Assert.Equal(gesture, loaded.Hotkeys["ToggleCollapsed"]);
+            Assert.Equal("", loaded.Hotkeys["Arrange"]);
+            Assert.Equal("", loaded.Hotkeys["ArrangeExpanded"]);
+            Assert.True(loaded.NeedsOperationSeparationNotice);
+            Assert.False(loaded.NeedsShortcutSimplificationNotice);
+            (loaded with { NeedsOperationSeparationNotice = false }).Save(file);
+            Assert.False(LayoutSettings.Load(file).NeedsOperationSeparationNotice);
+        });
+
+    [Fact]
+    public void RetiredLegacyArrangementBindingsAreNotReassignedToNewCommands()
+        => WithFile(file =>
+        {
+            File.WriteAllText(file, "{\"Version\":4,\"Hotkeys\":{\"Arrange\":\"Ctrl+Alt+Shift+R\",\"ArrangeExpanded\":\"Ctrl+Alt+Shift+E\"}}");
+            var loaded = LayoutSettings.Load(file);
+            Assert.Equal("", loaded.Hotkeys["Arrange"]);
+            Assert.Equal("", loaded.Hotkeys["ArrangeExpanded"]);
+        });
+    [Theory]
     [InlineData("", "Ctrl+Alt+Shift+L", "")]
     [InlineData("Ctrl+Alt+Shift+J", "Ctrl+Alt+Shift+L", "Ctrl+Alt+Shift+J")]
     [InlineData(null, "Ctrl+Alt+Shift+L", "Ctrl+Alt+Shift+L")]
@@ -20,7 +49,7 @@ public sealed class ShortcutMigrationTests
             Assert.Equal(expected, result.Hotkeys["Search"]);
             Assert.Equal("", result.Hotkeys["NewNote"]);
             Assert.Equal("Ctrl+Alt+Shift+J", result.Hotkeys["ToggleCollapsed"]);
-            Assert.Equal(6, result.Hotkeys.Count);
+            Assert.Equal(8, result.Hotkeys.Count);
             Assert.DoesNotContain("ShowList", result.Hotkeys.Keys);
         });
 
@@ -38,7 +67,7 @@ public sealed class ShortcutMigrationTests
             Assert.Equal("", result.Hotkeys["Search"]);
             (result with { NeedsShortcutSimplificationNotice = false }).Save(file);
             var reloaded = LayoutSettings.Load(file);
-            Assert.Equal(5, reloaded.Version);
+            Assert.Equal(6, reloaded.Version);
             Assert.False(reloaded.NeedsShortcutSimplificationNotice);
             Assert.Equal(original, File.ReadAllText(file + ".pre-v5.bak"));
             HotkeyService.Validate(reloaded.Hotkeys);
@@ -94,7 +123,7 @@ public sealed class ShortcutMigrationTests
         {
             new LayoutSettings { Hotkeys = new() { ["NewNote"] = "Ctrl+Alt+Shift+F", ["ToggleOverlay"] = "" } }.Save(file);
             var result = LayoutSettings.Load(file);
-            Assert.Equal(6, result.Hotkeys.Count);
+            Assert.Equal(8, result.Hotkeys.Count);
             Assert.Equal("Ctrl+Alt+Shift+F", result.Hotkeys["NewNote"]);
             Assert.Equal("", result.Hotkeys["Search"]);
             Assert.Equal("", result.Hotkeys["ToggleOverlay"]);
@@ -105,6 +134,6 @@ public sealed class ShortcutMigrationTests
     {
         string file = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
         try { test(file); }
-        finally { File.Delete(file); File.Delete(file + ".pre-v5.bak"); }
+        finally { File.Delete(file); File.Delete(file + ".pre-v5.bak"); File.Delete(file + ".pre-v6.bak"); }
     }
 }

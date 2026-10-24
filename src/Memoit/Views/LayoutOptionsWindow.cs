@@ -74,13 +74,13 @@ public sealed class LayoutOptionsWindow : Window
         root.Children.Add(tabs);
         var layout = new StackPanel { Margin = new Thickness(10), Background = Brushes.WhiteSmoke };
         var heading = new DockPanel(); var previewButton = Button("미리보기", OpenPreview); DockPanel.SetDock(previewButton, Dock.Right); heading.Children.Add(previewButton); heading.Children.Add(Label("배치할 화면")); layout.Children.Add(heading); layout.Children.Add(monitorBox);
-        layout.Children.Add(Section("접었을 때"));
+        layout.Children.Add(Section("접어서 정돈"));
         layout.Children.Add(Label("배치 형태")); layout.Children.Add(shape); layout.Children.Add(shapeHint);
         var originRow = new DockPanel { Margin = new Thickness(0, 8, 0, 0) }; var pickButton = Button("화면에서 지정", PickAnchor); DockPanel.SetDock(pickButton, Dock.Right); originRow.Children.Add(pickButton); originSummary.VerticalAlignment = VerticalAlignment.Center; originRow.Children.Add(originSummary); layout.Children.Add(originRow);
         var coords = new UniformGridShim(); var cx = new StackPanel(); cx.Children.Add(Label("시작 X (DIP)")); cx.Children.Add(x); var cy = new StackPanel(); cy.Children.Add(Label("시작 Y (DIP)")); cy.Children.Add(y); coords.Children.Add(cx); coords.Children.Add(cy);
         layout.Children.Add(new Expander { Header = "세부 조정", Content = coords, Margin = new Thickness(0, 6, 0, 4) });
         columnFields.Children.Add(Label("한 줄에 놓을 메모 수")); var columnRow = new UniformGridShim(); columnMode.Margin = new Thickness(0, 0, 8, 0); columnRow.Children.Add(columnMode); columnRow.Children.Add(columns); columnFields.Children.Add(columnRow); layout.Children.Add(columnFields);
-        layout.Children.Add(Section("펼쳤을 때"));
+        layout.Children.Add(Section("펼쳐서 정돈"));
         layout.Children.Add(Label("이 모서리에서 화면 안쪽으로 배치합니다"));
         var directions = new UniformGridShim();
         foreach (var direction in new[] { ExpandedCorner.TopLeft, ExpandedCorner.TopRight, ExpandedCorner.BottomLeft, ExpandedCorner.BottomRight })
@@ -91,13 +91,13 @@ public sealed class LayoutOptionsWindow : Window
             button.Checked += (_, _) => corner.SelectedItem = direction; cornerButtons[direction] = button; directions.Children.Add(button);
         }
         layout.Children.Add(directions);
-        layout.Children.Add(Section("순서와 간격"));
+        layout.Children.Add(Section("공통"));
         var commonFields = new Grid(); commonFields.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) }); commonFields.ColumnDefinitions.Add(new ColumnDefinition());
         var sortField = new StackPanel { Margin = new Thickness(0, 0, 12, 0) }; sortField.Children.Add(Label("정렬 기준")); sortField.Children.Add(sort); commonFields.Children.Add(sortField);
         var gapField = new StackPanel(); gapField.Children.Add(Label("간격 (0–24 DIP)")); gapField.Children.Add(gap); Grid.SetColumn(gapField, 1); commonFields.Children.Add(gapField); layout.Children.Add(commonFields);
         colorHint.Text = "색이 바뀌면 새 줄에 배치하며, 같은 색 안에서는 먼저 만든 메모부터 놓습니다. 줄 구분은 여러 줄 배치에만 적용됩니다."; colorHint.Foreground = Brushes.DimGray; layout.Children.Add(colorHint);
         corner.ItemTemplate = CornerTemplate();
-        layout.Children.Add(new TextBlock { Text = "접어서 정돈하면 타일 시작점에 모입니다. 모두 펼치면 선택한 모서리에서 같은 순서로 배치합니다.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), Foreground = Brushes.DimGray });
+        layout.Children.Add(new TextBlock { Text = "이 설정은 접어서 정돈·펼쳐서 정돈에만 적용됩니다. 모두 접기·모두 펼치기는 현재 위치를 유지합니다.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), Foreground = Brushes.DimGray });
         GroupSections(layout);
         tabs.Items.Add(new TabItem { Header = "배치", Content = new ScrollViewer { Content = layout, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
         var hotkeys = new DockPanel { Margin = new Thickness(8) };
@@ -151,7 +151,9 @@ public sealed class LayoutOptionsWindow : Window
         var content = new StackPanel { Margin = new Thickness(10), Background = Brushes.WhiteSmoke };
         content.Children.Add(Section("기본 조작"));
         content.Children.Add(HelpText("메모를 바로 입력하고, 상단의 접기 버튼을 누르면 현재 위치에 작은 타일로 접힙니다. 타일을 클릭하면 그 자리에서 다시 펼쳐집니다."));
-        content.Children.Add(HelpText("‘접어서 정돈’은 설정한 시작점과 배치 규칙으로 타일을 정리합니다. ‘모두 펼치기’는 선택한 모서리부터 메모를 페이지로 나누어 배치합니다."));
+        content.Children.Add(HelpText("‘모두 접기 / 모두 펼치기’는 각 메모의 현재 위치에서 상태만 바꾸고 페이지를 해제하며 겹침을 허용합니다. 화면 경계에서는 펼친 창이 보이도록 필요한 만큼만 보정합니다."));
+        content.Children.Add(HelpText("‘접어서 정돈’은 설정한 시작점과 배치 규칙으로 타일을 정리합니다. ‘펼쳐서 정돈’은 선택한 모서리부터 메모를 겹치지 않는 페이지로 배치합니다."));
+        content.Children.Add(HelpText("‘모두 숨기기 / 모두 보이기’는 접힘·크기·위치·압정 상태를 바꾸지 않습니다. 페이지 구성과 현재 페이지도 유지합니다."));
         content.Children.Add(HelpText("페이지가 여러 개면 패널의 이전·다음으로 이동합니다. 목록에서 메모를 열면 해당 페이지로 이동합니다. 숨긴 메모와 휴지통 메모는 정돈 대상에서 제외됩니다."));
         content.Children.Add(HelpText("메모의 X는 삭제가 아니라 숨기기입니다. 목록에서 다시 열거나 트레이의 ‘모두 보이기’를 사용하세요. 압정은 항상 위 표시, ⋯ 메뉴는 색상·글꼴·글자 크기와 삭제를 제공합니다."));
         content.Children.Add(Section("목록과 삭제"));
@@ -159,7 +161,7 @@ public sealed class LayoutOptionsWindow : Window
         content.Children.Add(HelpText("휴지통 비우기는 검색어와 관계없이 휴지통 전체를 대상으로 합니다. 확인창에서 취소를 선택하면 삭제하지 않습니다."));
         content.Children.Add(Section("기본 단축키"));
         content.Children.Add(HelpText("아래는 기본값입니다. 변경하거나 해제한 키는 ‘단축키’ 탭에서 확인하세요. 메모 안에서는 Ctrl+N으로 새 메모, Ctrl+F로 목록·검색을 엽니다."));
-        content.Children.Add(HelpText("새 메모  Ctrl+Alt+Shift+N\n목록·검색  Ctrl+Alt+Shift+F\n현재 메모 접기·펼치기  Ctrl+Shift+Space\n모두 숨기기·보이기  Ctrl+Alt+Shift+H\n접어서 정돈·모두 펼치기  Ctrl+Alt+Shift+C\n미니 패널 열기·닫기  Ctrl+Alt+Shift+P"));
+        content.Children.Add(HelpText(string.Join("\n", HotkeyDefaults.Create().Select(pair => $"{HotkeyDefaults.Labels[pair.Key]}  {(string.IsNullOrEmpty(pair.Value) ? "미지정" : pair.Value)}"))));
         content.Children.Add(Section("데이터와 복구"));
         content.Children.Add(HelpText("입력이 멈춘 뒤 약 500ms, 계속 입력할 때도 최대 2초 간격으로 자동 저장합니다. 저장 실패 시 상단 상태 표시에서 원인을 확인하고 트레이의 ‘저장 다시 시도’를 사용하세요. 강제 종료 직전의 미저장 입력은 복구되지 않을 수 있습니다."));
         content.Children.Add(HelpText($"메모는 이 PC에만 저장됩니다.\n{dataPath}\n백업 탭에서 수동 백업과 복원을 사용할 수 있습니다. 자동 백업은 하루 첫 저장 후 생성되며 최근 7개를 보관합니다."));
@@ -175,6 +177,7 @@ public sealed class LayoutOptionsWindow : Window
         content.Children.Add(Section("현재 버전"));
         content.Children.Add(new TextBlock { Text = version, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
         content.Children.Add(Section("최근 변경"));
+        content.Children.Add(HelpText("1.12.0\n전체 조작과 정돈을 분리했습니다. 모두 접기·펼치기는 현재 위치를 유지하고, 정돈은 설정된 위치에 배치합니다. 압정의 클릭 영역과 색상 표시를 개선했습니다."));
         content.Children.Add(HelpText("1.11.4\n설정에 도움말과 버전 탭을 추가했습니다. 현재 버전은 실행 중인 프로그램에서 자동으로 읽습니다."));
         content.Children.Add(HelpText("1.11.3\n직접 접기 시 현재 메모 위치에 타일을 남깁니다. 이전 정돈 위치는 명시적인 ‘접어서 정돈’에서만 사용합니다."));
         content.Children.Add(HelpText("1.11.2\n휴지통 화면의 제목·날짜·버튼 정렬을 개선하고 휴지통 비우기를 추가했습니다."));
@@ -375,7 +378,7 @@ public sealed class LayoutOptionsWindow : Window
     private void BuildRecorders()
     {
         hotkeyRows.Children.Clear(); recorders.Clear();
-        foreach (var (section, ids) in new[] { ("메모", new[] { "NewNote", "Search", "ToggleCurrent" }), ("전체 메모", new[] { "ToggleVisibility", "ToggleCollapsed" }), ("패널", new[] { "ToggleOverlay" }) })
+        foreach (var (section, ids) in new[] { ("메모", new[] { "NewNote", "Search", "ToggleCurrent" }), ("전체 조작", new[] { "ToggleVisibility", "ToggleCollapsed" }), ("정돈", new[] { "Arrange", "ArrangeExpanded" }), ("패널", new[] { "ToggleOverlay" }) })
         {
           hotkeyRows.Children.Add(Section(section));
           foreach (var id in ids)

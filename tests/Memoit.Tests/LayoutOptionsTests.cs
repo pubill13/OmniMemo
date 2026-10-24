@@ -143,6 +143,11 @@ public sealed class LayoutOptionsTests
                 var tabs = Field<TabControl>(window, "tabs");
                 Assert.Equal(new[] { "배치", "단축키", "일반", "백업", "도움말", "버전" }, tabs.Items.Cast<TabItem>().Select(t => t.Header));
                 Assert.Contains("단축키", FindText(tabs.Items[4]));
+                var help = FindText(tabs.Items[4]);
+                foreach (var pair in HotkeyDefaults.Create())
+                    Assert.Contains($"{HotkeyDefaults.Labels[pair.Key]}  {(string.IsNullOrEmpty(pair.Value) ? "미지정" : pair.Value)}", help);
+                Assert.Contains("페이지 구성과 현재 페이지도 유지", help);
+                Assert.Contains("모두 접기·모두 펼치기는 현재 위치를 유지", FindText(tabs.Items[0]));
                 Assert.Contains(typeof(LayoutOptionsWindow).Assembly.GetName().Version!.ToString(3), FindText(tabs.Items[5]));
                 window.SelectTab(SettingsTab.General); Assert.Equal(2, tabs.SelectedIndex);
                 window.SetAutoStart(false);
@@ -178,7 +183,7 @@ public sealed class LayoutOptionsTests
             try
             {
                 Assert.Null(Field<Canvas>(window, "preview").Parent);
-                Assert.Equal(6, Field<Dictionary<string, TextBox>>(window, "recorders").Count);
+                Assert.Equal(8, Field<Dictionary<string, TextBox>>(window, "recorders").Count);
                 var mode = Field<ComboBox>(window, "columnMode"); var count = Field<TextBox>(window, "columns");
                 Assert.Equal(Visibility.Collapsed, count.Visibility);
                 mode.SelectedIndex = 1; count.Text = "0";
