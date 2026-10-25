@@ -54,25 +54,36 @@ public sealed class LayoutOptionsWindow : Window
         Func<string, IReadOnlyList<Note>>? previewNotes = null)
     {
         this.previewNotes = previewNotes;
-        Title = "OmniMemo · 설정"; Width = 560; Height = 620; MinWidth = 300; MinHeight = 250;
+        Title = "OmniMemo · 설정"; Width = 640; Height = 740; MinWidth = 300; MinHeight = 250;
         Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/OmniMemo;component/Assets/OmniMemo.ico"));
         foreach (var (control, name) in new (DependencyObject, string)[] { (x, "시작 X"), (y, "시작 Y"), (gap, "간격"), (columns, "한 줄에 놓을 메모 수"), (shape, "배치 형태"), (sort, "정렬 기준"), (monitorBox, "모니터"), (corner, "펼친 메모 시작 방향") })
             System.Windows.Automation.AutomationProperties.SetName(control, name);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         if (settings.PanelLeft is double left && settings.PanelTop is double top)
         { WindowStartupLocation = WindowStartupLocation.Manual; Left = left; Top = top; }
-        ShowInTaskbar = false; FontFamily = new FontFamily("Malgun Gothic"); FontSize = 13; Background = Brushes.WhiteSmoke;
+        ShowInTaskbar = false; FontFamily = new FontFamily("Malgun Gothic"); FontSize = 13; Background = Brush("#F3F6FA"); Foreground = Brush("#253247");
+        Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/OmniMemo;component/Views/SettingsStyles.xaml", UriKind.Relative) });
         Resources.Add(typeof(Button), CreateButtonStyle());
+        Resources.Add(typeof(TabItem), CreateTabStyle());
         foreach (var type in new[] { typeof(TextBox), typeof(ComboBox) })
-        { var style = new Style(type); style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(7, 5, 7, 5))); style.Setters.Add(new Setter(Control.BorderBrushProperty, Brushes.LightSlateGray)); Resources.Add(type, style); }
-        var root = new DockPanel { Margin = new Thickness(16) };
-        var footer = new StackPanel(); DockPanel.SetDock(footer, Dock.Bottom);
-        footer.Children.Add(status);
+        { var style = new Style(type); style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(9, 7, 9, 7))); style.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.White)); style.Setters.Add(new Setter(Control.BorderBrushProperty, Brush("#D5DDE7"))); style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1))); Resources.Add(type, style); }
+        foreach (var combo in new[] { monitorBox, shape, sort, corner, columnMode, previewMode }) combo.Style = (Style)Resources["SettingsCombo"];
+        var root = new DockPanel { Margin = new Thickness(22, 18, 22, 16) };
+        var footer = new Border { Background = Brushes.White, BorderBrush = Brush("#DEE5EE"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(14, 9, 10, 9), Margin = new Thickness(0, 12, 0, 0) }; DockPanel.SetDock(footer, Dock.Bottom);
+
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Children.Add(Button("적용", Dispatch)); footer.Children.Add(actions); root.Children.Add(footer);
+        actions.Children.Add(Button("적용", Dispatch, true));
+        var footerGrid = new Grid(); footerGrid.ColumnDefinitions.Add(new ColumnDefinition()); footerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        status.VerticalAlignment = VerticalAlignment.Center; status.Margin = new Thickness(0, 0, 12, 0);
+        footerGrid.Children.Add(status); Grid.SetColumn(actions, 1); footerGrid.Children.Add(actions); footer.Child = footerGrid; root.Children.Add(footer);
+        tabs.Background = Brushes.Transparent; tabs.BorderThickness = new Thickness(0); tabs.Padding = new Thickness(0, 12, 0, 0);
         tabs.SelectionChanged += (_, _) => footer.Visibility = tabs.SelectedIndex >= (int)SettingsTab.Help ? Visibility.Collapsed : Visibility.Visible;
+        var header = new StackPanel { Margin = new Thickness(2, 0, 2, 12) };
+        header.Children.Add(new TextBlock { Text = "설정", FontSize = 25, FontWeight = FontWeights.SemiBold, Foreground = Brush("#1F2A3A") });
+        header.Children.Add(new TextBlock { Text = "OmniMemo의 배치, 단축키, 시작과 백업을 관리합니다.", Foreground = Brush("#6B7788"), Margin = new Thickness(0, 4, 0, 0) });
+        DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
         root.Children.Add(tabs);
-        var layout = new StackPanel { Margin = new Thickness(10), Background = Brushes.WhiteSmoke };
+        var layout = new StackPanel { Margin = new Thickness(0, 4, 0, 8), Background = Brushes.Transparent };
         var heading = new DockPanel(); var previewButton = Button("미리보기", OpenPreview); DockPanel.SetDock(previewButton, Dock.Right); heading.Children.Add(previewButton); heading.Children.Add(Label("배치할 화면")); layout.Children.Add(heading); layout.Children.Add(monitorBox);
         layout.Children.Add(Section("접어서 정돈"));
         layout.Children.Add(Label("배치 형태")); layout.Children.Add(shape); layout.Children.Add(shapeHint);
@@ -86,7 +97,7 @@ public sealed class LayoutOptionsWindow : Window
         foreach (var direction in new[] { ExpandedCorner.TopLeft, ExpandedCorner.TopRight, ExpandedCorner.BottomLeft, ExpandedCorner.BottomRight })
         {
             var text = (string)new CornerLabelConverter().Convert(direction, typeof(string), null!, CultureInfo.InvariantCulture);
-            var button = new RadioButton { Content = text, GroupName = "Corner", Margin = new Thickness(5), Padding = new Thickness(8) };
+            var button = new RadioButton { Content = text, Style = (Style)Resources["SettingsCorner"], GroupName = "Corner", Margin = new Thickness(5), Padding = new Thickness(8) };
             System.Windows.Automation.AutomationProperties.SetName(button, "시작 모서리 " + text);
             button.Checked += (_, _) => corner.SelectedItem = direction; cornerButtons[direction] = button; directions.Children.Add(button);
         }
@@ -100,9 +111,10 @@ public sealed class LayoutOptionsWindow : Window
         layout.Children.Add(new TextBlock { Text = "이 설정은 접어서 정돈·펼쳐서 정돈에만 적용됩니다. 모두 접기·모두 펼치기는 현재 위치를 유지합니다.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), Foreground = Brushes.DimGray });
         GroupSections(layout);
         tabs.Items.Add(new TabItem { Header = "배치", Content = new ScrollViewer { Content = layout, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
-        var hotkeys = new DockPanel { Margin = new Thickness(8) };
+        var hotkeys = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
         var reset = Button("모든 단축키 기본값", ResetAll); DockPanel.SetDock(reset, Dock.Bottom); hotkeys.Children.Add(reset);
-        hotkeys.Children.Add(new ScrollViewer { Content = hotkeyRows, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        var hotkeyContent = new StackPanel(); hotkeyContent.Children.Add(new TextBlock { Text = "자주 쓰는 동작만 등록해 두면 메모를 빠르게 제어할 수 있습니다.", Foreground = Brush("#6B7788"), Margin = new Thickness(2, 0, 2, 12) }); hotkeyContent.Children.Add(hotkeyRows);
+        hotkeys.Children.Add(new ScrollViewer { Content = hotkeyContent, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         tabs.Items.Add(new TabItem { Header = "단축키", Content = hotkeys });
         tabs.Items.Add(new TabItem { Header = "일반", Content = BuildGeneral() });
         tabs.Items.Add(new TabItem { Header = "백업", Content = BuildBackup(dataPath) });
@@ -126,14 +138,14 @@ public sealed class LayoutOptionsWindow : Window
     }
     private UIElement BuildGeneral()
     {
-        var content = new StackPanel { Margin = new Thickness(10), Background = Brushes.WhiteSmoke };
+        var content = new StackPanel { Margin = new Thickness(0, 4, 0, 8), Background = Brushes.Transparent };
         content.Children.Add(Section("시작")); content.Children.Add(autoStart);
         GroupSections(content);
         return new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
     private UIElement BuildBackup(string dataPath)
     {
-        var content = new StackPanel { Margin = new Thickness(10), Background = Brushes.WhiteSmoke };
+        var content = new StackPanel { Margin = new Thickness(0, 4, 0, 8), Background = Brushes.Transparent };
         content.Children.Add(Section("백업과 복원"));
         content.Children.Add(new TextBlock { Text = "매일 첫 저장 후 자동 백업하며 최근 7개를 보관합니다. 휴지통 메모도 포함됩니다.", TextWrapping = TextWrapping.Wrap });
         content.Children.Add(Button("백업 파일 저장…", () => BackupRequested?.Invoke()));
@@ -148,7 +160,7 @@ public sealed class LayoutOptionsWindow : Window
     }
     private UIElement BuildHelp(string dataPath)
     {
-        var content = new StackPanel { Margin = new Thickness(10), Background = Brushes.WhiteSmoke };
+        var content = new StackPanel { Margin = new Thickness(0, 4, 0, 8), Background = Brushes.Transparent };
         content.Children.Add(Section("기본 조작"));
         content.Children.Add(HelpText("메모를 바로 입력하고, 상단의 접기 버튼을 누르면 현재 위치에 작은 타일로 접힙니다. 타일을 클릭하면 그 자리에서 다시 펼쳐집니다."));
         content.Children.Add(HelpText("‘모두 접기 / 모두 펼치기’는 각 메모의 현재 위치에서 상태만 바꾸고 페이지를 해제하며 겹침을 허용합니다. 화면 경계에서는 펼친 창이 보이도록 필요한 만큼만 보정합니다."));
@@ -171,12 +183,13 @@ public sealed class LayoutOptionsWindow : Window
     private UIElement BuildAbout()
     {
         var version = typeof(LayoutOptionsWindow).Assembly.GetName().Version?.ToString(3) ?? "알 수 없음";
-        var content = new StackPanel { Margin = new Thickness(10), Background = Brushes.WhiteSmoke };
+        var content = new StackPanel { Margin = new Thickness(0, 4, 0, 8), Background = Brushes.Transparent };
         content.Children.Add(new TextBlock { Text = "OmniMemo", FontSize = 26, FontWeight = FontWeights.Bold });
         content.Children.Add(new TextBlock { Text = "개인용 로컬 스티커 메모", Foreground = Brushes.DimGray, Margin = new Thickness(0, 4, 0, 16) });
         content.Children.Add(Section("현재 버전"));
         content.Children.Add(new TextBlock { Text = version, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
         content.Children.Add(Section("최근 변경"));
+        content.Children.Add(HelpText("1.12.1\n설정의 탭·카드·입력란과 단축키 구획을 정리하고, 드롭다운·모서리 선택·적용 버튼의 스타일을 통일했습니다."));
         content.Children.Add(HelpText("1.12.0\n전체 조작과 정돈을 분리했습니다. 모두 접기·펼치기는 현재 위치를 유지하고, 정돈은 설정된 위치에 배치합니다. 압정의 클릭 영역과 색상 표시를 개선했습니다."));
         content.Children.Add(HelpText("1.11.4\n설정에 도움말과 버전 탭을 추가했습니다. 현재 버전은 실행 중인 프로그램에서 자동으로 읽습니다."));
         content.Children.Add(HelpText("1.11.3\n직접 접기 시 현재 메모 위치에 타일을 남깁니다. 이전 정돈 위치는 명시적인 ‘접어서 정돈’에서만 사용합니다."));
@@ -206,7 +219,7 @@ public sealed class LayoutOptionsWindow : Window
         previewNext = Button("다음 페이지", () => { previewPage++; RefreshPreview(); });
         previewPager.Children.Add(previewPrevious); previewPager.Children.Add(previewPageLabel); previewPager.Children.Add(previewNext);
         content.Children.Add(previewPager); content.Children.Add(previewStatus);
-        var window = new Window { Title = "OmniMemo · 배치 미리보기", Width = 440, Height = 360, MinWidth = 300, MinHeight = 250, Content = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, ShowInTaskbar = false, FontFamily = FontFamily, Background = Brushes.WhiteSmoke, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        var window = new Window { Title = "OmniMemo · 배치 미리보기", Width = 440, Height = 360, MinWidth = 300, MinHeight = 250, Content = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, ShowInTaskbar = false, FontFamily = FontFamily, Background = Brush("#F3F6FA"), WindowStartupLocation = WindowStartupLocation.CenterOwner };
         if (IsVisible) window.Owner = this;
         window.PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; window.Close(); } };
         window.Closed += (_, _) => { content.Children.Clear(); frame.Child = null; previewWindow = null; };
@@ -238,11 +251,40 @@ public sealed class LayoutOptionsWindow : Window
             if (child is TextBlock { Tag: "Section" })
             {
                 group = new StackPanel();
-                parent.Children.Add(new Border { Child = group, Background = Brushes.White, CornerRadius = new CornerRadius(8), Padding = new Thickness(12), Margin = new Thickness(0, 8, 0, 2) });
+                parent.Children.Add(new Border { Child = group, Background = Brushes.White, CornerRadius = new CornerRadius(8), BorderBrush = Brush("#E1E6ED"), BorderThickness = new Thickness(1), Padding = new Thickness(18, 12, 18, 16), Margin = new Thickness(0, 0, 0, 12) });
             }
             if (group is null) parent.Children.Add(child); else group.Children.Add(child);
         }
     }
+    private static SolidColorBrush Brush(string color) => (SolidColorBrush)new BrushConverter().ConvertFromString(color)!;
+
+    private static Style CreateTabStyle()
+    {
+        var style = new Style(typeof(TabItem));
+        style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(13, 9, 13, 9)));
+        style.Setters.Add(new Setter(Control.ForegroundProperty, Brush("#687587")));
+        style.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+        style.Setters.Add(new Setter(Control.BorderBrushProperty, Brushes.Transparent));
+        var frame = new FrameworkElementFactory(typeof(Border)); frame.Name = "TabFrame";
+        frame.SetValue(Border.CornerRadiusProperty, new CornerRadius(7));
+        frame.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+        foreach (var property in new[] { Border.BackgroundProperty, Border.BorderBrushProperty, Border.PaddingProperty })
+            frame.SetBinding(property, new System.Windows.Data.Binding(property.Name) { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
+        var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
+        presenter.SetValue(ContentPresenter.ContentSourceProperty, "Header"); frame.AppendChild(presenter);
+        var template = new ControlTemplate(typeof(TabItem)) { VisualTree = frame };
+        var hover = new Trigger { Property = IsMouseOverProperty, Value = true };
+        hover.Setters.Add(new Setter(Control.BackgroundProperty, Brush("#E9EEF5"))); template.Triggers.Add(hover);
+        var selected = new Trigger { Property = TabItem.IsSelectedProperty, Value = true };
+        selected.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.White));
+        selected.Setters.Add(new Setter(Control.BorderBrushProperty, Brush("#D5DDE7")));
+        selected.Setters.Add(new Setter(Control.ForegroundProperty, Brush("#253247")));
+        selected.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.SemiBold)); template.Triggers.Add(selected);
+        var focus = new Trigger { Property = IsKeyboardFocusedProperty, Value = true };
+        focus.Setters.Add(new Setter(Control.BorderBrushProperty, Brush("#3265AA"))); template.Triggers.Add(focus);
+        style.Setters.Add(new Setter(Control.TemplateProperty, template)); return style;
+    }
+
     private static Style CreateButtonStyle()
     {
         var style = new Style(typeof(Button));
@@ -265,11 +307,12 @@ public sealed class LayoutOptionsWindow : Window
         style.Setters.Add(new Setter(Control.TemplateProperty, template)); return style;
     }
 
-    private static TextBlock Label(string text) => new() { Text = text, Margin = new Thickness(0, 8, 0, 4) };
-    private static TextBlock Section(string text) => new() { Text = text, FontWeight = FontWeights.SemiBold, FontSize = 14, Margin = new Thickness(0, 6, 0, 6), Tag = "Section" };
-    private static Button Button(string text, Action action)
+    private static TextBlock Label(string text) => new() { Text = text, Foreground = Brush("#596779"), Margin = new Thickness(0, 8, 0, 6) };
+    private static TextBlock Section(string text) => new() { Text = text, FontWeight = FontWeights.SemiBold, FontSize = 15, Foreground = Brush("#253247"), Margin = new Thickness(0, 2, 0, 10), Tag = "Section" };
+    private static Button Button(string text, Action action, bool primary = false)
     {
-        var button = new Button { Content = text, Padding = new Thickness(7, 5, 7, 5), Margin = new Thickness(2, 4, 2, 4) };
+        var button = new Button { Content = text, Padding = new Thickness(13, 8, 13, 8), Margin = new Thickness(2, 4, 2, 4), MinHeight = 34, Cursor = Cursors.Hand };
+        if (primary) { button.Background = Brush("#E9EEDE"); button.BorderBrush = Brush("#BDCDA8"); button.FontWeight = FontWeights.SemiBold; button.MinWidth = 86; }
         button.Click += (_, _) => action(); return button;
     }
     public void RefreshSettings(LayoutSettings settings, IReadOnlyList<MonitorDescriptor> available)
@@ -328,6 +371,7 @@ public sealed class LayoutOptionsWindow : Window
         columnFields.Visibility = shape.SelectedIndex == (int)LayoutShape.Grid ? Visibility.Visible : Visibility.Collapsed;
         columns.Visibility = columnMode.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
         originSummary.Text = $"시작 위치  X {x.Text} · Y {y.Text}";
+        shapeHint.Foreground = Brush("#778397"); shapeHint.FontSize = 11; shapeHint.Margin = new Thickness(0, 6, 0, 2);
         shapeHint.Text = shape.SelectedIndex switch { 0 => "▦  오른쪽으로 채운 뒤 다음 줄로 내려갑니다", 1 => "▪ ▪ ▪ →  한 줄로 오른쪽에 놓습니다", _ => "▤ ↓  한 줄로 아래에 놓습니다" };
         colorHint.Visibility = sort.SelectedIndex == (int)LayoutSort.Color ? Visibility.Visible : Visibility.Collapsed;
         preview.Children.Clear();
@@ -387,7 +431,7 @@ public sealed class LayoutOptionsWindow : Window
             var row = new DockPanel { Margin = new Thickness(0, 5, 0, 5) };
             var title = new TextBlock { Text = label, Width = 190, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(title, Dock.Left); row.Children.Add(title);
             row.SizeChanged += (_, _) => title.Width = Math.Clamp(row.ActualWidth * .4, 85, 190);
-            var box = new TextBox { IsReadOnly = true, Text = draft.Hotkeys.GetValueOrDefault(id, ""), Padding = new Thickness(3), ToolTip = "선택한 뒤 키 조합을 누르세요. Esc는 입력 취소" };
+            var box = new TextBox { IsReadOnly = true, VerticalContentAlignment = VerticalAlignment.Center, Text = draft.Hotkeys.GetValueOrDefault(id, ""), Padding = new Thickness(3), ToolTip = "선택한 뒤 키 조합을 누르세요. Esc는 입력 취소" };
             System.Windows.Automation.AutomationProperties.SetName(box, label + " 단축키");
             var clear = Button("해제", () => SetGesture(id, "")); DockPanel.SetDock(clear, Dock.Right); row.Children.Add(clear);
             row.Children.Add(box); recorders[id] = box; hotkeyRows.Children.Add(row);
@@ -404,6 +448,7 @@ public sealed class LayoutOptionsWindow : Window
             };
           }
         }
+        GroupSections(hotkeyRows);
     }
     private void SetGesture(string id, string value) { draft.Hotkeys[id] = value; recorders[id].Text = value; }
     private void ResetAll() { EndCapture(); draft = draft with { Hotkeys = HotkeyDefaults.Create() }; BuildRecorders(); }
