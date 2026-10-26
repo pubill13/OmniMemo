@@ -106,13 +106,15 @@ public sealed class OverlayPanelWindow : Window
     public void SetUndoContent(UIElement? content) => undoHost.Content = content;
     public void SetNotes(IEnumerable<Note> notes)
     {
-        Array.Clear(colorCounts);
+        var counts = new int[colorCounts.Length];
         foreach (var note in notes.Where(n => n.IsVisible && n.DeletedAt is null))
         {
-            colorCounts[0]++;
+            counts[0]++;
             int index = Array.FindIndex(NoteColors.Values, c => NoteColors.Matches(note.Color, c));
-            if (index >= 0) colorCounts[index + 1]++;
+            if (index >= 0) counts[index + 1]++;
         }
+        if (counts.SequenceEqual(colorCounts)) return;
+        counts.CopyTo(colorCounts, 0);
         RefreshChips();
     }
     private void RefreshChips()

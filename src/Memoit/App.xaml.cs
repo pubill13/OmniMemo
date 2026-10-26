@@ -26,6 +26,7 @@ public partial class App : Application
     private bool shuttingDown;
     private bool backupInProgress;
     private DateOnly? backupAttempt;
+    private bool savedRefreshQueued;
     private string dataDirectory = "";
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -189,7 +190,8 @@ public partial class App : Application
     private void ShowList(bool search = false)
     {
         if (list is null) return;
-        RefreshList(); list.Show(); list.WindowState = WindowState.Normal;
+        list.SetNotes(notes.Values.Where(n => n.Snapshot.DeletedAt is null).Select(n => n.Snapshot), false);
+        list.Show(); list.WindowState = WindowState.Normal;
         WindowPlacement.KeepOnScreen(list); list.Activate();
         if (search) list.FocusSearch();
     }
@@ -197,15 +199,26 @@ public partial class App : Application
     private void RefreshList()
     {
         RefreshPageControls();
-        list?.SetNotes(notes.Values.Where(n => n.Snapshot.DeletedAt is null).Select(n => n.Snapshot), false);
-        trashWindow?.SetNotes(notes.Values.Select(n => n.Snapshot));
-        overlayPanel?.SetNotes(notes.Values.Select(n => n.Snapshot));
+        if (list?.IsVisible == true)
+            list.SetNotes(notes.Values.Where(n => n.Snapshot.DeletedAt is null).Select(n => n.Snapshot), false);
+        if (trashWindow?.IsVisible == true) trashWindow.SetNotes(notes.Values.Select(n => n.Snapshot));
+        if (overlayPanel?.IsVisible == true) overlayPanel.SetNotes(notes.Values.Select(n => n.Snapshot));
         if (layoutPanel?.IsVisible == true) layoutPanel.RefreshPreview();
     }
 
     private async void OnNoteSaved()
     {
-        if (!arranging) RefreshList();
+        // Batch saves raise one event per note. Refresh once after input has had a turn,
+        // and never rebuild a hidden list on the editor's autosave cadence.
+        if (!arranging && !savedRefreshQueued && !shuttingDown)
+        {
+            savedRefreshQueued = true;
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+            {
+                savedRefreshQueued = false;
+                if (!arranging && !shuttingDown) RefreshList();
+            }));
+        }
         var today = DateOnly.FromDateTime(DateTime.Now);
         if (backupInProgress || backupAttempt == today) return;
         backupAttempt = today;
@@ -233,6 +246,7 @@ public partial class App : Application
             else if (windows.TryGetValue(vm.Snapshot.Id, out var window)) window.Hide();
         }
         ApplyPageVisibility();
+        if (visible) WindowPlacement.StackInOrder(windows.Values.Where(w => w.IsVisible).Cast<Window>().ToArray());
         if (!await NoteViewModel.FlushManyAsync(active, store.SaveManyAsync))
             throw new IOException("표시 상태를 저장하지 못했습니다. 저장 다시 시도를 이용하세요.");
     }

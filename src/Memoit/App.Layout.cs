@@ -150,6 +150,8 @@ public partial class App
             ApplyPageVisibility();
             if (collapsed) foreach (var item in candidates) { item.Window.ShowActivated = false; item.Window.Show(); }
             RefreshPageControls();
+            if (command != "RestorePages")
+                WindowPlacement.StackInOrder(candidates.Select(p => (Window)p.Window).Where(w => w.IsVisible).ToArray());
             double movedMs = clock.Elapsed.TotalMilliseconds;
             bool saved = await NoteViewModel.FlushManyAsync(changed.Select(p => notes[p.Key]).ToArray(), store.SaveManyAsync);
             await PersistLayoutAsync();

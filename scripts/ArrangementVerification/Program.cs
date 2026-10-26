@@ -65,6 +65,7 @@ internal sealed class VerificationApp : App
             await VerifyPageLifecycle();
             await VerifyStateBoundaries();
             await VerifyFilteredAndIndividualPaging();
+            await VerifyBulkForeground();
             checks.Add("No note was disabled by a bulk command; sentinel keyboard and foreground focus stayed unchanged.");
             WriteResult(true, null);
             Console.WriteLine(output);
@@ -253,6 +254,47 @@ internal sealed class VerificationApp : App
         checks.Add("100-note overflow: state-only collapse includes off-page notes without moving; hidden notes excluded; hide/show retains page, bounds and pin/collapse states; restart/list/trash verified.");
     }
     private Task ChangeState(bool collapsed) => (Task)typeof(App).GetMethod("ChangeCollapsedStateAsync", Private)!.Invoke(this, [collapsed, null, false])!;
+    private async Task VerifyBulkForeground()
+    {
+        await Populate(8, false, false);
+        sentinel!.Topmost = false;
+        try
+        {
+            foreach (string command in new[] { "ShowAll", "CollapseAll", "CollapseAll", "ExpandAll", "ExpandAll", "Arrange", "ArrangeExpanded", "ShowAll" })
+            {
+                WindowPlacement.StackInOrder([sentinel]);
+                var unpinned = NoteWindows.Values.First(w => w.IsVisible && !w.Topmost);
+                Require(IsAbove(sentinel, unpinned), "Could not place an ordinary window in front of a note before " + command);
+                var pins = Notes.ToDictionary(p => p.Key, p => p.Value.IsPinned);
+                var bounds = NoteWindows.ToDictionary(p => p.Key, p => WindowPlacement.GetBounds(p.Value));
+                if (command == "ShowAll")
+                    await (Task)typeof(App).GetMethod("SetAllVisibleAsync", Private)!.Invoke(this, [true])!;
+                else if (command is "CollapseAll" or "ExpandAll") await ChangeState(command == "CollapseAll");
+                else await Arrange(command);
+                await RenderSettled();
+                foreach (var pair in NoteWindows)
+                {
+                    if (pair.Value.IsVisible) Require(IsAbove(pair.Value, sentinel), command + " left a visible note behind the ordinary window.");
+                    Require(pair.Value.Topmost == pins[pair.Key] && Notes[pair.Key].IsPinned == pins[pair.Key], command + " changed pin state.");
+                    if (command == "ShowAll") Require(Near(bounds[pair.Key], WindowPlacement.GetBounds(pair.Value)), "ShowAll moved a note.");
+                }
+            }
+            await (Task)typeof(App).GetMethod("SetAllVisibleAsync", Private)!.Invoke(this, [false])!;
+            Require(NoteWindows.Values.All(w => !w.IsVisible), "HideAll raised or displayed a note.");
+            checks.Add("ShowAll, collapse/expand including repeated no-op commands, and both arrangement commands raise visible notes over an ordinary window without changing pin state; ShowAll preserves bounds and paging; HideAll stays hidden.");
+        }
+        finally { sentinel.Topmost = true; }
+    }
+
+    private static bool IsAbove(Window upper, Window lower)
+    {
+        var target = new WindowInteropHelper(upper).Handle;
+        for (var hwnd = GetWindow(new WindowInteropHelper(lower).Handle, 3); hwnd != IntPtr.Zero; hwnd = GetWindow(hwnd, 3))
+            if (hwnd == target) return true;
+        return false;
+    }
+    [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr hwnd, uint command);
+
     private async Task VerifyStateBoundaries()
     {
         await Populate(6, false, false);

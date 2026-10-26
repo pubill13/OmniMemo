@@ -9,6 +9,7 @@ namespace Memoit.ViewModels;
 public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
 {
     private Note note;
+    private string title;
     private readonly Func<Note, Task> save;
     private readonly DispatcherTimer timer;
     private readonly SemaphoreSlim saveGate = new(1, 1);
@@ -23,6 +24,7 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
     public NoteViewModel(Note note, Func<Note, Task> save, bool isNew = false)
     {
         this.note = note;
+        title = note.Title;
         this.save = save;
         timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         timer.Tick += OnTick;
@@ -30,17 +32,18 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
     }
 
     public Note Snapshot => note;
-    public string Title => note.Title;
+    public string Title => title;
     public string Body
     {
         get => note.Body;
         set
         {
             if (value == note.Body) return;
-            string previousTitle = note.Title;
+            string previousTitle = title;
             note = note with { Body = value };
+            title = note.Title;
             Changed(); Notify();
-            if (note.Title != previousTitle) Notify(nameof(Title));
+            if (title != previousTitle) Notify(nameof(Title));
         }
     }
     public string Color { get => note.Color; set { if (value != note.Color) { note = note with { Color = value }; Changed(); Notify(); } } }
@@ -64,8 +67,8 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
         }
     }
     public bool IsPinned { get => note.IsPinned; set { if (value != note.IsPinned) { note = note with { IsPinned = value }; Changed(); Notify(); } } }
-    public string SaveStatus { get => status; private set { status = value; Notify(); } }
-    public string SaveState { get => saveState; private set { saveState = value; Notify(); } }
+    public string SaveStatus { get => status; private set { if (status == value) return; status = value; Notify(); } }
+    public string SaveState { get => saveState; private set { if (saveState == value) return; saveState = value; Notify(); } }
     public bool IsDirty => revision != savedRevision;
     public event PropertyChangedEventHandler? PropertyChanged;
     public event Action? Saved;

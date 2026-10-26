@@ -166,6 +166,7 @@ public sealed class LayoutOptionsWindow : Window
         content.Children.Add(HelpText("‘모두 접기 / 모두 펼치기’는 각 메모의 현재 위치에서 상태만 바꾸고 페이지를 해제하며 겹침을 허용합니다. 화면 경계에서는 펼친 창이 보이도록 필요한 만큼만 보정합니다."));
         content.Children.Add(HelpText("‘접어서 정돈’은 설정한 시작점과 배치 규칙으로 타일을 정리합니다. ‘펼쳐서 정돈’은 선택한 모서리부터 메모를 겹치지 않는 페이지로 배치합니다."));
         content.Children.Add(HelpText("‘모두 숨기기 / 모두 보이기’는 접힘·크기·위치·압정 상태를 바꾸지 않습니다. 페이지 구성과 현재 페이지도 유지합니다."));
+        content.Children.Add(HelpText("모두 보이기·접기·펼치기와 두 정돈 명령은 실행 순간 대상 메모를 다른 일반 창 앞으로 가져옵니다. 압정 설정은 유지하며, 다른 앱의 ‘항상 위’ 창보다 위에 고정하지는 않습니다."));
         content.Children.Add(HelpText("페이지가 여러 개면 패널의 이전·다음으로 이동합니다. 목록에서 메모를 열면 해당 페이지로 이동합니다. 숨긴 메모와 휴지통 메모는 정돈 대상에서 제외됩니다."));
         content.Children.Add(HelpText("메모의 X는 삭제가 아니라 숨기기입니다. 목록에서 다시 열거나 트레이의 ‘모두 보이기’를 사용하세요. 압정은 항상 위 표시, ⋯ 메뉴는 색상·글꼴·글자 크기와 삭제를 제공합니다."));
         content.Children.Add(Section("목록과 삭제"));
@@ -189,6 +190,7 @@ public sealed class LayoutOptionsWindow : Window
         content.Children.Add(Section("현재 버전"));
         content.Children.Add(new TextBlock { Text = version, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
         content.Children.Add(Section("최근 변경"));
+        content.Children.Add(HelpText("1.12.2\n전체 표시·상태 변경·정돈 시 메모를 앞으로 가져옵니다. 자동 저장 때 숨겨진 목록과 변하지 않은 패널을 반복해서 만드는 작업을 줄이고, 긴 본문의 제목 처리와 저장 상태 알림을 최적화했습니다."));
         content.Children.Add(HelpText("1.12.1\n설정의 탭·카드·입력란과 단축키 구획을 정리하고, 드롭다운·모서리 선택·적용 버튼의 스타일을 통일했습니다."));
         content.Children.Add(HelpText("1.12.0\n전체 조작과 정돈을 분리했습니다. 모두 접기·펼치기는 현재 위치를 유지하고, 정돈은 설정된 위치에 배치합니다. 압정의 클릭 영역과 색상 표시를 개선했습니다."));
         content.Children.Add(HelpText("1.11.4\n설정에 도움말과 버전 탭을 추가했습니다. 현재 버전은 실행 중인 프로그램에서 자동으로 읽습니다."));

@@ -9,6 +9,28 @@ namespace Memoit.Tests;
 public sealed class NoteViewModelTests
 {
     [Fact]
+    public Task EditingBodyNotifiesOnlyChangedTitleAndSaveState() => OnDispatcher(async () =>
+    {
+        using var vm = new NoteViewModel(new Note { Body = "제목\n본문" }, _ => Task.CompletedTask);
+        var notifications = new List<string?>();
+        vm.PropertyChanged += (_, e) => notifications.Add(e.PropertyName);
+        vm.Body = "제목\n수정";
+        Assert.Equal("제목", vm.Title);
+        Assert.DoesNotContain(nameof(vm.Title), notifications);
+        Assert.Contains(nameof(vm.SaveState), notifications);
+        notifications.Clear();
+        vm.Body = "제목\n계속 수정";
+        Assert.Equal(new[] { nameof(vm.Body) }, notifications);
+        vm.Body = "새 제목\n본문";
+        Assert.Equal("새 제목", vm.Title);
+        Assert.Contains(nameof(vm.Title), notifications);
+        notifications.Clear();
+        Assert.True(await vm.FlushAsync());
+        Assert.Contains(nameof(vm.SaveState), notifications);
+        Assert.Equal("Saved", vm.SaveState);
+    });
+
+    [Fact]
     public Task ExpandUsesTilePositionAndCollapseRemembersTilePosition() => OnDispatcher(() =>
     {
         using var vm = new NoteViewModel(new Note { Left = 100, Top = 200 }, _ => Task.CompletedTask);

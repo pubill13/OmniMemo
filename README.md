@@ -4,12 +4,13 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.12.1-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.12.2-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
 ## 전체 조작과 정돈
 
+- **실행 순간 앞으로:** 모두 보이기·모두 접기·모두 펼치기·접어서 정돈·펼쳐서 정돈은 표시 대상 메모를 일반 창 앞으로 가져옵니다. 이미 같은 상태여도 동작하며 압정 설정은 유지합니다. 다른 앱의 ‘항상 위’ 창보다 위에 고정하지는 않습니다.
 - **모두 접기 / 모두 펼치기:** 각 메모의 현재 왼쪽 위에서 상태만 변경합니다. 페이지를 해제하고 모든 대상 메모를 표시하며 겹침을 허용합니다. 펼칠 때 화면 밖으로 나가면 필요한 만큼만 보정합니다.
 - **모두 숨기기 / 모두 보이기:** 접힘·위치·크기·압정 상태와 페이지 구성·현재 페이지를 그대로 유지하며 표시 여부만 바꿉니다.
 - **접어서 정돈:** 현재 보이는 메모를 모두 36×36 DIP 타일로 접고, 모니터별 타일 시작점·배치 형태·간격·순서로 정리합니다.
@@ -72,15 +73,15 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.12.0/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.12.2/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.12.0/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.12.0/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.12.0/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.12.2/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.12.2/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.12.2/win-x64/OmniMemo.exe
 dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-final-1.12.json
 ```
 
@@ -140,3 +141,11 @@ dotnet run --project scripts/ArrangementVerification -c Release -- --output arti
 
 - 설정 화면을 카드·탭 중심으로 재구성하고 여백·입력란·모서리 선택·적용 영역을 통일했습니다.
 - 단축키를 구획별 카드로 묶고 드롭다운을 저대비 스타일로 개선했습니다. 저장·배치 계산은 유지합니다.
+
+## 1.12.2 변경 사항
+
+- 전체 표시·접기·펼치기·정돈 명령을 실행하면 대상 메모를 앞으로 가져옵니다. 접기·펼치기의 현재 위치 유지와 정돈의 배치 변경을 구분합니다.
+- 자동 저장 후 숨겨진 목록 재생성을 없애고 여러 메모의 저장 알림을 한 번의 화면 갱신으로 합칩니다. 변하지 않은 색상 버튼·페이지 선택기도 유지합니다.
+- 긴 본문의 제목 계산에서 전체 줄 복사를 제거하고, 제목 캐시와 저장 상태 변경 알림을 개선했습니다.
+- 전체 테스트 253개와 실제 WPF 통합 검증 통과. 700줄 본문 20개를 띄운 12초 편집·자동 저장 측정에서 최대 UI 응답 간격 165ms, 1초 이상 멈춤 없음. 사용자 환경 전체의 끊김 해소를 보장하는 수치는 아닙니다.
+- 분리된 검증 앱에서 실제 패널 접기·펼치기 클릭과 타일·긴 본문 화면을 확인했습니다. 자세한 범위와 한계는 [검증 기록](docs/verification-1.12.2.md)을 참고하세요.

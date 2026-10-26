@@ -25,9 +25,16 @@ public sealed record Note
     {
         get
         {
-            using var lines = new StringReader(Body);
-            while (lines.ReadLine() is { } line)
-                if (!string.IsNullOrWhiteSpace(line)) return line.Trim()[..Math.Min(80, line.Trim().Length)];
+            // Titles need only a short slice; don't allocate whole lines from large pasted notes.
+            ReadOnlySpan<char> remaining = Body.AsSpan();
+            while (!remaining.IsEmpty)
+            {
+                int end = remaining.IndexOfAny('\r', '\n');
+                ReadOnlySpan<char> line = (end < 0 ? remaining : remaining[..end]).Trim();
+                if (!line.IsEmpty) return line[..Math.Min(80, line.Length)].ToString();
+                if (end < 0) break;
+                remaining = remaining[(end + 1)..];
+            }
             return "새 메모";
         }
     }

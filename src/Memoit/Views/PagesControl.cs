@@ -34,6 +34,7 @@ public sealed class PagesControl : StackPanel
     {
         string? selected = (monitors.SelectedItem as PageDisplay)?.MonitorId;
         var pages = displays.Where(p => p.Total > 1).ToArray();
+        if (monitors.ItemsSource is PageDisplay[] previousPages && previousPages.SequenceEqual(pages)) return;
         monitors.ItemsSource = pages;
         monitors.SelectedItem = pages.FirstOrDefault(p => p.MonitorId == selected) ?? pages.FirstOrDefault();
         monitors.Visibility = pages.Length > 1 ? Visibility.Visible : Visibility.Collapsed;

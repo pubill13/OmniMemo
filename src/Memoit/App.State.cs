@@ -57,6 +57,7 @@ public partial class App
             if (!pair.Value.IsVisible && (!filtered || moves.Any(m => m.Id == pair.Key)))
             { pair.Value.ShowActivated = false; pair.Value.Show(); }
         RefreshPageControls();
+        WindowPlacement.StackInOrder(selected.Select(p => (Window)p.Value).Where(w => w.IsVisible).ToArray());
         layoutSettings = layoutSettings with { PagedExpansionActive = pageSessions.Count > 0 };
         double moveMs = watch.Elapsed.TotalMilliseconds;
         watch.Restart();

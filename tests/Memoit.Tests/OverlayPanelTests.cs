@@ -18,6 +18,42 @@ namespace Memoit.Tests;
 public sealed class OverlayPanelTests
 {
     [Fact]
+    public void BodyOnlySavePreservesColorChipVisuals() => RunSta(() =>
+    {
+        var panel = new OverlayPanelWindow(new LayoutSettings());
+        try
+        {
+            var note = new Note { Body = "before" };
+            panel.SetNotes([note]);
+            var chips = Descendants(panel).OfType<ToggleButton>().Where(b => b.Content is StackPanel).ToArray();
+            Assert.NotEmpty(chips);
+            var content = chips.Select(b => b.Content).ToArray();
+            panel.SetNotes([note with { Body = "after", UpdatedAt = DateTimeOffset.UtcNow }]);
+            for (int i = 0; i < chips.Length; i++) Assert.Same(content[i], chips[i].Content);
+            panel.SetNotes([note with { IsVisible = false }]);
+            Assert.NotSame(content[0], chips[0].Content);
+        }
+        finally { panel.AllowClose = true; panel.Close(); }
+    });
+
+    [Fact]
+    public void UnchangedPagesPreserveOpenMonitorSelector() => RunSta(() =>
+    {
+        var pages = new PagesControl();
+        PageDisplay[] displays = [new("a", "화면 1", 0, 3, 2, 6), new("b", "화면 2", 1, 2, 1, 3)];
+        pages.SetPages(displays);
+        var combo = Descendants(pages).OfType<ComboBox>().Single();
+        combo.SelectedIndex = 1;
+        var source = combo.ItemsSource;
+        int changes = 0;
+        combo.SelectionChanged += (_, _) => changes++;
+        pages.SetPages(displays.Select(p => p with { }).ToArray());
+        Assert.Same(source, combo.ItemsSource);
+        Assert.Equal(1, combo.SelectedIndex);
+        Assert.Equal(0, changes);
+    });
+
+    [Fact]
     public void PinIsFilledOnlyWhenEnabledAndTitleHasSeparateHitTarget() => RunSta(() =>
     {
         var panel = new OverlayPanelWindow(new LayoutSettings());
