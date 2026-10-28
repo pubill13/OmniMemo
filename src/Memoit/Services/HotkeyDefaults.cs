@@ -11,7 +11,7 @@ public static class HotkeyDefaults
         ["ToggleCollapsed"] = "모두 접기 / 모두 펼치기",
         ["Arrange"] = "접어서 정돈",
         ["ArrangeExpanded"] = "펼쳐서 정돈",
-        ["ToggleOverlay"] = "미니 패널 열기 / 닫기"
+        ["ToggleOverlay"] = "패널 열기 / 닫기"
     };
 
     public static Dictionary<string, string> Create() => new(StringComparer.Ordinal)

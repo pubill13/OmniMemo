@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.12.2-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.13.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -21,13 +21,17 @@ GitHub 릴리스의 `OmniMemo-1.12.2-win-x64.zip`을 풀고 `OmniMemo.exe`를 �
 
 ## 패널과 설정
 
-미니 패널은 새 메모·목록/검색, 모두 접기·모두 펼치기, 모두 숨기기·모두 보이기와 접어서 정돈·펼쳐서 정돈을 제공합니다. **색상별 조작**을 펼치면 선택 색상의 보이는 메모만 접거나 펼칠 수 있습니다. 색상 칩은 보이는 메모 수를 표시하고, 버튼 툴팁에는 현재 지정된 단축키를 함께 표시합니다. 색상별 동작은 전체 정돈하지 않습니다. 헤더에서 압정·설정·닫기를 사용할 수 있고 제목을 드래그하면 패널을 옮깁니다.
+패널 헤더의 축소 아이콘을 누르면 **240×88 DIP의 2줄 아이콘 미니패널**로 전환합니다. 첫째 줄은 새 메모·목록/검색·모두 접기·모두 펼치기·모두 숨기기·모두 보이기, 둘째 줄은 접어서 정돈·펼쳐서 정돈·압정·설정·일반 패널 복귀·숨기기입니다. 아이콘에 마우스를 올리면 기능명과 지정된 단축키가 표시됩니다. 미니패널은 상단 손잡이로 이동합니다.
+
+크기 모드를 바꿔도 위치·압정·선택 색상을 유지하고 마지막 모드를 재실행 후 복원합니다. 일반 크기로 복귀하면서 화면 밖으로 나갈 때만 위치를 보정합니다. 색상별 조작은 일반 패널에서 사용하며, 미니 상태의 페이지 이동은 별도 페이지 창을 사용합니다. 삭제 실행 취소는 목록 또는 별도 안내 창에 표시하고 남은 시간을 유지합니다.
+
+패널은 새 메모·목록/검색, 모두 접기·모두 펼치기, 모두 숨기기·모두 보이기와 접어서 정돈·펼쳐서 정돈을 제공합니다. **색상별 조작**을 펼치면 선택 색상의 보이는 메모만 접거나 펼칠 수 있습니다. 색상 칩은 보이는 메모 수를 표시하고, 버튼 툴팁에는 현재 지정된 단축키를 함께 표시합니다. 색상별 동작은 전체 정돈하지 않습니다. 헤더에서 압정·설정·닫기를 사용할 수 있고 제목을 드래그하면 패널을 옮깁니다.
 
 설정은 `배치 / 단축키 / 일반 / 백업 / 도움말 / 버전`으로 나뉩니다. 배치에는 **접어서 정돈 / 펼쳐서 정돈 / 공통**을 모았습니다. `여러 줄로 배치`는 한 줄을 채우고 다음 줄로 넘어가며, 가로·세로 한 줄은 줄바꿈하지 않습니다. 여러 줄 배치의 `한 줄에 놓을 메모 수`는 자동 또는 1~30개를 지정합니다. 자동은 시작점 오른쪽의 가용 폭으로 계산합니다. 색상순이면 새 색에서 줄을 바꾸고 같은 색은 먼저 만든 순서입니다.
 
 `화면에서 지정`으로 시작점을 고르고, 세부 조정에서 X·Y를 입력합니다. 미리보기 버튼은 별도 창을 열며 적용 전 설정과 보이는 메모를 반영합니다. 실제 메모를 움직이지 않습니다. **적용은 설정만 저장**합니다. 일반 탭에서 로그인 자동 실행을 적용하고, 백업 탭의 백업·복원 버튼은 즉시 실행합니다.
 
-트레이에서는 새 메모, 목록, 모두 숨기기, 모두 보이기, 미니 패널, 설정, 종료를 제공합니다. 미니 패널을 누르면 한 번에 표시하고 앞으로 가져옵니다. 패널은 항상 100% 불투명하게 표시합니다. 정돈은 패널 버튼이나 통합 단축키를 사용하세요.
+트레이에서는 새 메모, 목록, 모두 숨기기, 모두 보이기, 패널, 설정, 종료를 제공합니다. 트레이 아이콘 더블클릭 또는 ‘패널’ 메뉴는 마지막 사용 모드의 패널을 표시하고 앞으로 가져옵니다. 이미 보이는 패널도 숨기지 않습니다. 패널은 항상 100% 불투명하게 표시합니다. 정돈은 패널 버튼이나 통합 단축키를 사용하세요.
 
 ## 새 메모 위치
 
@@ -46,7 +50,7 @@ GitHub 릴리스의 `OmniMemo-1.12.2-win-x64.zip`을 풀고 `OmniMemo.exe`를 �
 | 모두 접기·모두 펼치기 | Ctrl+Alt+Shift+C |
 | 접어서 정돈 | 미지정 |
 | 펼쳐서 정돈 | 미지정 |
-| 미니 패널 열기·닫기 | Ctrl+Alt+Shift+P |
+| 패널 열기·닫기 | Ctrl+Alt+Shift+P |
 
 전환 명령은 보이는 메모 중 펼친 것이 하나라도 있으면 현재 위치에서 모두 접고, 모두 접혔으면 모두 펼칩니다. 패널에서는 원하는 동작을 두 버튼으로 직접 선택할 수 있습니다. 앱 내부 Ctrl+N·Ctrl+F는 유지합니다.
 
@@ -73,15 +77,15 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.12.2/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.13.0/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.12.2/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.12.2/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.12.2/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.13.0/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.13.0/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.13.0/win-x64/OmniMemo.exe
 dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-final-1.12.json
 ```
 
@@ -98,7 +102,7 @@ dotnet run --project scripts/ArrangementVerification -c Release -- --output arti
 
 - 메인 목록은 활성 메모만 표시하고 휴지통은 별도 창으로 엽니다.
 - 전체 펼치기는 모든 대상 메모를 겹치지 않는 페이지에 배치합니다. 목록에서 메모를 열면 해당 페이지로 이동합니다.
-- 미니 패널은 항상 100% 불투명하게 표시합니다.
+- 패널은 항상 100% 불투명하게 표시합니다.
 
 ## 1.11.1 검증
 
@@ -142,7 +146,7 @@ dotnet run --project scripts/ArrangementVerification -c Release -- --output arti
 - 설정 화면을 카드·탭 중심으로 재구성하고 여백·입력란·모서리 선택·적용 영역을 통일했습니다.
 - 단축키를 구획별 카드로 묶고 드롭다운을 저대비 스타일로 개선했습니다. 저장·배치 계산은 유지합니다.
 
-## 1.12.2 변경 사항
+## 1.13.0 변경 사항
 
 - 전체 표시·접기·펼치기·정돈 명령을 실행하면 대상 메모를 앞으로 가져옵니다. 접기·펼치기의 현재 위치 유지와 정돈의 배치 변경을 구분합니다.
 - 자동 저장 후 숨겨진 목록 재생성을 없애고 여러 메모의 저장 알림을 한 번의 화면 갱신으로 합칩니다. 변하지 않은 색상 버튼·페이지 선택기도 유지합니다.

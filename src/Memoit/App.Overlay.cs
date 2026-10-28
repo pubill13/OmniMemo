@@ -34,7 +34,8 @@ public partial class App
             overlayPanel.CollapseRequested += (collapsed, color) => RunFilteredCollapsed(collapsed, color);
             overlayPanel.PageRequested += ChangeExpandedPage;
             overlayPanel.PreferencesChanged += SaveOverlayPreferences;
-            overlayPanel.Hidden += () => { SaveOverlayPreferences(); RefreshPageControls(); };
+            overlayPanel.CompactChanged += () => { RefreshPageControls(); RelocatePanelUndo(); };
+            overlayPanel.Hidden += () => { SaveOverlayPreferences(); RefreshPageControls(); RelocatePanelUndo(); };
             overlayPanel.Left = layoutSettings.OverlayLeft ?? SystemParameters.WorkArea.Right - overlayPanel.Width - 16;
             overlayPanel.Top = layoutSettings.OverlayTop ?? SystemParameters.WorkArea.Top + 16;
         }
@@ -62,6 +63,7 @@ public partial class App
             {
                 OverlayLeft = overlayPanel.Left, OverlayTop = overlayPanel.Top,
                 OverlayTopmost = overlayPanel.SelectedTopmost,
+                OverlayCompact = overlayPanel.IsCompact,
                 OverlayColor = overlayPanel.SelectedColor, OverlayVisible = overlayPanel.IsVisible
 
             };

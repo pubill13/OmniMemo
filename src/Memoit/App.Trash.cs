@@ -9,6 +9,7 @@ public partial class App
     private List<TrashChange> undoTrash = [];
     private UndoNotice? undoNotice;
     private Window? undoWindow;
+    private bool undoInPanel;
 
     private async Task DeleteSelectedAsync(IReadOnlyList<Guid> ids)
     {
@@ -49,17 +50,31 @@ public partial class App
         undoNotice.UndoRequested += () => { if (!busy && !arranging) RunOperation(UndoDeleteAsync); };
         undoNotice.Expired += ClearDeleteUndo;
         if (fromList && list?.IsVisible == true) list.SetUndoContent(undoNotice);
-        else if (overlayPanel?.IsVisible == true) overlayPanel.SetUndoContent(undoNotice);
+        else if (overlayPanel?.IsVisible == true && !overlayPanel.IsCompact)
+        { overlayPanel.SetUndoContent(undoNotice); undoInPanel = true; }
         else if (list?.IsVisible == true) list.SetUndoContent(undoNotice);
-        else
-        {
-            undoWindow = new Window { Title = "OmniMemo · 삭제 실행 취소", ShowActivated = false, ShowInTaskbar = false,
-                WindowStyle = WindowStyle.ToolWindow, ResizeMode = ResizeMode.NoResize,
-                SizeToContent = SizeToContent.Height, Width = 310, Left = anchor.X, Top = anchor.Y,
-                Content = undoNotice, Topmost = true };
-            undoWindow.Closed += (_, _) => ClearDeleteUndo();
-            undoWindow.Show(); WindowPlacement.KeepOnScreen(undoWindow);
-        }
+        else ShowUndoWindow(anchor);
+    }
+
+    private void RelocatePanelUndo()
+    {
+        if (!undoInPanel || undoNotice is null || overlayPanel is null
+            || (overlayPanel.IsVisible && !overlayPanel.IsCompact)) return;
+        // Move the same notice, retaining its timer and restore-failure state.
+        overlayPanel.SetUndoContent(null);
+        undoInPanel = false;
+        if (list?.IsVisible == true) list.SetUndoContent(undoNotice);
+        else ShowUndoWindow(new Point(overlayPanel.Left, overlayPanel.Top));
+    }
+
+    private void ShowUndoWindow(Point anchor)
+    {
+        undoWindow = new Window { Title = "OmniMemo · 삭제 실행 취소", ShowActivated = false, ShowInTaskbar = false,
+            WindowStyle = WindowStyle.ToolWindow, ResizeMode = ResizeMode.NoResize,
+            SizeToContent = SizeToContent.Height, Width = 310, Left = anchor.X, Top = anchor.Y,
+            Content = undoNotice, Topmost = true };
+        undoWindow.Closed += (_, _) => ClearDeleteUndo();
+        undoWindow.Show(); WindowPlacement.KeepOnScreen(undoWindow);
     }
 
     private async Task UndoDeleteAsync()
@@ -87,6 +102,7 @@ public partial class App
     private void ClearDeleteUndo()
     {
         undoNotice?.Dispose(); undoNotice = null; undoTrash.Clear();
+        undoInPanel = false;
         list?.SetUndoContent(null); overlayPanel?.SetUndoContent(null);
         var window = undoWindow; undoWindow = null;
         if (window is not null) { window.Content = null; window.Close(); }

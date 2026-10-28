@@ -170,6 +170,7 @@ public sealed class LayoutOptionsWindow : Window
         content.Children.Add(HelpText("페이지가 여러 개면 패널의 이전·다음으로 이동합니다. 목록에서 메모를 열면 해당 페이지로 이동합니다. 숨긴 메모와 휴지통 메모는 정돈 대상에서 제외됩니다."));
         content.Children.Add(HelpText("메모의 X는 삭제가 아니라 숨기기입니다. 목록에서 다시 열거나 트레이의 ‘모두 보이기’를 사용하세요. 압정은 항상 위 표시, ⋯ 메뉴는 색상·글꼴·글자 크기와 삭제를 제공합니다."));
         content.Children.Add(Section("목록과 삭제"));
+        content.Children.Add(HelpText("트레이 아이콘을 더블클릭하거나 ‘패널’을 선택하면 마지막 크기 모드의 패널을 앞으로 표시합니다. 패널 헤더의 축소 아이콘으로 2줄 아이콘 미니패널로 줄이고, 미니패널의 복귀 아이콘으로 원래 크기로 돌아옵니다. 상단 손잡이를 드래그해 옮기며 압정과 선택 색상은 유지합니다. 미니 상태에서는 페이지 이동과 삭제 실행 취소를 별도 창 또는 목록에서 제공합니다."));
         content.Children.Add(HelpText("메모 목록에서 검색·체크박스·우클릭 메뉴를 사용할 수 있습니다. 삭제한 메모는 휴지통에서 복원하거나 확인 후 영구 삭제할 수 있습니다."));
         content.Children.Add(HelpText("휴지통 비우기는 검색어와 관계없이 휴지통 전체를 대상으로 합니다. 확인창에서 취소를 선택하면 삭제하지 않습니다."));
         content.Children.Add(Section("기본 단축키"));
@@ -190,6 +191,7 @@ public sealed class LayoutOptionsWindow : Window
         content.Children.Add(Section("현재 버전"));
         content.Children.Add(new TextBlock { Text = version, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
         content.Children.Add(Section("최근 변경"));
+        content.Children.Add(HelpText("1.13.0\n패널에 240×88 크기의 2줄 아이콘 미니 모드를 추가했습니다. 마지막 모드와 압정을 저장하며 트레이 더블클릭은 패널을 표시합니다."));
         content.Children.Add(HelpText("1.12.2\n전체 표시·상태 변경·정돈 시 메모를 앞으로 가져옵니다. 자동 저장 때 숨겨진 목록과 변하지 않은 패널을 반복해서 만드는 작업을 줄이고, 긴 본문의 제목 처리와 저장 상태 알림을 최적화했습니다."));
         content.Children.Add(HelpText("1.12.1\n설정의 탭·카드·입력란과 단축키 구획을 정리하고, 드롭다운·모서리 선택·적용 버튼의 스타일을 통일했습니다."));
         content.Children.Add(HelpText("1.12.0\n전체 조작과 정돈을 분리했습니다. 모두 접기·펼치기는 현재 위치를 유지하고, 정돈은 설정된 위치에 배치합니다. 압정의 클릭 영역과 색상 표시를 개선했습니다."));

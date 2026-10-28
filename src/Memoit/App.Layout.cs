@@ -195,7 +195,7 @@ public partial class App
             ? "모두 접기·펼치기는 현재 위치를 유지합니다. 기존 전환 단축키는 더 이상 정렬하지 않습니다. 위치 정리는 접어서 정돈·펼쳐서 정돈을 사용하세요."
             : layoutSettings.NeedsShortcutSimplificationNotice
             ? "설정 화면을 정리하고 단축키를 6개로 줄였습니다. 숨김/보임과 정돈/펼치기는 각각 하나의 키로 전환합니다. 제거된 키는 해제했으며 이전 설정은 백업했습니다."
-            : "자동 정렬이 정돈 명령으로 바뀌었습니다. 필요할 때 미니 패널에서 정돈하세요.";
+            : "자동 정렬이 정돈 명령으로 바뀌었습니다. 필요할 때 패널에서 정돈하세요.";
         tray?.ShowBalloonTip(7000, "OmniMemo · 설정 변경 안내", message, System.Windows.Forms.ToolTipIcon.Info);
         try { SaveLayoutSettings(layoutSettings with { NeedsOperationSeparationNotice = false, NeedsManualArrangementNotice = false, NeedsShortcutSimplificationNotice = false }); }
         catch (Exception ex) { ArrangementNotice("변경 안내 상태를 저장하지 못했습니다: " + ex.Message, true); }
@@ -261,6 +261,7 @@ public partial class App
             {
                 OverlayLeft = layoutSettings.OverlayLeft, OverlayTop = layoutSettings.OverlayTop,
                 OverlayTopmost = layoutSettings.OverlayTopmost,
+                OverlayCompact = layoutSettings.OverlayCompact,
 
                 OverlayColor = layoutSettings.OverlayColor, OverlayVisible = layoutSettings.OverlayVisible,
                 PagedExpansionActive = layoutSettings.PagedExpansionActive,

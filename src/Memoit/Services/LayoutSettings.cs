@@ -47,6 +47,7 @@ public sealed record LayoutSettings
     public bool OverlayTopmost { get; init; }
     public string? OverlayColor { get; init; }
     public bool OverlayVisible { get; init; }
+    public bool OverlayCompact { get; init; }
 
     public MonitorLayout GetMonitor(string id) => Monitors.TryGetValue(id, out var layout)
         ? layout : new MonitorLayout { Sort = SortByColor ? LayoutSort.Color : LayoutSort.Created };
@@ -56,7 +57,7 @@ public sealed record LayoutSettings
         if (OverlayLeft.HasValue && !double.IsFinite(OverlayLeft.Value)
             || OverlayTop.HasValue && !double.IsFinite(OverlayTop.Value)
             || OverlayColor is not null && !NoteColors.Values.Any(c => NoteColors.Matches(c, OverlayColor)))
-            throw new InvalidDataException("미니 패널 위치 또는 색상이 올바르지 않습니다.");
+            throw new InvalidDataException("패널 위치 또는 색상이 올바르지 않습니다.");
         if (Version != 6) throw new InvalidDataException("지원하지 않는 타일 설정 버전입니다.");
         if (Monitors is null || Hotkeys is null || ArrangementOrder is null || PanelLeft.HasValue && !double.IsFinite(PanelLeft.Value)
             || PanelTop.HasValue && !double.IsFinite(PanelTop.Value))

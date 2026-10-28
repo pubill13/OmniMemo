@@ -124,7 +124,7 @@ public partial class App : Application
         menu.Items.Add("메모 목록", null, (_, _) => { if (!busy) ShowList(); });
         menu.Items.Add("모두 숨기기", null, (_, _) => ExecuteCommand("HideAll"));
         menu.Items.Add("모두 보이기", null, (_, _) => ExecuteCommand("ShowAll"));
-        menu.Items.Add("미니 패널", null, (_, _) => { if (!busy) ShowOverlayPanel(true); });
+        menu.Items.Add("패널", null, (_, _) => { if (!busy) ShowOverlayPanel(true); });
         var retry = menu.Items.Add("저장 다시 시도", null, (_, _) => ExecuteCommand("RetrySave"));
         retry.Visible = false;
         menu.Opening += (_, _) =>
@@ -135,7 +135,7 @@ public partial class App : Application
         menu.Items.Add("설정", null, (_, _) => { if (!busy) ShowSettings(); });
         menu.Items.Add("종료", null, (_, _) => RunOperation(ExitAsync));
         tray.ContextMenuStrip = menu;
-        tray.DoubleClick += (_, _) => { if (!busy) ShowList(); };
+        tray.DoubleClick += (_, _) => { if (!busy && !shuttingDown) ShowOverlayPanel(true); };
         tray.BalloonTipClicked += (_, _) => { if (!busy) ShowSettings(); };
     }
 

@@ -11,7 +11,7 @@ using Memoit.Models;
 
 namespace Memoit.Views;
 
-public sealed class OverlayPanelWindow : Window
+public sealed partial class OverlayPanelWindow : Window
 {
     private static readonly string[] ColorNames = ["전체", "노랑", "분홍", "초록", "파랑", "보라", "흰색"];
     private readonly List<ToggleButton> colorChips = [];
@@ -39,13 +39,14 @@ public sealed class OverlayPanelWindow : Window
 
     public OverlayPanelWindow(LayoutSettings settings)
     {
-        Title = "OmniMemo · 데스크톱 패널"; Width = 280; SizeToContent = SizeToContent.Height;
+        Title = "OmniMemo · 패널"; Width = 280; SizeToContent = SizeToContent.Height;
         WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; ShowInTaskbar = false;
         AllowsTransparency = true; Background = Brushes.Transparent; FontFamily = new FontFamily("Malgun Gothic"); FontSize = 12;
         Resources.Add(typeof(Button), ControlStyle(typeof(Button)));
         Resources.Add(typeof(ToggleButton), ControlStyle(typeof(ToggleButton)));
-        var content = new StackPanel { Margin = new Thickness(14) };
-        Content = new Border { CornerRadius = new CornerRadius(12), Background = Brush("#F8FAFC"), BorderBrush = Brush("#D8E0E9"), BorderThickness = new Thickness(1), Child = content };
+        var content = normalContent;
+        Content = panelBorder;
+        panelBorder.Child = content;
         var header = new DockPanel { Background = Brushes.Transparent, Margin = new Thickness(0, 0, 0, 14) };
         var close = IconButton("M 3,3 L 13,13 M 13,3 L 3,13", "패널 숨기기", Close);
         DockPanel.SetDock(close, Dock.Right); header.Children.Add(close);
@@ -53,13 +54,15 @@ public sealed class OverlayPanelWindow : Window
         shortcutButtons.Add((settingsButton, "설정 열기 / 닫기", ["TogglePanel"]));
         shortcutButtons.Add((close, "패널 숨기기", ["ToggleOverlay"]));
         DockPanel.SetDock(settingsButton, Dock.Right); header.Children.Add(settingsButton);
+        var compactButton = IconButton("M 2,5 L 14,5 14,12 2,12 Z M 5,8 L 11,8", "미니패널로 축소", () => SetCompact(true));
+        DockPanel.SetDock(compactButton, Dock.Right); header.Children.Add(compactButton);
         pinned.Content = CreateIcon("M 5,2 L 11,2 L 10,7 L 13,10 L 9,10 L 8,15 L 7,10 L 3,10 L 6,7 Z");
         pinned.Style = ControlStyle(typeof(ToggleButton), false);
         pinned.Background = Brushes.Transparent;
         pinned.Width = 28; pinned.Height = 28; pinned.Padding = new Thickness(5); pinned.ToolTip = "패널 항상 위";
         AutomationProperties.SetName(pinned, "패널 항상 위"); DockPanel.SetDock(pinned, Dock.Right); header.Children.Add(pinned);
         var title = new TextBlock { Text = "OmniMemo", VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold, FontSize = 14, Foreground = Brush("#243247"), Cursor = Cursors.SizeAll };
-        title.MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { e.Handled = true; DragMove(); PreferencesChanged?.Invoke(); } };
+        title.MouseLeftButtonDown += DragPanel;
         header.Children.Add(title); content.Children.Add(header);
         content.Children.Add(Section("메모"));
         content.Children.Add(Row(CommandButton("새 메모", "NewNote"), CommandButton("목록·검색", "Search")));
@@ -93,11 +96,12 @@ public sealed class OverlayPanelWindow : Window
         content.Children.Add(new Expander { Header = "색상별 조작", IsExpanded = false, Content = filtered, Margin = new Thickness(2, 12, 2, 0), Foreground = Brush("#526079") });
         content.Children.Add(status); AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
         content.Children.Add(undoHost);
+        BuildCompactContent();
         RefreshSettings(settings);
         pinned.Checked += (_, _) => Changed(); pinned.Unchecked += (_, _) => Changed();
         statusTimer.Tick += (_, _) => { statusTimer.Stop(); status.Text = ""; };
 
-        IsVisibleChanged += (_, _) => { if (!IsVisible) FlushPreferences(); };
+        IsVisibleChanged += (_, _) => { if (!IsVisible) { statusPopup.IsOpen = false; FlushPreferences(); } };
         Closing += (_, e) => { FlushPreferences(); if (!AllowClose) { e.Cancel = true; Hide(); Hidden?.Invoke(); } else statusTimer.Stop(); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; Close(); } };
     }
@@ -144,6 +148,10 @@ public sealed class OverlayPanelWindow : Window
     public void ShowStatus(string message, bool error = false)
     {
         statusTimer.Stop(); status.Foreground = error ? Brushes.Firebrick : Brush("#526079"); status.Text = message;
+        statusIsError = error;
+        compactError.Visibility = error ? Visibility.Visible : Visibility.Collapsed;
+        popupMessage.Text = message;
+        statusPopup.IsOpen = IsCompact && IsVisible && error;
         if (!error) statusTimer.Start();
     }
     public void RefreshSettings(LayoutSettings settings)
@@ -156,6 +164,7 @@ public sealed class OverlayPanelWindow : Window
         Opacity = 1;
         pinned.IsChecked = settings.OverlayTopmost; Topmost = settings.OverlayTopmost;
         UpdatePin();
+        SetCompact(settings.OverlayCompact);
         refreshing = false;
     }
     public void FlushPreferences() { }
@@ -166,6 +175,14 @@ public sealed class OverlayPanelWindow : Window
         var color = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : Brush(SelectedTopmost ? "#176B61" : "#595F5E");
         icon.Stroke = color; icon.Fill = SelectedTopmost ? color : Brushes.Transparent;
         pinned.ToolTip = SelectedTopmost ? "패널 고정됨 · 클릭하여 항상 위 해제" : "패널 고정 안 됨 · 클릭하여 항상 위에 표시";
+        if (compactPinned.Content is System.Windows.Shapes.Path miniIcon)
+        {
+            syncingPin = true;
+            compactPinned.IsChecked = SelectedTopmost;
+            syncingPin = false;
+            miniIcon.Stroke = color; miniIcon.Fill = SelectedTopmost ? color : Brushes.Transparent;
+            compactPinned.ToolTip = pinned.ToolTip;
+        }
     }
     private static SolidColorBrush Brush(string value) => (SolidColorBrush)new BrushConverter().ConvertFromString(value)!;
     private static TextBlock Section(string text) => new() { Text = text, FontSize = 11, Foreground = Brush("#64748B"), Margin = new Thickness(2, 9, 2, 5) };

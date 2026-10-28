@@ -69,7 +69,7 @@ public partial class App
             var displays = pageSessions.Where(p => p.Value.Pages.Any(page => page.Keys.Any(IsLogicallyVisible))).Select(p => new PageDisplay(p.Key, p.Value.Label, p.Value.Index,
                 p.Value.Pages.Count, p.Value.Pages[p.Value.Index].Count, p.Value.Pages.Sum(page => page.Count))).ToArray();
             overlayPanel?.SetPages(displays);
-            bool standalone = overlayPanel?.IsVisible != true && displays.Any(p => p.Total > 1);
+            bool standalone = (overlayPanel?.IsVisible != true || overlayPanel.IsCompact) && displays.Any(p => p.Total > 1);
             if (standalone)
             {
                 if (pageWindow is null)
