@@ -145,8 +145,8 @@ public sealed class LayoutOptionsTests
                 Assert.Contains("단축키", FindText(tabs.Items[4]));
                 var help = FindText(tabs.Items[4]);
                 foreach (var pair in HotkeyDefaults.Create())
-                    Assert.Contains($"{HotkeyDefaults.Labels[pair.Key]}  {(string.IsNullOrEmpty(pair.Value) ? "미지정" : pair.Value)}", help);
-                Assert.Contains("페이지 구성과 현재 페이지도 유지", help);
+                    Assert.Contains($"{HotkeyDefaults.Labels[pair.Key]}\n{(string.IsNullOrEmpty(pair.Value) ? "미지정" : pair.Value)}", help);
+                Assert.Contains("현재 페이지 구성을 유지", help);
                 Assert.Contains("모두 접기·모두 펼치기는 현재 위치를 유지", FindText(tabs.Items[0]));
                 Assert.Contains(typeof(LayoutOptionsWindow).Assembly.GetName().Version!.ToString(3), FindText(tabs.Items[5]));
                 window.SelectTab(SettingsTab.General); Assert.Equal(2, tabs.SelectedIndex);

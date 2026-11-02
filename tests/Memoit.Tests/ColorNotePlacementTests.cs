@@ -4,66 +4,72 @@ using Xunit;
 
 namespace Memoit.Tests;
 
-public sealed class ColorNotePlacementTests
+public sealed class TileOriginNotePlacementTests
 {
     private static readonly MonitorDescriptor Monitor = new("m", "m", new Rect(0, 0, 1000, 800), 1);
     private static readonly MonitorLayout Options = new() { X = 80, Y = 90, Gap = 8 };
 
     [Fact]
-    public void ExpandedNewNoteStartsBesideLastTileWithoutMovingPeers()
+    public void RightTileOriginStaysNearRightEdgeInsteadOfSearchingLeft()
     {
-        Rect[] peers = [new(80, 90, 36, 36), new(124, 90, 36, 36)];
+        var result = NotePlacement.CreateAtTileOrigin(new Size(320, 300), Monitor,
+            Options with { X = 950 }, []);
+        Assert.Equal(new Rect(680, 90, 320, 300), result);
+    }
+
+    [Fact]
+    public void OverlapIsAllowedWithoutSearchingForFreeSpaceOrMovingPeers()
+    {
+        Rect[] peers = [new(50, 60, 600, 500)];
         var snapshot = peers.ToArray();
-        var result = NotePlacement.CreateBesideColor(new Size(320, 300), Monitor, Options, peers, peers);
-        Assert.Equal(new Rect(168, 90, 320, 300), result.Bounds);
-        Assert.Equal(new Point(168, 90), result.CollapsedPosition);
-        Assert.False(result.Overlaps);
+        var result = NotePlacement.CreateAtTileOrigin(new Size(320, 300), Monitor, Options, peers);
+        Assert.Equal(new Point(80, 90), result.Location);
+        Assert.True(result.IntersectsWith(peers[0]));
         Assert.Equal(snapshot, peers);
     }
 
     [Fact]
-    public void LastMeansCallerOrderRatherThanGeometricallyRightmost()
+    public void ConsecutiveNotesCascadeBy24DipFromConfiguredOrigin()
     {
-        Rect[] peers = [new(500, 90, 36, 36), new(80, 90, 36, 36)];
-        var result = NotePlacement.CreateBesideColor(new Size(320, 300), Monitor, Options, peers, peers);
-        Assert.Equal(new Point(124, 90), result.Bounds.Location);
+        var peers = new List<Rect>();
+        for (int i = 0; i < 5; i++)
+        {
+            var result = NotePlacement.CreateAtTileOrigin(new Size(320, 300), Monitor, Options, peers);
+            Assert.Equal(new Point(80 + 24 * i, 90 + 24 * i), result.Location);
+            peers.Add(result);
+        }
+    }
+
+    [Theory]
+    [InlineData(950, 90, -24, 24)]
+    [InlineData(80, 750, 24, -24)]
+    [InlineData(950, 750, -24, -24)]
+    public void EdgeOriginCascadesTowardScreenInterior(double x, double y, double dx, double dy)
+    {
+        var options = Options with { X = x, Y = y };
+        var first = NotePlacement.CreateAtTileOrigin(new Size(320, 300), Monitor, options, []);
+        var second = NotePlacement.CreateAtTileOrigin(new Size(320, 300), Monitor, options, [first]);
+        Assert.Equal(first.Left + dx, second.Left);
+        Assert.Equal(first.Top + dy, second.Top);
+        Assert.True(Monitor.WorkArea.Contains(second));
     }
 
     [Fact]
-    public void ExpandedFootprintWrapsWhileCollapsedAnchorStaysBesideTile()
+    public void BoundaryRestartsAtBaseEvenWhenItIsOccupied()
     {
-        Rect[] peers = [new(80, 90, 36, 36), new(900, 90, 36, 36)];
-        var result = NotePlacement.CreateBesideColor(new Size(320, 300), Monitor, Options, peers, peers);
-        Assert.Equal(new Point(80, 134), result.Bounds.Location);
-        Assert.Equal(new Point(944, 90), result.CollapsedPosition);
+        var monitor = new MonitorDescriptor("m", "m", new Rect(0, 0, 400, 380), 1);
+        var options = Options with { X = 0, Y = 0 };
+        var peers = Enumerable.Range(0, 4).Select(i => new Rect(24 * i, 24 * i, 320, 300)).ToArray();
+        Assert.Equal(peers[0], NotePlacement.CreateAtTileOrigin(new Size(320, 300), monitor, options, peers));
+        Assert.Equal(peers[1], NotePlacement.CreateAtTileOrigin(new Size(320, 300), monitor, options, [.. peers, peers[0]]));
     }
 
     [Fact]
-    public void OtherColorsAreObstaclesAndFreePlacementAvoidsThem()
+    public void MissingIntermediatePositionIsReused()
     {
-        Rect[] group = [new(80, 90, 36, 36)];
-        Rect[] peers = [group[0], new(124, 90, 320, 300), new(80, 134, 36, 36)];
-        var result = NotePlacement.CreateBesideColor(new Size(320, 300), Monitor, Options, group, peers);
-        Assert.False(result.Overlaps);
-        Assert.True(Monitor.WorkArea.Contains(result.Bounds));
-        Assert.NotEqual(new Point(124, 90), result.Bounds.Location);
-    }
-
-    [Fact]
-    public void AbsentColorStartsAtConfiguredTileOrigin()
-    {
-        var result = NotePlacement.CreateBesideColor(new Size(320, 300), Monitor, Options, [], []);
-        Assert.Equal(new Point(80, 90), result.Bounds.Location);
-    }
-
-    [Fact]
-    public void FullScreenFallsBackInsideAreaAndReportsOverlap()
-    {
-        Rect[] peers = [Monitor.WorkArea];
-        var result = NotePlacement.CreateBesideColor(new Size(320, 300), Monitor, Options, peers, peers);
-        Assert.Equal(new Point(24, 24), result.Bounds.Location);
-        Assert.True(result.Overlaps);
-        Assert.True(Monitor.WorkArea.Contains(result.Bounds));
+        Rect[] peers = [new(80, 90, 320, 300), new(128, 138, 320, 300)];
+        var result = NotePlacement.CreateAtTileOrigin(new Size(320, 300), Monitor, Options, peers);
+        Assert.Equal(new Point(104, 114), result.Location);
     }
 
     [Theory]
@@ -73,15 +79,19 @@ public sealed class ColorNotePlacementTests
     public void NegativeMonitorCoordinatesAndDpiUsePhysicalBounds(double scale)
     {
         var monitor = new MonitorDescriptor("m", "m", new Rect(-2000, -500, 1000 * scale, 800 * scale), scale);
-        Rect[] group = [new(-2000 + 80 * scale, -500 + 90 * scale, 36 * scale, 36 * scale)];
-        var result = NotePlacement.CreateBesideColor(new Size(320, 300), monitor, Options, group, group);
-        Assert.Equal(new Rect(-2000 + 124 * scale, -500 + 90 * scale, 320 * scale, 300 * scale), result.Bounds);
+        var options = Options with { X = 950 };
+        var first = NotePlacement.CreateAtTileOrigin(new Size(320, 300), monitor, options, []);
+        var second = NotePlacement.CreateAtTileOrigin(new Size(320, 300), monitor, options, [first]);
+        Assert.Equal(new Rect(-2000 + 680 * scale, -500 + 90 * scale, 320 * scale, 300 * scale), first);
+        Assert.Equal(new Point(first.Left - 24 * scale, first.Top + 24 * scale), second.Location);
     }
 
     [Fact]
-    public void OversizedNewNoteIsLimitedToWorkArea()
+    public void OversizedNoteFitsSmallWorkAreaAndCannotCascadeOutside()
     {
-        var result = NotePlacement.CreateBesideColor(new Size(2000, 2000), Monitor, Options, [], []);
-        Assert.Equal(Monitor.WorkArea, result.Bounds);
+        var monitor = new MonitorDescriptor("m", "m", new Rect(-50, 20, 200, 180), 1);
+        var first = NotePlacement.CreateAtTileOrigin(new Size(320, 300), monitor, Options, []);
+        Assert.Equal(monitor.WorkArea, first);
+        Assert.Equal(first, NotePlacement.CreateAtTileOrigin(new Size(320, 300), monitor, Options, [first]));
     }
 }

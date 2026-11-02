@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.13.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.13.1-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -35,7 +35,7 @@ GitHub 릴리스의 `OmniMemo-1.13.0-win-x64.zip`을 풀고 `OmniMemo.exe`를 �
 
 ## 새 메모 위치
 
-새 메모는 같은 모니터의 보이는 같은 색 메모 중 마지막 메모 오른쪽에 펼쳐 생성하고 바로 입력할 수 있습니다. 오른쪽 공간이 부족하면 같은 색 묶음의 다음 줄과 화면 안의 빈자리를 찾고, 빈자리가 없으면 화면 안에서 계단식으로 겹칩니다. 기존 메모는 움직이지 않습니다. 같은 색 메모가 없으면 설정한 타일 시작점에서 시작합니다.
+새 메모는 선택된 모니터의 **접어서 정돈 시작점 근처**에 펼쳐 생성합니다. 창이 화면 밖으로 나가면 작업 영역 안으로 필요한 만큼만 보정하므로 오른쪽 상단 시작점에서는 오른쪽 부근에 표시됩니다. 같은 위치에 보이는 펼친 메모가 있으면 24 DIP씩 대각선으로 겹치며, 화면 경계에 도달하면 기준 위치로 돌아옵니다. 화면 전체의 빈자리를 탐색하지 않고 기존 메모는 움직이지 않습니다.
 
 메모의 ＋·Ctrl+N은 원본 색을, 패널에서는 선택 색을, 트레이·목록·전역 단축키에서는 마지막 활성 메모 색을 사용합니다. 패널의 `전체`는 마지막 활성 메모 색을 따릅니다. 활성 메모 기록이 없으면 노랑입니다. 원본 메모에서 생성하면 해당 모니터를 사용하고, 나머지는 마지막 활성 메모의 모니터 또는 마우스가 있는 모니터를 사용합니다.
 
@@ -77,15 +77,15 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.13.0/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.13.1/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.13.0/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.13.0/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.13.0/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.13.1/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.13.1/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.13.1/win-x64/OmniMemo.exe
 dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-final-1.12.json
 ```
 
@@ -146,10 +146,20 @@ dotnet run --project scripts/ArrangementVerification -c Release -- --output arti
 - 설정 화면을 카드·탭 중심으로 재구성하고 여백·입력란·모서리 선택·적용 영역을 통일했습니다.
 - 단축키를 구획별 카드로 묶고 드롭다운을 저대비 스타일로 개선했습니다. 저장·배치 계산은 유지합니다.
 
-## 1.13.0 변경 사항
+## 1.12.2 변경 사항
 
 - 전체 표시·접기·펼치기·정돈 명령을 실행하면 대상 메모를 앞으로 가져옵니다. 접기·펼치기의 현재 위치 유지와 정돈의 배치 변경을 구분합니다.
 - 자동 저장 후 숨겨진 목록 재생성을 없애고 여러 메모의 저장 알림을 한 번의 화면 갱신으로 합칩니다. 변하지 않은 색상 버튼·페이지 선택기도 유지합니다.
 - 긴 본문의 제목 계산에서 전체 줄 복사를 제거하고, 제목 캐시와 저장 상태 변경 알림을 개선했습니다.
 - 전체 테스트 253개와 실제 WPF 통합 검증 통과. 700줄 본문 20개를 띄운 12초 편집·자동 저장 측정에서 최대 UI 응답 간격 165ms, 1초 이상 멈춤 없음. 사용자 환경 전체의 끊김 해소를 보장하는 수치는 아닙니다.
 - 분리된 검증 앱에서 실제 패널 접기·펼치기 클릭과 타일·긴 본문 화면을 확인했습니다. 자세한 범위와 한계는 [검증 기록](docs/verification-1.12.2.md)을 참고하세요.
+
+## 1.13.0 변경 사항
+
+- 일반 패널과 240×88 DIP 미니패널 전환, 마지막 모드 저장, 트레이 더블클릭으로 패널 표시를 추가했습니다.
+- 미니 상태에서도 별도 페이지 창과 삭제 실행 취소 안내를 제공합니다.
+
+## 1.13.1 변경 사항
+
+- 새 메모를 접어서 정돈 시작점 근처에 생성하며, 오른쪽 시작점에서 왼쪽 끝으로 이동하던 문제를 수정했습니다.
+- 도움말을 8개 구획으로 재구성하고 본문·줄간격·명령 비교·단축키 행·복사 가능한 데이터 경로를 개선했습니다.

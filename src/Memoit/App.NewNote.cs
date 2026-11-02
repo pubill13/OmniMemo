@@ -48,21 +48,16 @@ public partial class App
             .Select(p => (Note: notes[p.Key].Snapshot, Bounds: WindowPlacement.GetBounds(p.Value)))
             .Where(p => MonitorCatalog.Nearest(p.Bounds, monitors).Id == monitor.Id).ToArray();
         var order = layoutSettings.ArrangementOrder.GetValueOrDefault(monitor.Id) ?? [];
-        var ranks = order.Select((id, index) => (id, index)).ToDictionary(p => p.id, p => p.index);
-        var matching = scene.Where(p => NoteColors.Matches(p.Note.Color, color))
-            .OrderBy(p => ranks.GetValueOrDefault(p.Note.Id, int.MaxValue))
-            .ThenBy(p => p.Note.CreatedAt).ThenBy(p => p.Note.Id).ToArray();
-        var placement = NotePlacement.CreateBesideColor(new Size(note.Width, note.Height), monitor,
-            layoutSettings.GetMonitor(monitor.Id), matching.Select(p => p.Bounds).ToArray(),
-            scene.Select(p => p.Bounds).ToArray());
-        var bounds = placement.Bounds;
+        var bounds = NotePlacement.CreateAtTileOrigin(new Size(note.Width, note.Height), monitor,
+            layoutSettings.GetMonitor(monitor.Id),
+            scene.Where(p => !p.Note.IsCollapsed).Select(p => p.Bounds).ToArray());
         note = note with
         {
             Left = bounds.Left / monitor.Scale, Top = bounds.Top / monitor.Scale,
             Width = bounds.Width / monitor.Scale, Height = bounds.Height / monitor.Scale,
             ExpandedLeft = bounds.Left / monitor.Scale, ExpandedTop = bounds.Top / monitor.Scale,
-            CollapsedLeft = placement.CollapsedPosition.X / monitor.Scale,
-            CollapsedTop = placement.CollapsedPosition.Y / monitor.Scale
+            CollapsedLeft = bounds.Left / monitor.Scale,
+            CollapsedTop = bounds.Top / monitor.Scale
         };
         var vm = AddModel(note, true);
         initialNoteBounds[note.Id] = bounds;
@@ -79,7 +74,5 @@ public partial class App
         { ArrangementOrder = new(layoutSettings.ArrangementOrder) { [monitor.Id] = nextOrder } };
         try { await PersistLayoutAsync(); }
         catch (Exception ex) { ArrangementNotice("새 메모의 배치 순서를 저장하지 못했습니다: " + ex.Message, true); }
-        if (placement.Overlaps)
-            overlayPanel?.ShowStatus("화면에 빈 공간이 없어 같은 색 메모 근처에 겹쳐 열었습니다.");
     }
 }

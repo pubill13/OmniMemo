@@ -81,6 +81,7 @@ public sealed class LayoutOptionsWindow : Window
         var header = new StackPanel { Margin = new Thickness(2, 0, 2, 12) };
         header.Children.Add(new TextBlock { Text = "설정", FontSize = 25, FontWeight = FontWeights.SemiBold, Foreground = Brush("#1F2A3A") });
         header.Children.Add(new TextBlock { Text = "OmniMemo의 배치, 단축키, 시작과 백업을 관리합니다.", Foreground = Brush("#6B7788"), Margin = new Thickness(0, 4, 0, 0) });
+        SizeChanged += (_, _) => header.Visibility = ActualHeight < 420 ? Visibility.Collapsed : Visibility.Visible;
         DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
         root.Children.Add(tabs);
         var layout = new StackPanel { Margin = new Thickness(0, 4, 0, 8), Background = Brushes.Transparent };
@@ -160,27 +161,82 @@ public sealed class LayoutOptionsWindow : Window
     }
     private UIElement BuildHelp(string dataPath)
     {
-        var content = new StackPanel { Margin = new Thickness(0, 4, 0, 8), Background = Brushes.Transparent };
-        content.Children.Add(Section("기본 조작"));
-        content.Children.Add(HelpText("메모를 바로 입력하고, 상단의 접기 버튼을 누르면 현재 위치에 작은 타일로 접힙니다. 타일을 클릭하면 그 자리에서 다시 펼쳐집니다."));
-        content.Children.Add(HelpText("‘모두 접기 / 모두 펼치기’는 각 메모의 현재 위치에서 상태만 바꾸고 페이지를 해제하며 겹침을 허용합니다. 화면 경계에서는 펼친 창이 보이도록 필요한 만큼만 보정합니다."));
-        content.Children.Add(HelpText("‘접어서 정돈’은 설정한 시작점과 배치 규칙으로 타일을 정리합니다. ‘펼쳐서 정돈’은 선택한 모서리부터 메모를 겹치지 않는 페이지로 배치합니다."));
-        content.Children.Add(HelpText("‘모두 숨기기 / 모두 보이기’는 접힘·크기·위치·압정 상태를 바꾸지 않습니다. 페이지 구성과 현재 페이지도 유지합니다."));
-        content.Children.Add(HelpText("모두 보이기·접기·펼치기와 두 정돈 명령은 실행 순간 대상 메모를 다른 일반 창 앞으로 가져옵니다. 압정 설정은 유지하며, 다른 앱의 ‘항상 위’ 창보다 위에 고정하지는 않습니다."));
-        content.Children.Add(HelpText("페이지가 여러 개면 패널의 이전·다음으로 이동합니다. 목록에서 메모를 열면 해당 페이지로 이동합니다. 숨긴 메모와 휴지통 메모는 정돈 대상에서 제외됩니다."));
-        content.Children.Add(HelpText("메모의 X는 삭제가 아니라 숨기기입니다. 목록에서 다시 열거나 트레이의 ‘모두 보이기’를 사용하세요. 압정은 항상 위 표시, ⋯ 메뉴는 색상·글꼴·글자 크기와 삭제를 제공합니다."));
-        content.Children.Add(Section("목록과 삭제"));
-        content.Children.Add(HelpText("트레이 아이콘을 더블클릭하거나 ‘패널’을 선택하면 마지막 크기 모드의 패널을 앞으로 표시합니다. 패널 헤더의 축소 아이콘으로 2줄 아이콘 미니패널로 줄이고, 미니패널의 복귀 아이콘으로 원래 크기로 돌아옵니다. 상단 손잡이를 드래그해 옮기며 압정과 선택 색상은 유지합니다. 미니 상태에서는 페이지 이동과 삭제 실행 취소를 별도 창 또는 목록에서 제공합니다."));
-        content.Children.Add(HelpText("메모 목록에서 검색·체크박스·우클릭 메뉴를 사용할 수 있습니다. 삭제한 메모는 휴지통에서 복원하거나 확인 후 영구 삭제할 수 있습니다."));
-        content.Children.Add(HelpText("휴지통 비우기는 검색어와 관계없이 휴지통 전체를 대상으로 합니다. 확인창에서 취소를 선택하면 삭제하지 않습니다."));
-        content.Children.Add(Section("기본 단축키"));
-        content.Children.Add(HelpText("아래는 기본값입니다. 변경하거나 해제한 키는 ‘단축키’ 탭에서 확인하세요. 메모 안에서는 Ctrl+N으로 새 메모, Ctrl+F로 목록·검색을 엽니다."));
-        content.Children.Add(HelpText(string.Join("\n", HotkeyDefaults.Create().Select(pair => $"{HotkeyDefaults.Labels[pair.Key]}  {(string.IsNullOrEmpty(pair.Value) ? "미지정" : pair.Value)}"))));
-        content.Children.Add(Section("데이터와 복구"));
-        content.Children.Add(HelpText("입력이 멈춘 뒤 약 500ms, 계속 입력할 때도 최대 2초 간격으로 자동 저장합니다. 저장 실패 시 상단 상태 표시에서 원인을 확인하고 트레이의 ‘저장 다시 시도’를 사용하세요. 강제 종료 직전의 미저장 입력은 복구되지 않을 수 있습니다."));
-        content.Children.Add(HelpText($"메모는 이 PC에만 저장됩니다.\n{dataPath}\n백업 탭에서 수동 백업과 복원을 사용할 수 있습니다. 자동 백업은 하루 첫 저장 후 생성되며 최근 7개를 보관합니다."));
+        var content = new StackPanel { Margin = new Thickness(0, 4, 0, 8) };
+        void Row(string name, string result)
+        {
+            var grid = new Grid { Margin = new Thickness(0, 2, 0, 8) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.5, GridUnitType.Star) });
+            var label = HelpText(name);
+            label.FontWeight = FontWeights.Bold;
+            label.Margin = new Thickness(0, 0, 10, 0);
+            var description = HelpText(result);
+            description.Margin = new Thickness(0);
+            Grid.SetColumn(description, 1);
+            grid.Children.Add(label);
+            grid.Children.Add(description);
+            content.Children.Add(grid);
+        }
+        content.Children.Add(Section("시작하기"));
+        Row("새 메모", "패널이나 트레이에서 새 메모를 누르면 바로 입력할 수 있습니다.");
+        Row("접기와 펼치기", "메모 상단의 접기 버튼을 누르면 그 자리에 타일이 남습니다. 타일을 클릭하거나 Enter 또는 Space를 누르면 펼쳐집니다.");
+        Row("옮기기", "메모 상단의 빈 곳이나 타일을 드래그하세요. 화면과 다른 메모 가장자리에 가까워지면 붙습니다.");
+        Row("숨기기", "메모의 ×를 누르면 창을 숨깁니다. 목록에서 다시 열 수 있습니다.");
+
+        content.Children.Add(Section("새 메모 위치·색상"));
+        Row("시작 위치", "설정 → 배치 → 접어서 정돈에서 지정한 시작점에 엽니다. 오른쪽 가장자리에서는 펼친 창이 보이도록 왼쪽으로 조금 옮깁니다.");
+        Row("연속 생성", "같은 위치에 펼친 메모가 보이면 24 DIP 간격으로 대각선으로 겹칩니다. 경계에 닿으면 시작 위치부터 다시 사용합니다.");
+        Row("모니터", "메모의 ＋는 그 메모의 화면에 엽니다. 다른 곳에서 만들면 마지막 활성 메모의 화면을, 기록이 없으면 마우스가 있는 화면을 사용합니다.");
+        Row("색상", "메모의 ＋와 Ctrl+N은 원본 색을, 패널은 선택한 색을 사용합니다. 패널의 ‘전체’와 목록·트레이·전역 단축키는 마지막 활성 메모 색을 따르며 기본색은 노랑입니다.");
+
+        content.Children.Add(Section("편집"));
+        Row("제목", "본문에서 비어 있지 않은 첫 줄이 제목입니다.");
+        Row("글꼴과 크기", "⋯ 메뉴에서 포함 글꼴 또는 설치된 글꼴과 글자 크기를 선택하세요.");
+        Row("색상 변경", "⋯ 메뉴에서 현재 메모의 색을 바꿀 수 있습니다.");
+        Row("편집 실행 취소", "Ctrl+Z로 입력을 되돌리고 Ctrl+Y로 다시 실행합니다.");
+        Row("항상 위", "메모의 압정을 누르면 다른 일반 창 위에 표시됩니다.");
+
+        content.Children.Add(Section("전체 조작과 정돈"));
+        Row("모두 접기", "각 메모의 현재 위치에서 타일로 접고 페이지를 해제합니다.");
+        Row("모두 펼치기", "각 메모의 현재 위치에서 펼치고 페이지를 해제합니다. 화면 가장자리에서만 위치를 보정하며 겹침을 허용합니다.");
+        Row("모두 숨기기", "메모 창을 숨깁니다. 위치·접힘·압정과 현재 페이지를 유지합니다.");
+        Row("모두 보이기", "현재 페이지 구성을 유지하며 메모 창을 다시 표시합니다.");
+        Row("접어서 정돈", "보이는 메모를 타일로 접어 모니터별 시작점과 간격에 맞춰 배치합니다.");
+        Row("펼쳐서 정돈", "보이는 메모를 선택한 모서리부터 펼쳐 배치합니다. 공간이 부족하면 페이지로 나눕니다.");
+        Row("앞으로 표시", "모두 숨기기를 제외한 위 명령은 대상 메모를 일반 창 앞으로 가져옵니다.");
+        Row("설정 적용", "배치 탭의 적용은 설정을 저장합니다. 기존 메모를 옮기려면 정돈을 실행하세요.");
+
+        content.Children.Add(Section("패널·미니패널·트레이"));
+        Row("패널 열기", "트레이 아이콘을 더블클릭하면 마지막 모드의 패널이 앞으로 나옵니다.");
+        Row("미니패널 전환", "패널 헤더의 축소 아이콘으로 줄입니다. 미니패널 둘째 줄의 복귀 아이콘으로 일반 크기를 복원합니다.");
+        Row("패널 이동과 고정", "상단 손잡이를 드래그해 옮기고 압정으로 항상 위 표시를 전환합니다.");
+        Row("색상별 조작", "일반 패널에서 원하는 색을 선택하면 해당 색의 보이는 메모만 접거나 펼칠 수 있습니다.");
+        Row("페이지 이동", "일반 패널에서 이전·다음을 누르세요. 미니패널이거나 패널이 숨겨져 있으면 별도 페이지 창을 사용합니다.");
+
+        content.Children.Add(Section("목록·휴지통"));
+        Row("목록·검색", "목록에서 메모를 찾아 열면 해당 페이지로 이동합니다. 체크박스와 우클릭으로 여러 메모를 관리할 수 있습니다.");
+        Row("삭제 실행 취소", "휴지통으로 옮긴 뒤 10초 동안 가장 최근 삭제를 되돌릴 수 있습니다. 목록·일반 패널 또는 별도 안내 창의 실행 취소를 누르세요.");
+        Row("복원", "휴지통에서 선택한 메모를 복원할 수 있습니다.");
+        Row("영구 삭제 주의", "휴지통 비우기는 검색 결과와 관계없이 휴지통 전체를 영구 삭제합니다.");
+
+        content.Children.Add(Section("단축키"));
+        Row("기본 키", "아래는 전역 단축키의 기본값입니다. 사용자 지정 키는 설정의 단축키 탭에서 확인하세요.");
+        Row("메모 안에서", "Ctrl+N은 새 메모를 만들고 Ctrl+F는 목록·검색을 엽니다.");
+        foreach (var pair in HotkeyDefaults.Create())
+            Row(HotkeyDefaults.Labels[pair.Key], string.IsNullOrEmpty(pair.Value) ? "미지정" : pair.Value);
+
+        content.Children.Add(Section("저장·백업·복구"));
+        Row("자동 저장", "입력이 멈추면 약 0.5초 후 저장합니다. 계속 입력할 때도 최대 2초 간격으로 저장합니다.");
+        Row("저장 실패", "메모의 상태 표시에서 오류를 확인하고 트레이의 ‘저장 다시 시도’를 누르세요.");
+        Row("백업", "하루 첫 저장 후 자동 백업하며 최근 7개를 보관합니다. 수동 백업은 설정의 백업 탭에서 실행합니다.");
+        Row("복원 전 주의", "복원하면 현재 메모 데이터 전체가 백업 내용으로 교체됩니다. 앱은 교체 전에 현재 데이터의 안전 백업을 만듭니다.");
+        Row("데이터 폴더", "아래 경로를 선택해 Ctrl+C로 복사할 수 있습니다.");
+        var path = new TextBox { Text = dataPath, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 14 };
+        System.Windows.Automation.AutomationProperties.SetName(path, "데이터 폴더 경로");
+        content.Children.Add(path);
         GroupSections(content);
-        return new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        return new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
     }
     private UIElement BuildAbout()
     {
@@ -191,6 +247,7 @@ public sealed class LayoutOptionsWindow : Window
         content.Children.Add(Section("현재 버전"));
         content.Children.Add(new TextBlock { Text = version, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
         content.Children.Add(Section("최근 변경"));
+        content.Children.Add(HelpText("1.13.1\n새 메모는 접어서 정돈 시작점 근처에 열립니다. 도움말을 기능별로 나누고 데이터 경로를 복사할 수 있게 했습니다."));
         content.Children.Add(HelpText("1.13.0\n패널에 240×88 크기의 2줄 아이콘 미니 모드를 추가했습니다. 마지막 모드와 압정을 저장하며 트레이 더블클릭은 패널을 표시합니다."));
         content.Children.Add(HelpText("1.12.2\n전체 표시·상태 변경·정돈 시 메모를 앞으로 가져옵니다. 자동 저장 때 숨겨진 목록과 변하지 않은 패널을 반복해서 만드는 작업을 줄이고, 긴 본문의 제목 처리와 저장 상태 알림을 최적화했습니다."));
         content.Children.Add(HelpText("1.12.1\n설정의 탭·카드·입력란과 단축키 구획을 정리하고, 드롭다운·모서리 선택·적용 버튼의 스타일을 통일했습니다."));
@@ -203,7 +260,7 @@ public sealed class LayoutOptionsWindow : Window
         GroupSections(content);
         return new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
-    private static TextBlock HelpText(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
+    private static TextBlock HelpText(string text) => new() { Text = text, FontSize = 14, LineHeight = 22, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
     private void FitToWorkArea()
     {
         var screen = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle).WorkingArea;

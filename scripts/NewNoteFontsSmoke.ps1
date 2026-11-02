@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory=$true)][string]$Executable,[string]$ArtifactsDirectory='artifacts/verification',[switch]$ShowOverlay)
+param([Parameter(Mandatory=$true)][string]$Executable,[string]$ArtifactsDirectory='artifacts/verification',[switch]$ShowOverlay)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,WindowsBase,System.Windows.Forms,System.Drawing
 Add-Type @"
@@ -161,14 +161,15 @@ try {
  [void](Wait-For {if(Is-Tile $first){return $true}} 'first tile')
  $tile=Rect $first
  $handles=@(Notes | ForEach-Object {$_.Current.NativeWindowHandle})
- $panel=Wait-For {Root-Named 'OmniMemo · 데스크톱 패널'} 'panel'
+ $panel=Wait-For {Root-Named 'OmniMemo · 패널'} 'panel'
  (Named $panel '색상별 조작').GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
  (Wait-For {Named $panel '분홍 · 보이는 메모 1개'} 'pink count').GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
  Invoke-Element (Named $panel '새 메모')
- $second=Wait-For {Latest-Note $handles} 'new note beside pink tile'
+ $second=Wait-For {Latest-Note $handles} 'new note at tile origin'
+ $work=[System.Windows.Forms.Screen]::FromHandle([IntPtr]$second.Current.NativeWindowHandle).WorkingArea
  $r=Rect $second
- Check (-not (Is-Tile $second)) 'New note opens expanded beside tile'
- Check ([Math]::Abs($r.Left-($tile.Right+8*$scale)) -le 2 -and [Math]::Abs($r.Top-$tile.Top) -le 2) 'Panel selected-color note appears beside matching tile'
+ Check (-not (Is-Tile $second)) 'New note opens expanded'
+ Check ([Math]::Abs($r.Left-($work.Left+8*$scale)) -le 2 -and [Math]::Abs($r.Top-($work.Top+8*$scale)) -le 2) 'Panel selected-color note appears at configured origin'
  Check ((Named $second '메모 내용').Current.HasKeyboardFocus) 'New note editor has keyboard focus'
  Check ([bool](Wait-For {Named $panel '분홍 · 보이는 메모 2개 · 선택됨'} 'pink two')) 'Panel selected color inherited by new note'
  Set-Text $second '메모 내용' '두 번째 분홍 메모'
@@ -176,7 +177,7 @@ try {
  Invoke-Element (Named $second '새 메모')
  $third=Wait-For {Latest-Note $handles} 'source plus note'
  $r3=Rect $third
- Check ([Math]::Abs($r3.Left-($r.Right+8*$scale)) -le 2 -and [Math]::Abs($r3.Top-$r.Top) -le 2) 'Consecutive source plus appends after newest same-color note'
+ Check ([Math]::Abs($r3.Left-($r.Left+24*$scale)) -le 2 -and [Math]::Abs($r3.Top-($r.Top+24*$scale)) -le 2) 'Source plus cascades by 24 DIP'
  Check ([bool](Wait-For {Named $panel '분홍 · 보이는 메모 3개 · 선택됨'} 'pink three')) 'Source plus inherits source color'
  $still=Rect $first
  Check ($still.Left -eq $tile.Left -and $still.Top -eq $tile.Top) 'Existing tile is not moved by note creation'
