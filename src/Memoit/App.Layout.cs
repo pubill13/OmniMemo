@@ -134,6 +134,7 @@ public partial class App
             layoutSettings = layoutSettings with { Monitors = updated, ArrangementOrder = orders, PagedExpansionActive = !collapsed && pageSessions.Values.Any(p => p.Pages.Count > 1) };
             ApplyPageVisibility();
             var originals = candidates.ToDictionary(p => p.Id, p => p.Bounds);
+            foreach (var candidate in candidates) candidate.Window.ClearEdgeReturn();
             var changed = moves.Where(p => windows[p.Key].IsCollapsed != collapsed || !NearlyEqual(originals[p.Key], p.Value)).ToArray();
             double calculatedMs = clock.Elapsed.TotalMilliseconds;
             var prepared = new List<NoteWindow>();

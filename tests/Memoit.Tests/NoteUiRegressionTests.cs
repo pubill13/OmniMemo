@@ -91,8 +91,11 @@ public sealed class NoteUiRegressionTests
         finally { window.AllowClose = true; window.Close(); }
     });
 
-    [Fact]
-    public void EdgeTileExpandsInsideItsMonitorAndReturnsToItsOriginalSpot() => Sta(() =>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void EdgeTileExpandsInsideItsMonitorAndReturnsToItsOriginalSpot(bool right, bool bottom) => Sta(() =>
     {
         using var vm = new NoteViewModel(new Note { IsCollapsed = true, Width = 310, Height = 230 }, _ => Task.CompletedTask);
         var window = new NoteWindow(vm);
@@ -101,11 +104,48 @@ public sealed class NoteUiRegressionTests
             window.Show(); Pump();
             var work = WindowPlacement.GetWorkArea(window);
             var tileSize = WindowPlacement.GetSize(window);
-            var tile = new Point(work.Right - tileSize.Width, work.Bottom - tileSize.Height);
+            var tile = new Point(right ? work.Right - tileSize.Width : work.Left + 10,
+                bottom ? work.Bottom - tileSize.Height : work.Top + 10);
+            WindowPlacement.Move(window, tile); Pump();
+            for (int i = 0; i < 3; i++)
+            {
+                window.ToggleCollapsed(false); Pump();
+                Assert.True(work.Contains(WindowPlacement.GetBounds(window)));
+                Assert.NotEqual(tile, WindowPlacement.GetPosition(window));
+                window.Editor.Text += "편집";
+                window.ToggleCollapsed(false); Pump();
+                Assert.Equal(tile, WindowPlacement.GetPosition(window));
+            }
+        }
+        finally { window.AllowClose = true; window.Close(); }
+    });
+
+    [Theory]
+    [InlineData("move")]
+    [InlineData("resize")]
+    [InlineData("arrange")]
+    public void EditingExpandedGeometryDiscardsEdgeReturn(string action) => Sta(() =>
+    {
+        using var vm = new NoteViewModel(new Note { IsCollapsed = true, Width = 310, Height = 230 }, _ => Task.CompletedTask);
+        var window = new NoteWindow(vm);
+        try
+        {
+            window.Show(); Pump();
+            var work = WindowPlacement.GetWorkArea(window);
+            var tile = new Point(work.Right - WindowPlacement.GetSize(window).Width, work.Top + 10);
             WindowPlacement.Move(window, tile); Pump();
             window.ToggleCollapsed(false); Pump();
-            Assert.True(work.Contains(WindowPlacement.GetBounds(window)));
+            if (action == "move") window.Left -= 24;
+            else if (action == "resize") window.Width -= 24;
+            else
+            {
+                var bounds = WindowPlacement.GetBounds(window);
+                window.PrepareState(false, bounds);
+                window.EndArrangement();
+            }
+            Pump();
             var expanded = WindowPlacement.GetPosition(window);
+            Assert.NotEqual(tile, expanded);
             window.ToggleCollapsed(false); Pump();
             Assert.Equal(expanded, WindowPlacement.GetPosition(window));
         }

@@ -179,8 +179,8 @@ public sealed class LayoutOptionsWindow : Window
         }
         content.Children.Add(Section("시작하기"));
         Row("새 메모", "패널이나 트레이에서 새 메모를 누르면 바로 입력할 수 있습니다.");
-        Row("접기와 펼치기", "메모 상단의 접기 버튼을 누르면 그 자리에 타일이 남습니다. 타일을 클릭하거나 Enter 또는 Space를 누르면 펼쳐집니다.");
-        Row("옮기기", "메모 상단의 빈 곳이나 타일을 드래그하세요. 화면과 다른 메모 가장자리에 가까워지면 붙습니다.");
+        Row("접기와 펼치기", "타일을 클릭하거나 Enter 또는 Space를 누르면 펼쳐집니다. 화면 가장자리에서 안쪽으로 보정된 메모는 다시 접으면 원래 타일 자리로 돌아갑니다. 직접 옮기거나 크기를 조절한 뒤에는 현재 위치에 접힙니다.");
+        Row("옮기기", "메모 상단의 빈 곳이나 타일을 드래그하세요. 가장자리에 가까워지면 크기를 유지한 채 붙습니다. 크기를 바꾸려면 펼친 창의 테두리를 끌어 조절하세요.");
         Row("숨기기", "메모의 ×를 누르면 창을 숨깁니다. 목록에서 다시 열 수 있습니다.");
 
         content.Children.Add(Section("새 메모 위치·색상"));
@@ -247,6 +247,7 @@ public sealed class LayoutOptionsWindow : Window
         content.Children.Add(Section("현재 버전"));
         content.Children.Add(new TextBlock { Text = version, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
         content.Children.Add(Section("최근 변경"));
+        content.Children.Add(HelpText("1.13.2\n화면 가장자리에서 개별 타일을 펼치고 다시 접으면 원래 자리로 돌아갑니다. 헤더를 모서리로 드래그해도 메모 크기를 유지합니다."));
         content.Children.Add(HelpText("1.13.1\n새 메모는 접어서 정돈 시작점 근처에 열립니다. 도움말을 기능별로 나누고 데이터 경로를 복사할 수 있게 했습니다."));
         content.Children.Add(HelpText("1.13.0\n패널에 240×88 크기의 2줄 아이콘 미니 모드를 추가했습니다. 마지막 모드와 압정을 저장하며 트레이 더블클릭은 패널을 표시합니다."));
         content.Children.Add(HelpText("1.12.2\n전체 표시·상태 변경·정돈 시 메모를 앞으로 가져옵니다. 자동 저장 때 숨겨진 목록과 변하지 않은 패널을 반복해서 만드는 작업을 줄이고, 긴 본문의 제목 처리와 저장 상태 알림을 최적화했습니다."));

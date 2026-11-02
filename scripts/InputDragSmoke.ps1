@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory=$true)][string]$Executable,[string]$ArtifactsDirectory='artifacts/verification',[switch]$ShowOverlay)
+﻿param([Parameter(Mandatory=$true)][string]$Executable,[string]$ArtifactsDirectory='artifacts/verification',[switch]$ShowOverlay,[switch]$EdgeChecksOnly)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,WindowsBase,System.Windows.Forms,System.Drawing
 Add-Type @"
@@ -18,6 +18,11 @@ public static class HotkeySmokeNative {
  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
  [DllImport("user32.dll")] public static extern void keybd_event(byte k,byte scan,uint flags,UIntPtr extra);
+ [StructLayout(LayoutKind.Sequential)] public struct GUIINFO { public int Size,Flags; public IntPtr Active,Focus,Capture,MenuOwner,MoveSize,Caret; public RECT CaretRect; }
+ [DllImport("user32.dll")] public static extern bool GetGUIThreadInfo(uint id,ref GUIINFO info);
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd,IntPtr unused);
+ [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr hwnd);
+ [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int width,int height,uint flags);
  [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr h,uint flags);
  [DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr h,ref INFO info);
 }
@@ -77,6 +82,68 @@ function Drag-Note($w, [int]$localX, [int]$localY) {
  Check ([Math]::Abs($during.Left-$r.Left-100) -le 15 -and [Math]::Abs($during.Top-$r.Top-60) -le 15) 'Dragging moves note with cursor'
  Check ($after.Left -eq $during.Left -and $after.Top -eq $during.Top) 'Released expanded note stays at manually dragged position'
 }
+function Test-EdgeInteractions($window) {
+ $handle=[IntPtr]$window.Current.NativeWindowHandle
+ $monitor=New-Object HotkeySmokeNative+INFO
+ $monitor.Size=[Runtime.InteropServices.Marshal]::SizeOf($monitor)
+ if(-not [HotkeySmokeNative]::GetMonitorInfo([HotkeySmokeNative]::MonitorFromWindow($handle,2),[ref]$monitor)) { throw 'Cannot inspect test monitor' }
+ $area=$monitor.Work; $screen=$monitor.Monitor
+ $scale=[HotkeySmokeNative]::GetDpiForWindow($handle)/96.0
+ $middleX=[int](($area.Left+$area.Right)/2); $middleY=[int](($area.Top+$area.Bottom)/2)
+ $thread=[HotkeySmokeNative]::GetWindowThreadProcessId($handle,[IntPtr]::Zero)
+ function Center-Note {
+  $r=Rect $window
+  if(-not [HotkeySmokeNative]::SetWindowPos($handle,[IntPtr]::Zero,[int]($middleX-($r.Right-$r.Left)/2),[int]($middleY-($r.Bottom-$r.Top)/2),0,0,0x15)) { throw 'Cannot center isolated window' }
+  Start-Sleep -Milliseconds 150
+ }
+ function Move-Pointer($fromX,$fromY,$toX,$toY,[scriptblock]$whileHeld) {
+  [void][HotkeySmokeNative]::SetForegroundWindow($handle)
+  Start-Sleep -Milliseconds 150
+  if([HotkeySmokeNative]::GetForegroundWindow() -ne $handle) { throw 'Isolated note not foreground' }
+  [void][HotkeySmokeNative]::SetCursorPos($fromX,$fromY)
+  [HotkeySmokeNative]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+  try {
+   $pressed=New-Object HotkeySmokeNative+GUIINFO
+   $pressed.Size=[Runtime.InteropServices.Marshal]::SizeOf($pressed)
+   [void](Wait-For { if([HotkeySmokeNative]::GetGUIThreadInfo($thread,[ref]$pressed) -and ($pressed.Capture -eq $handle -or $pressed.MoveSize -eq $handle)) { return $true } } 'mouse press handled by isolated note')
+   for($i=1;$i -le 16;$i++) {
+    [void][HotkeySmokeNative]::SetCursorPos([int]($fromX+($toX-$fromX)*$i/16),[int]($fromY+($toY-$fromY)*$i/16))
+    Start-Sleep -Milliseconds 20
+   }
+   Start-Sleep -Milliseconds 350
+   if($whileHeld) { & $whileHeld }
+  } finally { [HotkeySmokeNative]::mouse_event(4,0,0,0,[UIntPtr]::Zero) }
+  Start-Sleep -Milliseconds 200
+ }
+ foreach($edge in @('top','top-right','left','right','magnet')) {
+  Center-Note
+  $before=Rect $window
+  $gripX=[int](140*$scale); $gripY=[int](12*$scale)
+  $toX=$middleX; $toY=$middleY
+  switch($edge) {
+   'top' { $toY=$screen.Top }
+   'top-right' { $toX=$screen.Right-1; $toY=$screen.Top }
+   'left' { $toX=$screen.Left }
+   'right' { $toX=$screen.Right-1 }
+   'magnet' { $toX=$area.Left+$gripX+3; $toY=$area.Top+$gripY+3 }
+  }
+  Move-Pointer ($before.Left+$gripX) ($before.Top+$gripY) $toX $toY {
+   $info=New-Object HotkeySmokeNative+GUIINFO
+   $info.Size=[Runtime.InteropServices.Marshal]::SizeOf($info)
+   if(-not [HotkeySmokeNative]::GetGUIThreadInfo($thread,[ref]$info)) { throw 'GetGUIThreadInfo failed' }
+   Check (($info.Flags -band 2) -eq 0 -and $info.Capture -eq $handle) "Header owns pointer without Windows move/size loop at $edge"
+  }
+  $after=Rect $window
+  Check (($after.Right-$after.Left) -eq ($before.Right-$before.Left) -and ($after.Bottom-$after.Top) -eq ($before.Bottom-$before.Top) -and -not [HotkeySmokeNative]::IsZoomed($handle)) "Released note keeps size at $edge"
+  Check ([Math]::Abs($after.Left-($toX-$gripX)) -le (12*$scale) -and [Math]::Abs($after.Top-($toY-$gripY)) -le (12*$scale)) "Pointer moves note to $edge (actual $($after.Left),$($after.Top); expected $($toX-$gripX),$($toY-$gripY))"
+  if($edge -eq 'magnet') { Check ($after.Left -eq $area.Left -and $after.Top -eq $area.Top) 'Screen edge magnet snaps within threshold' }
+ }
+ Center-Note
+ $before=Rect $window
+ Move-Pointer ($before.Right-2) $middleY ($before.Right+38) $middleY $null
+ $after=Rect $window
+ Check ([Math]::Abs($after.Right-$before.Right-40) -le 2 -and $after.Left -eq $before.Left) 'Manual border resize retained'
+}
 Add-Type -ReferencedAssemblies @([System.Windows.Automation.AutomationElement].Assembly.Location,[System.Windows.Automation.AutomationProperty].Assembly.Location) @"
 using System;
 using System.Threading;
@@ -93,6 +160,7 @@ try {
  @{OverlayVisible=[bool]$ShowOverlay; Version=5} | ConvertTo-Json | Set-Content (Join-Path $env:OMNIMEMO_DATA_DIR 'layout.json') -Encoding UTF8
  $process=Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden -PassThru
  $first=Wait-For { foreach($w in (Notes)) { return $w } } 'first note'
+ if($EdgeChecksOnly) { Test-EdgeInteractions $first; return }
  Drag-Note $first 140 12
  $editor=Named $first '메모 내용'; $editor.SetFocus()
  [EnabledRecorder]::Start($first)

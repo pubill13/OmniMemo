@@ -102,7 +102,7 @@ public sealed class AutoArrangeQueueTests
         var window = new NoteWindow(vm) { AllowClose = true };
         try
         {
-            typeof(NoteWindow).GetField("tilePress", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            typeof(NoteWindow).GetField("dragPress", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                 .SetValue(window, new Point(100, 100));
             Assert.True(window.IsDragging);
             int ended = 0; window.InteractionFinished += () => ended++;

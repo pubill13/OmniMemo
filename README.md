@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.13.1-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.13.2-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -16,7 +16,7 @@ GitHub 릴리스의 `OmniMemo-1.13.1-win-x64.zip`을 풀고 `OmniMemo.exe`를 �
 - **접어서 정돈:** 현재 보이는 메모를 모두 36×36 DIP 타일로 접고, 모니터별 타일 시작점·배치 형태·간격·순서로 정리합니다.
 - **펼쳐서 정돈:** 보이는 메모를 모두 펼쳐 모니터별 선택한 모서리에서 배치합니다. 마지막 정돈 순서를 재실행 후에도 유지하며 신규 메모는 현재 기준으로 뒤에 추가합니다. 공간이 부족하면 겹치지 않는 페이지로 나눕니다. 패널의 이전·다음으로 이동하며 패널을 닫으면 작은 페이지 조작 창을 제공합니다. 다른 페이지 메모의 저장된 표시 상태는 유지합니다. 압정 상태는 유지합니다.
 - 숨긴 메모와 휴지통은 제외합니다. 타일 공간이 부족하면 들어가는 타일만 이동하고 나머지는 유지하며 안내합니다.
-- 타일을 클릭하거나 Enter/Space를 누르면 **그 자리에서** 펼칩니다. 가장자리에서는 같은 화면 안으로 필요한 만큼 보정합니다. 다시 접으면 현재 펼친 창의 왼쪽 위에 타일이 남습니다. 다른 메모는 움직이지 않습니다.
+- 타일을 클릭하거나 Enter/Space를 누르면 **그 자리에서** 펼칩니다. 가장자리에서는 같은 화면 안으로 필요한 만큼 보정합니다. 가장자리 보정 후 읽거나 편집하고 다시 접으면 원래 타일 자리로 돌아갑니다. 펼친 창을 직접 옮기거나 크기를 바꿨다면 현재 창의 왼쪽 위에 접힙니다. 다른 메모는 움직이지 않습니다.
 - 입력하거나 드래그해도 자동 재배치하지 않습니다. 기존 자동 정렬·이전 배치 복원·접힌/펼친 메모별 정돈 명령은 제거했습니다.
 
 ## 패널과 설정
@@ -60,7 +60,7 @@ GitHub 릴리스의 `OmniMemo-1.13.1-win-x64.zip`을 풀고 `OmniMemo.exe`를 �
 
 일반 텍스트·한글·복사/붙여넣기·실행 취소/다시 실행을 지원합니다. 프리텐다드·나눔고딕·나눔명조·나눔손글씨 펜은 앱에 포함되어 별도 설치 없이 사용할 수 있습니다. 설치된 글꼴 검색과 미리보기도 제공합니다. [글꼴 출처와 라이선스](docs/third-party-fonts.md)를 참고하세요. 메모 메뉴에서 글꼴과 10~32 1단위 및 36·40·48·56·64·72 크기·색상을 선택하고 압정 아이콘으로 항상 위를 설정합니다. 제목은 본문의 첫 비어 있지 않은 줄입니다. X는 숨기기이며 삭제는 휴지통으로 이동합니다. 목록의 체크박스와 우클릭으로 여러 메모를 관리할 수 있습니다. 휴지통 이동 후 목록·패널 또는 작은 안내 창에 10초간 실행 취소를 제공합니다. 안내 위에 마우스나 키보드 포커스가 있으면 만료를 잠시 멈춥니다. 가장 최근 삭제 묶음만 되돌리며 재실행 후에는 유지하지 않습니다. 성공적으로 삭제된 항목의 표시·접힘 상태와 위치를 복구하고, 복원 실패 항목은 다시 시도할 수 있습니다.
 
-상단의 빈 곳이나 타일을 드래그하면 화면·다른 메모 가장자리에 자석처럼 붙으며, 더 끌면 떨어집니다. 화면 밖에 일부 걸치거나 다른 모니터로 옮길 수 있습니다.
+상단의 빈 곳이나 타일을 드래그하면 화면·다른 메모 가장자리에 자석처럼 붙으며, 더 끌면 떨어집니다. 모서리까지 끌어도 메모 크기를 유지합니다. 화면 밖에 일부 걸치거나 다른 모니터로 옮길 수 있고, 크기는 펼친 창의 테두리를 끌어 조절합니다.
 
 데이터는 `%LOCALAPPDATA%\MemoitPersonal\notes.db`에 저장하며 실행 파일과 분리됩니다. DB v3은 접힌/펼친 위치를 저장합니다. 구버전 DB는 안전 백업 후 트랜잭션으로 이관하며 구버전 실행 파일로 새 DB를 열 수 없습니다. 설정 v6는 모니터별 정돈 순서와 간소화된 단축키를 저장합니다.
 
@@ -77,15 +77,15 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.13.1/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.13.2/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.13.1/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.13.1/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.13.1/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.13.2/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.13.2/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.13.2/win-x64/OmniMemo.exe
 dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-final-1.12.json
 ```
 
@@ -163,3 +163,8 @@ dotnet run --project scripts/ArrangementVerification -c Release -- --output arti
 
 - 새 메모를 접어서 정돈 시작점 근처에 생성하며, 오른쪽 시작점에서 왼쪽 끝으로 이동하던 문제를 수정했습니다.
 - 도움말을 8개 구획으로 재구성하고 본문·줄간격·명령 비교·단축키 행·복사 가능한 데이터 경로를 개선했습니다.
+
+## 1.13.2 변경 사항
+
+- 화면 가장자리에서 개별 타일을 펼쳤다가 다시 접으면 원래 타일 위치를 복원합니다.
+- 펼친 메모의 헤더를 화면 모서리로 드래그해도 크기를 유지합니다.

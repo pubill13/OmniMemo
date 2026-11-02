@@ -48,6 +48,13 @@ internal sealed class VerificationApp : App
             sentinel = new Window { Title = "OmniMemo verification — focus sentinel", Width = 340, Height = 90,
                 Content = sentinelEditor, Topmost = true };
             sentinel.Show();
+            if (e.Args.Contains("--edge-only"))
+            {
+                await VerifyEdgeTileAfterCommands();
+                WriteResult(true, null);
+                Shutdown(0);
+                return;
+            }
             foreach (bool panel in new[] { false, true })
             {
                 await Populate(100, true, panel);
@@ -66,6 +73,7 @@ internal sealed class VerificationApp : App
             await VerifyStateBoundaries();
             await VerifyFilteredAndIndividualPaging();
             await VerifyBulkForeground();
+            await VerifyEdgeTileAfterCommands();
             checks.Add("No note was disabled by a bulk command; sentinel keyboard and foreground focus stayed unchanged.");
             WriteResult(true, null);
             Console.WriteLine(output);
@@ -369,6 +377,28 @@ internal sealed class VerificationApp : App
         checks.Add("Color operations include off-page notes without moving other colors; individually and color-collapsed tiles detach and survive page changes.");
     }
     private Task Arrange(string command) => (Task)typeof(App).GetMethod("RunArrangementAsync", Private)!.Invoke(this, [command, false])!;
+    private async Task VerifyEdgeTileAfterCommands()
+    {
+        await Populate(1, true, false);
+        var window = NoteWindows.Values.Single();
+        var work = WindowPlacement.GetWorkArea(window);
+        var tile = WindowPlacement.GetBounds(window);
+        var edge = new Point(work.Right - tile.Width, work.Bottom - tile.Height);
+        foreach (string command in new[] { "ExpandAll", "ArrangeExpanded" })
+        {
+            WindowPlacement.Move(window, edge);
+            window.ToggleCollapsed(false);
+            if (command == "ExpandAll") await ChangeState(false);
+            else await Arrange(command);
+            var current = WindowPlacement.GetPosition(window);
+            Require(current != edge, "Expected expanded note inside the work area.");
+            window.ToggleCollapsed(false);
+            Require(WindowPlacement.GetPosition(window) == current,
+                $"Individual collapse reused the old edge position after {command}.");
+        }
+        checks.Add("Bulk expansion of an already expanded edge note and explicit arrangement both discard its old tile position.");
+    }
+
     private async Task VerifyIndividual()
     {
         var window = NoteWindows.Values.First();
@@ -411,7 +441,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        string output = args.Length == 2 && args[0] == "--output" ? args[1] : "artifacts/verification/arrangement-1.7.json";
+        string output = args.Length >= 2 && args[0] == "--output" ? args[1] : "artifacts/verification/arrangement-1.7.json";
         var app = new VerificationApp(output);
         return app.Run();
     }

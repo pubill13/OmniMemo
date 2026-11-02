@@ -7,6 +7,20 @@ namespace Memoit.Tests;
 public sealed class NotePlacementTests
 {
     [Theory]
+    [InlineData(1)]
+    [InlineData(1.5)]
+    [InlineData(2)]
+    public void EdgeExpansionFitsNegativeCoordinateMonitor(double scale)
+    {
+        var area = new Rect(-2400, -350, 1100 * scale, 800 * scale);
+        var tile = new Point(area.Right - 36 * scale, area.Bottom - 36 * scale);
+        var size = new Size(310 * scale, 230 * scale);
+        var expanded = NotePlacement.ExpandAtTile(tile, size, area);
+        Assert.Equal(new Rect(new Point(area.Right - size.Width, area.Bottom - size.Height), size), expanded);
+        Assert.Equal(new Rect(area.TopLeft, size), NotePlacement.ExpandAtTile(area.TopLeft, size, area));
+    }
+
+    [Theory]
     [InlineData(ExpandedCorner.TopLeft, 8, 8)]
     [InlineData(ExpandedCorner.TopRight, 672, 8)]
     [InlineData(ExpandedCorner.BottomLeft, 8, 492)]

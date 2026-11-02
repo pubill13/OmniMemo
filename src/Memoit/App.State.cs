@@ -27,17 +27,15 @@ public partial class App
         var selected = windows.Where(p => IsLogicallyVisible(p.Key)
             && (!filtered || NoteColors.Matches(notes[p.Key].Snapshot.Color, color))).ToArray();
         var monitors = MonitorCatalog.All();
+        foreach (var pair in selected) pair.Value.ClearEdgeReturn();
         var moves = selected.Where(p => p.Value.IsCollapsed != collapsed).Select(p =>
         {
             var current = WindowPlacement.GetBounds(p.Value);
             var monitor = MonitorCatalog.Nearest(current, monitors);
             var note = notes[p.Key].Snapshot;
             var target = collapsed ? new Rect(current.Location, new Size(36 * monitor.Scale, 36 * monitor.Scale))
-                : new Rect(current.Location, new Size(Math.Min(note.Width * monitor.Scale, monitor.WorkArea.Width),
-                    Math.Min(note.Height * monitor.Scale, monitor.WorkArea.Height)));
-            if (!collapsed)
-                target.Location = new Point(Math.Clamp(target.Left, monitor.WorkArea.Left, monitor.WorkArea.Right - target.Width),
-                    Math.Clamp(target.Top, monitor.WorkArea.Top, monitor.WorkArea.Bottom - target.Height));
+                : NotePlacement.ExpandAtTile(current.Location,
+                    new Size(note.Width * monitor.Scale, note.Height * monitor.Scale), monitor.WorkArea);
             return (Id: p.Key, Window: p.Value, Bounds: target);
         }).ToArray();
         double calculationMs = watch.Elapsed.TotalMilliseconds;

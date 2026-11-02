@@ -16,11 +16,12 @@ public partial class NoteWindow : Window
 {
     private readonly NoteViewModel vm;
     private bool applyingLayout;
-    private Point? tilePress;
-    private bool draggingTile;
-    private Point tileOrigin;
-    private bool draggingHeader;
-    public bool IsDragging => draggingHeader || tilePress.HasValue;
+    private (Point TilePosition, Rect ExpandedBounds, string MonitorId)? edgeReturn;
+    internal void ClearEdgeReturn() => edgeReturn = null;
+    private Point? dragPress;
+    private Point dragOrigin;
+    private bool dragStarted;
+    public bool IsDragging => dragPress.HasValue;
     public event Action? InteractionFinished;
     public event Action? CollapsedStateChanged;
     public bool AllowClose { get; set; }
@@ -31,7 +32,7 @@ public partial class NoteWindow : Window
     public event Action? SearchRequested;
     public event Action? DeleteRequested;
     public event EventHandler? HideRequested;
-    public event Action<Point>? TileMoveRequested;
+    public event Action<Point>? MoveRequested;
     public event Action<bool>? ArrangeTilesRequested;
     public event Action? TileDragCompleted;
 
@@ -86,11 +87,14 @@ public partial class NoteWindow : Window
     private void SaveBounds()
     {
         if (!IsLoaded || applyingLayout || WindowState != WindowState.Normal) return;
+        if (edgeReturn is { } saved && WindowPlacement.GetBounds(this) != saved.ExpandedBounds)
+            ClearEdgeReturn();
         if (IsCollapsed) vm.UpdatePosition(Left, Top);
         else vm.UpdateBounds(Left, Top, Width, Height);
     }
     public void BeginArrangement(Rect bounds)
     {
+        ClearEdgeReturn();
         applyingLayout = true;
         // Lower constraints before native resizing; raising them here would resize a tile twice.
         MinWidth = 36; MinHeight = 36;
@@ -129,18 +133,16 @@ public partial class NoteWindow : Window
         var work = WindowPlacement.GetWorkArea(this);
         var note = vm.Snapshot;
         var target = collapse
-            // Directly collapsing a note follows the position the user is looking at.
-            // The saved collapsed anchor belongs to explicit arrange commands and may
-            // still point at an older grid position.
             ? new Rect(current.Left, current.Top, 36 * dpi.DpiScaleX, 36 * dpi.DpiScaleY)
-            : new Rect(current.Left, current.Top, Math.Min(note.Width * dpi.DpiScaleX, work.Width),
-                Math.Min(note.Height * dpi.DpiScaleY, work.Height));
-        if (!collapse)
-            target.Location = new Point(Math.Clamp(target.Left, work.Left, work.Right - target.Width),
-                Math.Clamp(target.Top, work.Top, work.Bottom - target.Height));
+            : NotePlacement.ExpandAtTile(current.Location, new Size(note.Width * dpi.DpiScaleX, note.Height * dpi.DpiScaleY), work);
+        if (collapse && edgeReturn is { } saved && MonitorCatalog.ForWindow(this).Id == saved.MonitorId)
+            target.Location = saved.TilePosition;
+        string? sourceMonitor = !collapse && target.Location != current.Location ? MonitorCatalog.ForWindow(this).Id : null;
         PrepareState(collapse, target);
         try { WindowPlacement.MoveTogether([(this, target)]); }
         finally { EndArrangement(); }
+        if (sourceMonitor is not null)
+            edgeReturn = (current.Location, WindowPlacement.GetBounds(this), sourceMonitor);
         if (collapse) { WindowPlacement.KeepVisible(this); SaveBounds(); }
         CollapsedStateChanged?.Invoke();
         if (!collapse && focusEditor) Editor.Focus();
@@ -150,74 +152,61 @@ public partial class NoteWindow : Window
         if (AllowClose) return;
         e.Cancel = true; HideRequested?.Invoke(this, EventArgs.Empty);
     }
-    private void OnDrag(object sender, MouseButtonEventArgs e)
+    private void OnDragDown(object sender, MouseButtonEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed) return;
-        // Template visuals and the status dot are draggable; actual buttons keep their actions.
-        for (var source = e.OriginalSource as DependencyObject; source is not null && source != sender;
+        var grip = (UIElement)sender;
+        // Header buttons handle their own gestures, even when their template is hit.
+        for (var source = e.OriginalSource as DependencyObject; source is not null && source != grip;
             source = source is Visual ? VisualTreeHelper.GetParent(source) : LogicalTreeHelper.GetParent(source))
             if (source is ButtonBase) return;
-        e.Handled = true;
-        DragNote();
-    }
-    private void DragNote()
-    {
-        draggingHeader = true;
-        try { DragMove(); }
-        finally
-        {
-            draggingHeader = false;
-            SaveBounds();
-            TileDragCompleted?.Invoke();
-            InteractionFinished?.Invoke();
-        }
-    }
-    private void OnTileDown(object sender, MouseButtonEventArgs e)
-    {
-        CollapsedTile.Focus();
-        CollapsedTile.CaptureMouse();
-        tilePress = WindowMagnet.GetCursorPosition();
-        tileOrigin = WindowPlacement.GetPosition(this);
-        draggingTile = false;
+        if (grip == CollapsedTile) grip.Focus();
+        if (!grip.CaptureMouse()) return;
+        dragPress = WindowMagnet.GetCursorPosition();
+        dragOrigin = WindowPlacement.GetPosition(this);
+        dragStarted = false;
         e.Handled = true;
     }
-    private void OnTileUp(object sender, MouseButtonEventArgs e)
+    private void OnDragMove(object sender, MouseEventArgs e)
     {
-        bool wasDragging = draggingTile;
-        bool clicked = tilePress.HasValue && !draggingTile;
-        tilePress = null;
-        CollapsedTile.ReleaseMouseCapture();
-        draggingTile = false;
-        if (clicked) ToggleCollapsed();
-        if (wasDragging)
+        if (dragPress is not Point start || e.LeftButton != MouseButtonState.Pressed) return;
+        var delta = WindowMagnet.GetCursorPosition() - start;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        if (!dragStarted && Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance * dpi.DpiScaleX
+            && Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance * dpi.DpiScaleY) return;
+        dragStarted = true;
+        MoveRequested?.Invoke(dragOrigin + delta);
+        e.Handled = true;
+    }
+    private void OnDragUp(object sender, MouseButtonEventArgs e)
+    {
+        if (dragPress is null) return;
+        bool expandTile = sender == CollapsedTile && !dragStarted;
+        FinishDrag((UIElement)sender);
+        if (expandTile) ToggleCollapsed();
+        e.Handled = true;
+    }
+    private void OnDragLostCapture(object sender, MouseEventArgs e)
+    {
+        if (e.OriginalSource == sender && dragPress.HasValue) FinishDrag((UIElement)sender);
+    }
+    private void FinishDrag(UIElement grip)
+    {
+        bool moved = dragStarted;
+        dragPress = null;
+        dragStarted = false;
+        if (grip.IsMouseCaptured) grip.ReleaseMouseCapture();
+        if (moved)
         {
             SaveBounds();
             TileDragCompleted?.Invoke();
         }
         InteractionFinished?.Invoke();
-        e.Handled = true;
-    }
-    private void OnTileMove(object sender, MouseEventArgs e)
-    {
-        if (tilePress is not Point start || e.LeftButton != MouseButtonState.Pressed) return;
-        var point = WindowMagnet.GetCursorPosition();
-        var delta = point - start;
-        var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
-        if (!draggingTile && Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance * dpi.DpiScaleX && Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance * dpi.DpiScaleY) return;
-        draggingTile = true;
-        TileMoveRequested?.Invoke(tileOrigin + delta);
-        e.Handled = true;
     }
     private void OnTileClick(object sender, RoutedEventArgs e)
     {
-        tilePress = null;
-        if (!draggingTile) ToggleCollapsed();
+        if (!dragStarted) ToggleCollapsed();
         e.Handled = true;
-    }
-    private void OnTileLostCapture(object sender, MouseEventArgs e)
-    {
-        tilePress = null; draggingTile = false;
-        InteractionFinished?.Invoke();
     }
     private void OnNew(object sender, RoutedEventArgs e) => NewNoteRequested?.Invoke();
     private void OnSearch(object sender, RoutedEventArgs e) => SearchRequested?.Invoke();

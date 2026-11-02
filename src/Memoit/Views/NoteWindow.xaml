@@ -31,7 +31,7 @@
   <Grid>
   <Grid x:Name="Root">
    <Grid.RowDefinitions><RowDefinition Height="22"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-   <Grid Background="#0C000000" MouseLeftButtonDown="OnDrag">
+   <Grid Background="#0C000000" MouseLeftButtonDown="OnDragDown" MouseLeftButtonUp="OnDragUp" MouseMove="OnDragMove" LostMouseCapture="OnDragLostCapture">
     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <Button Content="＋" ToolTip="새 메모 (Ctrl+N)" AutomationProperties.Name="새 메모" Click="OnNew" FontSize="13"/>
     <Button Grid.Column="1" Content="↙" ToolTip="작은 타일로 접기" AutomationProperties.Name="작은 타일로 접기" Click="OnCollapse"/>
@@ -82,7 +82,7 @@
    </TextBox>
 
   </Grid>
-  <Button x:Name="CollapsedTile" Visibility="Collapsed" Background="Transparent" ToolTip="{Binding Title}" PreviewMouseLeftButtonDown="OnTileDown" PreviewMouseLeftButtonUp="OnTileUp" PreviewMouseMove="OnTileMove" Click="OnTileClick" LostMouseCapture="OnTileLostCapture" Cursor="Hand" Padding="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" AutomationProperties.Name="접힌 메모, 클릭하여 펼치기">
+  <Button x:Name="CollapsedTile" Visibility="Collapsed" Background="Transparent" ToolTip="{Binding Title}" PreviewMouseLeftButtonDown="OnDragDown" PreviewMouseLeftButtonUp="OnDragUp" PreviewMouseMove="OnDragMove" Click="OnTileClick" LostMouseCapture="OnDragLostCapture" Cursor="Hand" Padding="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" AutomationProperties.Name="접힌 메모, 클릭하여 펼치기">
    <Button.Template><ControlTemplate TargetType="Button"><Border Background="{TemplateBinding Background}"><ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/></Border></ControlTemplate></Button.Template>
    <Button.ContextMenu><ContextMenu>
     <MenuItem Header="펼치기" Click="OnCollapse"/><MenuItem Header="설정…" Click="OnLayoutOptions"/>

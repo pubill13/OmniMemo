@@ -4,6 +4,14 @@ namespace Memoit.Services;
 
 public static class NotePlacement
 {
+    public static Rect ExpandAtTile(Point tile, Size expandedPixels, Rect workArea)
+    {
+        double width = Math.Min(expandedPixels.Width, workArea.Width);
+        double height = Math.Min(expandedPixels.Height, workArea.Height);
+        return new Rect(Math.Clamp(tile.X, workArea.Left, workArea.Right - width),
+            Math.Clamp(tile.Y, workArea.Top, workArea.Bottom - height), width, height);
+    }
+
     public static Rect CreateAtTileOrigin(Size sizeDip, MonitorDescriptor monitor,
         MonitorLayout options, IReadOnlyList<Rect> expandedNotes)
     {

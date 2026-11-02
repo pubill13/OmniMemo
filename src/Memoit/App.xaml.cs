@@ -176,7 +176,7 @@ public partial class App : Application
                 var magnet = new WindowMagnet(target, () => windows.Where(pair => pair.Value != target
                     && notes.TryGetValue(pair.Key, out var peer) && peer.Snapshot.DeletedAt is null)
                     .Select(pair => (Window)pair.Value));
-                target.TileMoveRequested += magnet.MoveTo;
+                target.MoveRequested += magnet.MoveTo;
                 target.Closed += (_, _) => magnet.Dispose();
             };
             windows.Add(vm.Snapshot.Id, window);
