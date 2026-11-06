@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.13.2-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.13.3-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -35,7 +35,7 @@ GitHub 릴리스의 `OmniMemo-1.13.2-win-x64.zip`을 풀고 `OmniMemo.exe`를 �
 
 ## 새 메모 위치
 
-새 메모는 선택된 모니터의 **접어서 정돈 시작점 근처**에 펼쳐 생성합니다. 창이 화면 밖으로 나가면 작업 영역 안으로 필요한 만큼만 보정하므로 오른쪽 상단 시작점에서는 오른쪽 부근에 표시됩니다. 같은 위치에 보이는 펼친 메모가 있으면 24 DIP씩 대각선으로 겹치며, 화면 경계에 도달하면 기준 위치로 돌아옵니다. 화면 전체의 빈자리를 탐색하지 않고 기존 메모는 움직이지 않습니다.
+새 메모는 선택된 모니터의 **새 메모 시작 위치 근처**에 펼쳐 생성합니다. 설정 → 배치에서 모니터별로 화면에서 지정하거나 X·Y를 조정할 수 있습니다. 별도로 지정하기 전과 ‘정돈 시작점 사용’을 선택한 경우에는 접어서 정돈 시작점을 따릅니다. 적용 후 만드는 메모부터 반영합니다. 창이 화면 밖으로 나가면 작업 영역 안으로 필요한 만큼만 보정하므로 오른쪽 상단 시작점에서는 오른쪽 부근에 표시됩니다. 같은 위치에 보이는 펼친 메모가 있으면 24 DIP씩 대각선으로 겹치며, 화면 경계에 도달하면 기준 위치로 돌아옵니다. 화면 전체의 빈자리를 탐색하지 않고 기존 메모는 움직이지 않습니다.
 
 메모의 ＋·Ctrl+N은 원본 색을, 패널에서는 선택 색을, 트레이·목록·전역 단축키에서는 마지막 활성 메모 색을 사용합니다. 패널의 `전체`는 마지막 활성 메모 색을 따릅니다. 활성 메모 기록이 없으면 노랑입니다. 원본 메모에서 생성하면 해당 모니터를 사용하고, 나머지는 마지막 활성 메모의 모니터 또는 마우스가 있는 모니터를 사용합니다.
 
@@ -77,15 +77,15 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.13.2/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.13.3/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
 
 ```powershell
-powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.13.2/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.13.2/win-x64/OmniMemo.exe -ShowOverlay
-powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.13.2/win-x64/OmniMemo.exe
+powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.13.3/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/InputDragSmoke.ps1 -Executable artifacts/OmniMemo-1.13.3/win-x64/OmniMemo.exe -ShowOverlay
+powershell.exe -NoProfile -STA -File scripts/NewNoteFontsSmoke.ps1 -Executable artifacts/OmniMemo-1.13.3/win-x64/OmniMemo.exe
 dotnet run --project scripts/ArrangementVerification -c Release -- --output artifacts/verification/arrangement-final-1.12.json
 ```
 
@@ -168,3 +168,8 @@ dotnet run --project scripts/ArrangementVerification -c Release -- --output arti
 
 - 화면 가장자리에서 개별 타일을 펼쳤다가 다시 접으면 원래 타일 위치를 복원합니다.
 - 펼친 메모의 헤더를 화면 모서리로 드래그해도 크기를 유지합니다.
+
+## 1.13.3 변경 사항
+
+- 삭제 실행 취소 안내창의 문구·버튼 여백과 창 크기 계산을 개선했습니다.
+- 새 메모 시작 위치를 모니터별로 따로 지정할 수 있습니다. 기존 설정은 정돈 시작점을 계속 사용합니다.

@@ -24,8 +24,8 @@ public static class NotePlacement
             throw new ArgumentOutOfRangeException(nameof(sizeDip));
         var size = new Size(Math.Min(sizeDip.Width * scale, area.Width), Math.Min(sizeDip.Height * scale, area.Height));
         var origin = new Point(
-            Math.Clamp(area.Left + options.X * scale, area.Left, area.Right - size.Width),
-            Math.Clamp(area.Top + options.Y * scale, area.Top, area.Bottom - size.Height));
+            Math.Clamp(area.Left + (options.NewNoteX ?? options.X) * scale, area.Left, area.Right - size.Width),
+            Math.Clamp(area.Top + (options.NewNoteY ?? options.Y) * scale, area.Top, area.Bottom - size.Height));
         double step = 24 * scale;
         // At a right/bottom start point, cascade inward rather than immediately wrapping.
         double dx = origin.X + size.Width + step > area.Right ? -step : step;

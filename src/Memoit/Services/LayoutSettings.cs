@@ -10,6 +10,8 @@ public sealed record MonitorLayout
 {
     public double X { get; init; } = 8;
     public double Y { get; init; } = 8;
+    public double? NewNoteX { get; init; }
+    public double? NewNoteY { get; init; }
     public double Gap { get; init; } = 8;
     public int Columns { get; init; }
     public bool IncludeExpanded { get; init; }
@@ -19,6 +21,10 @@ public sealed record MonitorLayout
 
     public void Validate()
     {
+        if (NewNoteX.HasValue != NewNoteY.HasValue
+            || NewNoteX.HasValue && (!double.IsFinite(NewNoteX.Value) || NewNoteX.Value < 0
+                || !double.IsFinite(NewNoteY!.Value) || NewNoteY.Value < 0))
+            throw new InvalidDataException("새 메모 시작 위치는 X·Y를 모두 지정해야 하며 0 이상의 숫자여야 합니다.");
         if (!double.IsFinite(X) || X < 0 || !double.IsFinite(Y) || Y < 0
             || !double.IsFinite(Gap) || Gap < 0 || Gap > 24 || Columns < 0 || Columns > 30
             || !Enum.IsDefined(Shape) || !Enum.IsDefined(Sort) || !Enum.IsDefined(ExpandedCorner))

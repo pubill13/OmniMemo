@@ -9,6 +9,23 @@ public sealed class TileOriginNotePlacementTests
     private static readonly MonitorDescriptor Monitor = new("m", "m", new Rect(0, 0, 1000, 800), 1);
     private static readonly MonitorLayout Options = new() { X = 80, Y = 90, Gap = 8 };
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(1.5)]
+    [InlineData(2)]
+    public void SeparateNewNoteOriginUsesMonitorRelativeDipsAndCascades(double scale)
+    {
+        var monitor = new MonitorDescriptor("m", "m", new Rect(-2000, -300, 1000 * scale, 800 * scale), scale);
+        var options = Options with { X = 950, NewNoteX = 120, NewNoteY = 140 };
+        var first = NotePlacement.CreateAtTileOrigin(new Size(320, 300), monitor, options, []);
+        var second = NotePlacement.CreateAtTileOrigin(new Size(320, 300), monitor, options, [first]);
+        Assert.Equal(new Point(-2000 + 120 * scale, -300 + 140 * scale), first.Location);
+        Assert.Equal(first.Location + new Vector(24 * scale, 24 * scale), second.Location);
+        var reset = NotePlacement.CreateAtTileOrigin(new Size(320, 300), monitor, options with { NewNoteX = null, NewNoteY = null }, []);
+        Assert.Equal(monitor.WorkArea.Right, reset.Right);
+        Assert.Equal(-300 + options.Y * scale, reset.Top);
+    }
+
     [Fact]
     public void RightTileOriginStaysNearRightEdgeInsteadOfSearchingLeft()
     {

@@ -13,6 +13,44 @@ namespace Memoit.Tests;
 public sealed class LayoutOptionsTests
 {
     [Fact]
+    public void NewNoteOriginsSurviveMonitorSwitchAndResetIndependently()
+    {
+        Sta(() =>
+        {
+            var settings = new LayoutSettings { Monitors = new() { ["A"] = new MonitorLayout { X = 750, Y = 30, IncludeExpanded = true } } };
+            var window = new LayoutOptionsWindow(settings,
+                [new("A", "A", new Rect(0, 0, 1000, 800), 1), new("B", "B", new Rect(-1000, 0, 1000, 800), 1)]);
+            try
+            {
+                Field<TextBox>(window, "newNoteX").Text = "120";
+                Field<TextBox>(window, "newNoteY").Text = "140";
+                var monitors = Field<ComboBox>(window, "monitorBox");
+                monitors.SelectedIndex = 1;
+                Assert.Equal("", Field<TextBox>(window, "newNoteX").Text);
+                Field<TextBox>(window, "newNoteX").Text = "240";
+                Field<TextBox>(window, "newNoteY").Text = "260";
+                monitors.SelectedIndex = 0;
+                Assert.Equal("120", Field<TextBox>(window, "newNoteX").Text);
+                Assert.Equal("140", Field<TextBox>(window, "newNoteY").Text);
+                Assert.Equal("750", Field<TextBox>(window, "x").Text);
+                Assert.Null(settings.GetMonitor("A").NewNoteX);
+                typeof(LayoutOptionsWindow).GetMethod("ResetNewNoteAnchor", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, null);
+                LayoutSettings? applied = null;
+                window.ApplyRequested += (value, _) => applied = value;
+                window.Left = 0; window.Top = 0;
+                typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, null);
+                Assert.NotNull(applied);
+                Assert.Null(applied.GetMonitor("A").NewNoteX);
+                Assert.True(applied.GetMonitor("A").IncludeExpanded);
+                Assert.Equal(240d, applied.GetMonitor("B").NewNoteX);
+                Assert.Equal(260d, applied.GetMonitor("B").NewNoteY);
+                Assert.Equal(750, applied.GetMonitor("A").X);
+            }
+            finally { window.AllowClose = true; window.Close(); }
+        });
+    }
+
+    [Fact]
     public void ExpandedPreviewShowsChosenPageWithoutMovingSourceNotes()
     {
         Sta(() =>

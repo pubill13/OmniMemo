@@ -25,6 +25,8 @@ public sealed class LayoutOptionsWindow : Window
     private readonly TabControl tabs = new();
     private readonly CheckBox autoStart = new() { Content = "Windows 로그인 시 OmniMemo 실행" };
     private readonly TextBox x = new(), y = new(), gap = new(), columns = new();
+    private readonly TextBox newNoteX = new(), newNoteY = new();
+    private readonly TextBlock newNoteSummary = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 4) };
     private readonly StackPanel hotkeyRows = new();
     private readonly Dictionary<string, TextBox> recorders = [];
@@ -58,6 +60,8 @@ public sealed class LayoutOptionsWindow : Window
         Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/OmniMemo;component/Assets/OmniMemo.ico"));
         foreach (var (control, name) in new (DependencyObject, string)[] { (x, "시작 X"), (y, "시작 Y"), (gap, "간격"), (columns, "한 줄에 놓을 메모 수"), (shape, "배치 형태"), (sort, "정렬 기준"), (monitorBox, "모니터"), (corner, "펼친 메모 시작 방향") })
             System.Windows.Automation.AutomationProperties.SetName(control, name);
+        System.Windows.Automation.AutomationProperties.SetName(newNoteX, "새 메모 시작 X");
+        System.Windows.Automation.AutomationProperties.SetName(newNoteY, "새 메모 시작 Y");
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         if (settings.PanelLeft is double left && settings.PanelTop is double top)
         { WindowStartupLocation = WindowStartupLocation.Manual; Left = left; Top = top; }
@@ -86,6 +90,20 @@ public sealed class LayoutOptionsWindow : Window
         root.Children.Add(tabs);
         var layout = new StackPanel { Margin = new Thickness(0, 4, 0, 8), Background = Brushes.Transparent };
         var heading = new DockPanel(); var previewButton = Button("미리보기", OpenPreview); DockPanel.SetDock(previewButton, Dock.Right); heading.Children.Add(previewButton); heading.Children.Add(Label("배치할 화면")); layout.Children.Add(heading); layout.Children.Add(monitorBox);
+        layout.Children.Add(Section("새 메모 시작 위치"));
+        layout.Children.Add(newNoteSummary);
+        var newNoteActions = new WrapPanel();
+        var pickNewNote = Button("화면에서 지정", () => PickAnchor(true));
+        System.Windows.Automation.AutomationProperties.SetName(pickNewNote, "새 메모 위치를 화면에서 지정");
+        newNoteActions.Children.Add(pickNewNote);
+        newNoteActions.Children.Add(Button("정돈 시작점 사용", ResetNewNoteAnchor));
+        layout.Children.Add(newNoteActions);
+        var newNoteCoords = new UniformGridShim();
+        var newNoteXField = new StackPanel(); newNoteXField.Children.Add(Label("새 메모 X (DIP)")); newNoteXField.Children.Add(newNoteX);
+        var newNoteYField = new StackPanel(); newNoteYField.Children.Add(Label("새 메모 Y (DIP)")); newNoteYField.Children.Add(newNoteY);
+        newNoteCoords.Children.Add(newNoteXField); newNoteCoords.Children.Add(newNoteYField);
+        layout.Children.Add(new Expander { Header = "세부 조정", Content = newNoteCoords, Margin = new Thickness(0, 6, 0, 4) });
+        layout.Children.Add(new TextBlock { Text = "적용 후 새로 만드는 메모부터 사용합니다. X·Y를 모두 비우면 정돈 시작점을 사용합니다.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray });
         layout.Children.Add(Section("접어서 정돈"));
         layout.Children.Add(Label("배치 형태")); layout.Children.Add(shape); layout.Children.Add(shapeHint);
         var originRow = new DockPanel { Margin = new Thickness(0, 8, 0, 0) }; var pickButton = Button("화면에서 지정", PickAnchor); DockPanel.SetDock(pickButton, Dock.Right); originRow.Children.Add(pickButton); originSummary.VerticalAlignment = VerticalAlignment.Center; originRow.Children.Add(originSummary); layout.Children.Add(originRow);
@@ -109,7 +127,7 @@ public sealed class LayoutOptionsWindow : Window
         var gapField = new StackPanel(); gapField.Children.Add(Label("간격 (0–24 DIP)")); gapField.Children.Add(gap); Grid.SetColumn(gapField, 1); commonFields.Children.Add(gapField); layout.Children.Add(commonFields);
         colorHint.Text = "색이 바뀌면 새 줄에 배치하며, 같은 색 안에서는 먼저 만든 메모부터 놓습니다. 줄 구분은 여러 줄 배치에만 적용됩니다."; colorHint.Foreground = Brushes.DimGray; layout.Children.Add(colorHint);
         corner.ItemTemplate = CornerTemplate();
-        layout.Children.Add(new TextBlock { Text = "이 설정은 접어서 정돈·펼쳐서 정돈에만 적용됩니다. 모두 접기·모두 펼치기는 현재 위치를 유지합니다.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), Foreground = Brushes.DimGray });
+        layout.Children.Add(new TextBlock { Text = "정돈 배치 규칙은 접어서 정돈·펼쳐서 정돈에 적용됩니다. 모두 접기·모두 펼치기는 현재 위치를 유지합니다.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), Foreground = Brushes.DimGray });
         GroupSections(layout);
         tabs.Items.Add(new TabItem { Header = "배치", Content = new ScrollViewer { Content = layout, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
         var hotkeys = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
@@ -124,7 +142,7 @@ public sealed class LayoutOptionsWindow : Window
         SetAutoStart(autoStart);
         Loaded += (_, _) => FitToWorkArea();
         monitorBox.SelectionChanged += (_, _) => SwitchMonitor();
-        foreach (var field in new[] { x, y, gap, columns }) field.TextChanged += (_, _) => RefreshPreview();
+        foreach (var field in new[] { x, y, gap, columns, newNoteX, newNoteY }) field.TextChanged += (_, _) => RefreshPreview();
         foreach (var field in new[] { shape, sort, corner, columnMode, previewMode }) field.SelectionChanged += (_, _) => RefreshPreview();
         IsVisibleChanged += (_, _) => { if (IsVisible) RefreshPreview(); else ClosePreview(); };
         Closing += (_, e) => { ClosePreview(); if (!AllowClose) { e.Cancel = true; HidePanel(); } };
@@ -184,7 +202,7 @@ public sealed class LayoutOptionsWindow : Window
         Row("숨기기", "메모의 ×를 누르면 창을 숨깁니다. 목록에서 다시 열 수 있습니다.");
 
         content.Children.Add(Section("새 메모 위치·색상"));
-        Row("시작 위치", "설정 → 배치 → 접어서 정돈에서 지정한 시작점에 엽니다. 오른쪽 가장자리에서는 펼친 창이 보이도록 왼쪽으로 조금 옮깁니다.");
+        Row("시작 위치", "설정 → 배치 → 새 메모 시작 위치에서 모니터별로 지정하세요. 별도로 지정하기 전이나 ‘정돈 시작점 사용’을 선택하면 접어서 정돈 시작점을 따릅니다. 화면 가장자리에서는 펼친 창이 보이도록 보정합니다.");
         Row("연속 생성", "같은 위치에 펼친 메모가 보이면 24 DIP 간격으로 대각선으로 겹칩니다. 경계에 닿으면 시작 위치부터 다시 사용합니다.");
         Row("모니터", "메모의 ＋는 그 메모의 화면에 엽니다. 다른 곳에서 만들면 마지막 활성 메모의 화면을, 기록이 없으면 마우스가 있는 화면을 사용합니다.");
         Row("색상", "메모의 ＋와 Ctrl+N은 원본 색을, 패널은 선택한 색을 사용합니다. 패널의 ‘전체’와 목록·트레이·전역 단축키는 마지막 활성 메모 색을 따르며 기본색은 노랑입니다.");
@@ -247,6 +265,7 @@ public sealed class LayoutOptionsWindow : Window
         content.Children.Add(Section("현재 버전"));
         content.Children.Add(new TextBlock { Text = version, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
         content.Children.Add(Section("최근 변경"));
+        content.Children.Add(HelpText("1.13.3\n새 메모 시작 위치를 모니터별로 따로 지정할 수 있습니다. 삭제 실행 취소 안내창의 여백과 크기 계산을 개선했습니다."));
         content.Children.Add(HelpText("1.13.2\n화면 가장자리에서 개별 타일을 펼치고 다시 접으면 원래 자리로 돌아갑니다. 헤더를 모서리로 드래그해도 메모 크기를 유지합니다."));
         content.Children.Add(HelpText("1.13.1\n새 메모는 접어서 정돈 시작점 근처에 열립니다. 도움말을 기능별로 나누고 데이터 경로를 복사할 수 있게 했습니다."));
         content.Children.Add(HelpText("1.13.0\n패널에 240×88 크기의 2줄 아이콘 미니 모드를 추가했습니다. 마지막 모드와 압정을 저장하며 트레이 더블클릭은 패널을 표시합니다."));
@@ -399,6 +418,8 @@ public sealed class LayoutOptionsWindow : Window
         selectedId = (monitorBox.SelectedItem as MonitorDescriptor)?.Id;
         var value = selectedId is not null ? draft.GetMonitor(selectedId) : new MonitorLayout();
         x.Text = value.X.ToString(CultureInfo.InvariantCulture); y.Text = value.Y.ToString(CultureInfo.InvariantCulture);
+        newNoteX.Text = value.NewNoteX?.ToString(CultureInfo.InvariantCulture) ?? "";
+        newNoteY.Text = value.NewNoteY?.ToString(CultureInfo.InvariantCulture) ?? "";
         gap.Text = value.Gap.ToString(CultureInfo.InvariantCulture); columns.Text = value.Columns.ToString(CultureInfo.InvariantCulture);
         shape.SelectedIndex = (int)value.Shape; sort.SelectedIndex = (int)value.Sort;
         corner.SelectedItem = value.ExpandedCorner; cornerButtons[value.ExpandedCorner].IsChecked = true;
@@ -409,7 +430,7 @@ public sealed class LayoutOptionsWindow : Window
     private bool StoreMonitor()
     {
         if (selectedId is null) return true;
-        if (!TryReadMonitor(out var value)) { ShowError("위치·간격·메모 수를 확인하세요. 간격은 0–24, 직접 지정은 1–30입니다."); return false; }
+        if (!TryReadMonitor(out var value)) { ShowError("새 메모 X·Y는 모두 지정하거나 모두 비워 두세요. 위치는 0 이상, 간격은 0–24, 메모 수는 1–30입니다."); return false; }
         draft.Monitors[selectedId] = value;
         return true;
     }
@@ -424,7 +445,16 @@ public sealed class LayoutOptionsWindow : Window
         if (shape.SelectedIndex == (int)LayoutShape.Grid && columnMode.SelectedIndex == 1 && (!int.TryParse(columns.Text, out count) || count < 1 || count > 30)) return false;
         if (shape.SelectedIndex != (int)LayoutShape.Grid) count = selectedId is string id ? draft.GetMonitor(id).Columns : 0;
         if (shape.SelectedIndex < 0 || sort.SelectedIndex < 0) return false;
-        value = new MonitorLayout { X = px, Y = py, Gap = spacing, Columns = count, Shape = (LayoutShape)shape.SelectedIndex, Sort = (LayoutSort)sort.SelectedIndex, ExpandedCorner = corner.SelectedItem is ExpandedCorner direction ? direction : ExpandedCorner.TopRight };
+        double? nx = null, ny = null;
+        if (!string.IsNullOrWhiteSpace(newNoteX.Text) || !string.IsNullOrWhiteSpace(newNoteY.Text))
+        {
+            if (!double.TryParse(newNoteX.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedX)
+                || !double.TryParse(newNoteY.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedY)
+                || !double.IsFinite(parsedX) || !double.IsFinite(parsedY) || parsedX < 0 || parsedY < 0) return false;
+            nx = parsedX; ny = parsedY;
+        }
+        var previous = selectedId is string monitorId ? draft.GetMonitor(monitorId) : new MonitorLayout();
+        value = previous with { X = px, Y = py, NewNoteX = nx, NewNoteY = ny, Gap = spacing, Columns = count, Shape = (LayoutShape)shape.SelectedIndex, Sort = (LayoutSort)sort.SelectedIndex, ExpandedCorner = corner.SelectedItem is ExpandedCorner direction ? direction : ExpandedCorner.TopRight };
         return true;
     }
     public void RefreshPreview()
@@ -433,6 +463,8 @@ public sealed class LayoutOptionsWindow : Window
         columnFields.Visibility = shape.SelectedIndex == (int)LayoutShape.Grid ? Visibility.Visible : Visibility.Collapsed;
         columns.Visibility = columnMode.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
         originSummary.Text = $"시작 위치  X {x.Text} · Y {y.Text}";
+        newNoteSummary.Text = string.IsNullOrWhiteSpace(newNoteX.Text) && string.IsNullOrWhiteSpace(newNoteY.Text)
+            ? "정돈 시작점 사용" : $"별도 시작 위치  X {newNoteX.Text} · Y {newNoteY.Text}";
         shapeHint.Foreground = Brush("#778397"); shapeHint.FontSize = 11; shapeHint.Margin = new Thickness(0, 6, 0, 2);
         shapeHint.Text = shape.SelectedIndex switch { 0 => "▦  오른쪽으로 채운 뒤 다음 줄로 내려갑니다", 1 => "▪ ▪ ▪ →  한 줄로 오른쪽에 놓습니다", _ => "▤ ↓  한 줄로 아래에 놓습니다" };
         colorHint.Visibility = sort.SelectedIndex == (int)LayoutSort.Color ? Visibility.Visible : Visibility.Collapsed;
@@ -537,11 +569,21 @@ public sealed class LayoutOptionsWindow : Window
         }
         catch (Exception ex) { ShowError(ex.Message); }
     }
-    private void PickAnchor()
+    private void ResetNewNoteAnchor() { newNoteX.Text = ""; newNoteY.Text = ""; }
+    private void PickAnchor() => PickAnchor(false);
+    private void PickAnchor(bool forNewNote)
     {
         if (monitorBox.SelectedItem is not MonitorDescriptor monitor) return;
         EndCapture(); Hide(); CaptureChanged?.Invoke(true);
-        try { var picker = new AnchorPickerWindow(monitor); if (picker.ShowDialog() == true && picker.SelectedPoint is Point point) { x.Text = point.X.ToString("0.##", CultureInfo.InvariantCulture); y.Text = point.Y.ToString("0.##", CultureInfo.InvariantCulture); } }
+        try
+        {
+            var picker = new AnchorPickerWindow(monitor);
+            if (picker.ShowDialog() == true && picker.SelectedPoint is Point point)
+            {
+                (forNewNote ? newNoteX : x).Text = point.X.ToString("0.##", CultureInfo.InvariantCulture);
+                (forNewNote ? newNoteY : y).Text = point.Y.ToString("0.##", CultureInfo.InvariantCulture);
+            }
+        }
         finally { CaptureChanged?.Invoke(false); Show(); Activate(); }
     }
     private void HidePanel() { EndCapture(); Hide(); Hidden?.Invoke(); }

@@ -63,18 +63,29 @@ public partial class App
         // Move the same notice, retaining its timer and restore-failure state.
         overlayPanel.SetUndoContent(null);
         undoInPanel = false;
+        undoNotice.Margin = new Thickness(0, 8, 0, 0);
         if (list?.IsVisible == true) list.SetUndoContent(undoNotice);
         else ShowUndoWindow(new Point(overlayPanel.Left, overlayPanel.Top));
     }
 
     private void ShowUndoWindow(Point anchor)
     {
+        undoNotice!.Margin = new Thickness(8);
         undoWindow = new Window { Title = "OmniMemo · 삭제 실행 취소", ShowActivated = false, ShowInTaskbar = false,
             WindowStyle = WindowStyle.ToolWindow, ResizeMode = ResizeMode.NoResize,
             SizeToContent = SizeToContent.Height, Width = 310, Left = anchor.X, Top = anchor.Y,
             Content = undoNotice, Topmost = true };
         undoWindow.Closed += (_, _) => ClearDeleteUndo();
-        undoWindow.Show(); WindowPlacement.KeepOnScreen(undoWindow);
+        var noticeWindow = undoWindow;
+        noticeWindow.SizeChanged += (_, _) => noticeWindow.Dispatcher.BeginInvoke(() =>
+        {
+            if (noticeWindow.IsVisible) WindowPlacement.KeepOnScreen(noticeWindow);
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
+        undoWindow.Show();
+        // SizeToContent is resolved during the first layout pass. Clamp only after
+        // that pass so the native title bar and bottom padding are included.
+        undoWindow.UpdateLayout();
+        WindowPlacement.KeepOnScreen(undoWindow);
     }
 
     private async Task UndoDeleteAsync()

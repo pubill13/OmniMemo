@@ -12,15 +12,16 @@ public sealed class UndoNotice : Border, IDisposable
     private readonly Stopwatch elapsed = new();
     private TimeSpan remaining = TimeSpan.FromSeconds(10);
     private readonly TextBlock message = new() { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Button undo = new() { Content = "실행 취소", Padding = new Thickness(8, 5, 8, 5), Margin = new Thickness(6, 0, 0, 0) };
+    private readonly Button undo = new() { Content = "실행 취소", Padding = new Thickness(8, 5, 8, 5), Margin = new Thickness(6, 0, 0, 0), MinWidth = 76, VerticalAlignment = VerticalAlignment.Center };
     private bool working;
     public event Action? UndoRequested;
     public event Action? Expired;
     public UndoNotice(int count)
     {
-        Background = new SolidColorBrush(Color.FromRgb(232, 239, 248)); Padding = new Thickness(8);
+        Background = new SolidColorBrush(Color.FromRgb(232, 239, 248)); Padding = new Thickness(10, 8, 10, 8);
         CornerRadius = new CornerRadius(6); Margin = new Thickness(0, 8, 0, 0);
-        var row = new DockPanel(); DockPanel.SetDock(undo, Dock.Right); row.Children.Add(undo); row.Children.Add(message); Child = row;
+        var row = new DockPanel { LastChildFill = true, VerticalAlignment = VerticalAlignment.Center };
+        DockPanel.SetDock(undo, Dock.Right); row.Children.Add(undo); row.Children.Add(message); Child = row;
         message.Text = $"메모 {count}개를 휴지통으로 이동";
         System.Windows.Automation.AutomationProperties.SetName(undo, "삭제 실행 취소");
         undo.Click += (_, _) => UndoRequested?.Invoke();
