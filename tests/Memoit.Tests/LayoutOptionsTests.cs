@@ -13,6 +13,37 @@ namespace Memoit.Tests;
 public sealed class LayoutOptionsTests
 {
     [Fact]
+    public void NewNoteSizeAppliesValidatesAndResetsWithoutChangingMonitorSettings()
+    {
+        Sta(() =>
+        {
+            var window = new LayoutOptionsWindow(new LayoutSettings { NewNoteWidth = 450, NewNoteHeight = 250 },
+                [new("A", "A", new Rect(0, 0, 1920, 1080), 1)]);
+            try
+            {
+                window.Left = 0; window.Top = 0;
+                LayoutSettings? applied = null;
+                window.ApplyRequested += (value, _) => applied = value;
+                var width = Field<TextBox>(window, "newNoteWidth");
+                var height = Field<TextBox>(window, "newNoteHeight");
+                Assert.Equal("450", width.Text); Assert.Equal("250", height.Text);
+                void Apply() => typeof(LayoutOptionsWindow).GetMethod("Dispatch", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, null);
+                foreach (var invalid in new[] { "", "abc", "NaN", "Infinity", "199" })
+                {
+                    width.Text = invalid; Apply(); Assert.Null(applied);
+                }
+                width.Text = "500.5"; height.Text = "149"; Apply(); Assert.Null(applied);
+                height.Text = "200"; Apply(); Assert.NotNull(applied);
+                Assert.Equal(500.5, applied.NewNoteWidth); Assert.Equal(200, applied.NewNoteHeight);
+                typeof(LayoutOptionsWindow).GetMethod("ResetNewNoteSize", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, null);
+                Apply(); Assert.Equal(320, applied!.NewNoteWidth); Assert.Equal(300, applied.NewNoteHeight);
+                Assert.Equal(8, applied.GetMonitor("A").X);
+            }
+            finally { window.AllowClose = true; window.Close(); }
+        });
+    }
+
+    [Fact]
     public void NewNoteOriginsSurviveMonitorSwitchAndResetIndependently()
     {
         Sta(() =>

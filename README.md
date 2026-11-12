@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.13.3-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.13.4-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -34,6 +34,8 @@ GitHub 릴리스의 `OmniMemo-1.13.3-win-x64.zip`을 풀고 `OmniMemo.exe`를 �
 트레이에서는 새 메모, 목록, 모두 숨기기, 모두 보이기, 패널, 설정, 종료를 제공합니다. 트레이 아이콘 더블클릭 또는 ‘패널’ 메뉴는 마지막 사용 모드의 패널을 표시하고 앞으로 가져옵니다. 이미 보이는 패널도 숨기지 않습니다. 패널은 항상 100% 불투명하게 표시합니다. 정돈은 패널 버튼이나 통합 단축키를 사용하세요.
 
 ## 새 메모 위치
+
+새 메모의 기본 크기는 **설정 → 일반 → 새 메모 기본 크기**에서 가로·세로를 지정합니다. 기본값은 320×300 DIP이며 최소 크기는 200×150 DIP입니다. 적용 후 만드는 메모부터 모든 모니터에 공통으로 반영하고 기존 메모의 크기는 유지합니다. 기본 크기로 복원한 뒤 적용하면 320×300으로 돌아갑니다.
 
 새 메모는 선택된 모니터의 **새 메모 시작 위치 근처**에 펼쳐 생성합니다. 설정 → 배치에서 모니터별로 화면에서 지정하거나 X·Y를 조정할 수 있습니다. 별도로 지정하기 전과 ‘정돈 시작점 사용’을 선택한 경우에는 접어서 정돈 시작점을 따릅니다. 적용 후 만드는 메모부터 반영합니다. 창이 화면 밖으로 나가면 작업 영역 안으로 필요한 만큼만 보정하므로 오른쪽 상단 시작점에서는 오른쪽 부근에 표시됩니다. 같은 위치에 보이는 펼친 메모가 있으면 24 DIP씩 대각선으로 겹치며, 화면 경계에 도달하면 기준 위치로 돌아옵니다. 화면 전체의 빈자리를 탐색하지 않고 기존 메모는 움직이지 않습니다.
 
@@ -77,7 +79,7 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.13.3/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.13.4/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
@@ -173,3 +175,9 @@ dotnet run --project scripts/ArrangementVerification -c Release -- --output arti
 
 - 삭제 실행 취소 안내창의 문구·버튼 여백과 창 크기 계산을 개선했습니다.
 - 새 메모 시작 위치를 모니터별로 따로 지정할 수 있습니다. 기존 설정은 정돈 시작점을 계속 사용합니다.
+
+## 1.13.4 변경 사항
+
+- 설정 → 일반에서 새 메모의 기본 가로·세로와 320×300 DIP 기본값 복원을 제공합니다. 이후 만드는 메모부터 적용하고 기존 메모 크기는 유지합니다.
+- 작은 설정 창에서 입력 영역을 스크롤할 수 있도록 최소 높이를 확보했습니다.
+- 테스트 286개와 실제 WPF 생성·저장 검증 통과. 5분 연속 편집·자동 저장·첫 백업 검사에서 1초 이상 멈춤은 재현되지 않았습니다. 사용자 환경의 멈춤 원인은 아직 미확정이며 [검증 기록](docs/verification-new-note-size-responsiveness.md)에 범위와 한계를 남겼습니다.

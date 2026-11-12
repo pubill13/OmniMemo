@@ -35,6 +35,8 @@ public sealed record MonitorLayout
 public sealed record LayoutSettings
 {
     public int Version { get; init; } = 6;
+    public double NewNoteWidth { get; init; } = 320;
+    public double NewNoteHeight { get; init; } = 300;
     public bool AutoArrange { get; init; }
     public bool PagedExpansionActive { get; init; }
     public bool NeedsManualArrangementNotice { get; init; }
@@ -60,6 +62,9 @@ public sealed record LayoutSettings
 
     public void Validate()
     {
+        if (!double.IsFinite(NewNoteWidth) || NewNoteWidth < 200
+            || !double.IsFinite(NewNoteHeight) || NewNoteHeight < 150)
+            throw new InvalidDataException("새 메모 크기는 가로 200 DIP, 세로 150 DIP 이상의 숫자여야 합니다.");
         if (OverlayLeft.HasValue && !double.IsFinite(OverlayLeft.Value)
             || OverlayTop.HasValue && !double.IsFinite(OverlayTop.Value)
             || OverlayColor is not null && !NoteColors.Values.Any(c => NoteColors.Matches(c, OverlayColor)))

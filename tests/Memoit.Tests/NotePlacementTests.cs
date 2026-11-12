@@ -10,6 +10,20 @@ public sealed class NotePlacementTests
     [InlineData(1)]
     [InlineData(1.5)]
     [InlineData(2)]
+    public void CustomNewNoteSizeUsesScaleAndClampsAtScreenEdges(double scale)
+    {
+        var monitor = new MonitorDescriptor("m", "m", new Rect(-2000, -400, 1000 * scale, 800 * scale), scale);
+        var options = new MonitorLayout { NewNoteX = 990, NewNoteY = 790 };
+        var bounds = NotePlacement.CreateAtTileOrigin(new Size(450, 220), monitor, options, []);
+        Assert.Equal(450 * scale, bounds.Width); Assert.Equal(220 * scale, bounds.Height);
+        Assert.Equal(monitor.WorkArea.Right, bounds.Right); Assert.Equal(monitor.WorkArea.Bottom, bounds.Bottom);
+        Assert.Equal(monitor.WorkArea, NotePlacement.CreateAtTileOrigin(new Size(3000, 2000), monitor, options, []));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(1.5)]
+    [InlineData(2)]
     public void EdgeExpansionFitsNegativeCoordinateMonitor(double scale)
     {
         var area = new Rect(-2400, -350, 1100 * scale, 800 * scale);

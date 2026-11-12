@@ -12,7 +12,7 @@ using Memoit.Services;
 using Memoit.ViewModels;
 using Memoit.Views;
 
-internal sealed class SaveVerificationApp(string output, bool interactive = false) : App
+internal sealed class SaveVerificationApp(string output, bool interactive = false, bool longRun = false) : App
 {
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
     private readonly List<string> checks = [];
@@ -32,6 +32,11 @@ internal sealed class SaveVerificationApp(string output, bool interactive = fals
             Directory.CreateDirectory(data);
             SetField("dataDirectory", data);
             SetField("store", new NoteStore(Path.Combine(data, "notes.db")));
+            var operations = new System.Collections.Concurrent.ConcurrentQueue<object>();
+            typeof(NoteStore).GetProperty("MeasureOperation", Private)!.SetValue(Store,
+                (Action<string, double, double>)((operation, waitMs, workMs) => operations.Enqueue(new { operation, waitMs, workMs })));
+            var refreshTimes = new List<double>();
+            typeof(App).GetProperty("MeasureRefresh", Private)!.SetValue(this, (Action<double>)(ms => refreshTimes.Add(ms)));
             // Backup is tested elsewhere; isolate autosave/list work from the first daily backup.
             SetField("backupAttempt", DateOnly.FromDateTime(DateTime.Now));
             await Store.InitializeAsync();
@@ -98,6 +103,12 @@ internal sealed class SaveVerificationApp(string output, bool interactive = fals
             measurements.Add(new { scenario = "Current hidden-list callbacks, 100 saves", elapsedMs = currentClock.Elapsed.TotalMilliseconds });
 
             var target = NoteWindows.Values.First();
+            if (longRun)
+            {
+                overlay.Hide();
+                // Include the first daily backup in the notes-only editing workload.
+                SetField("backupAttempt", null);
+            }
             target.Activate(); target.Editor.Focus(); target.Editor.CaretIndex = target.Editor.Text.Length;
             await Settle();
             int saves = 0, edits = 0;
@@ -108,7 +119,7 @@ internal sealed class SaveVerificationApp(string output, bool interactive = fals
             var heartbeat = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(16) };
             heartbeat.Tick += (_, _) => { double now = clock.Elapsed.TotalMilliseconds; intervals.Add(now - last); last = now; };
             heartbeat.Start();
-            while (clock.Elapsed < TimeSpan.FromSeconds(12))
+            while (clock.Elapsed < TimeSpan.FromSeconds(longRun ? 300 : 12))
             {
                 target.Editor.AppendText(" 입력"); edits++;
                 await Task.Delay(60);
@@ -119,12 +130,20 @@ internal sealed class SaveVerificationApp(string output, bool interactive = fals
             var persisted = (await Store.LoadAsync()).Single(n => n.Id == Notes.Values.First().Snapshot.Id);
             Require(persisted.Body == target.Editor.Text, "Saved body differs from editor after repeated typing.");
             Require(saves >= 4, $"Too few autosaves measured: {saves}.");
+            if (longRun)
+            {
+                while ((bool)Field("backupInProgress")!) await Task.Delay(50);
+                Require(Directory.GetFiles(Path.Combine(data, "backups"), "memoit-*.db").Length == 1, "First daily backup was not created.");
+                checks.Add("Notes-only editing includes the first daily backup and verifies its completion.");
+            }
             var ordered = intervals.Order().ToArray();
-            measurements.Add(new { scenario = "20 visible notes, 700-line bodies, continuous editor AppendText and real SQLite autosave", durationMs = clock.Elapsed.TotalMilliseconds,
+            measurements.Add(new { scenario = longRun ? "5-minute notes-only editing with first daily backup" : "12-second editing with panel visible", durationMs = clock.Elapsed.TotalMilliseconds,
                 noteCount = Notes.Count, initialCharactersPerNote = body.Length, edits, saves, heartbeatSamples = intervals.Count,
                 maxHeartbeatIntervalMs = intervals.Max(), p99HeartbeatIntervalMs = ordered[(int)((ordered.Length - 1) * .99)] });
+            measurements.Add(new { scenario = "Storage operations (no note contents)", operations = operations.ToArray() });
+            measurements.Add(new { scenario = "Save-triggered UI refresh", count = refreshTimes.Count, maxMs = refreshTimes.Max() });
             Require(intervals.Max() < 1000, "Observed a >=1 second UI stall during autosave typing scenario.");
-            checks.Add("12-second continuous editor edits with real autosave preserve exact persisted text and contain no >=1 second dispatcher stall.");
+            checks.Add("Continuous editor edits with real autosave preserve exact persisted text and contain no >=1 second dispatcher stall.");
         }
         catch (Exception ex) { result = 1; error = ex.ToString(); }
         finally
@@ -151,7 +170,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        var app = new SaveVerificationApp(args.Length == 2 && args[0] == "--output" ? args[1] : "artifacts/verification/save-responsiveness.json", args.Contains("--interactive"))
+        int outputIndex = Array.IndexOf(args, "--output");
+        var app = new SaveVerificationApp(outputIndex >= 0 && outputIndex + 1 < args.Length ? args[outputIndex + 1] : "artifacts/verification/save-responsiveness.json", args.Contains("--interactive"), args.Contains("--long"))
             { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         return app.Run();
     }

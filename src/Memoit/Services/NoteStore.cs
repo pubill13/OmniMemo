@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using Memoit.Models;
@@ -12,6 +14,7 @@ public sealed class NoteStore(string databasePath) : IDisposable
     private readonly string path = Path.GetFullPath(databasePath);
     private readonly SemaphoreSlim gate = new(1, 1);
     private bool disposed;
+    internal Action<string, double, double>? MeasureOperation { get; set; }
     private const string LegacyColumns = "id, body, color, font_size, font_family, is_collapsed, left_pos, top_pos, width, height, is_visible, is_pinned, created_at, updated_at, deleted_at";
     private const string Columns = LegacyColumns + ", collapsed_left, collapsed_top, expanded_left, expanded_top";
 
@@ -248,12 +251,20 @@ public sealed class NoteStore(string databasePath) : IDisposable
     {
         using var command = db.CreateCommand(); command.CommandText = sql; command.Transaction = tx; command.ExecuteNonQuery();
     }
-    private Task Run(Action action) => Run(() => { action(); return true; });
-    private async Task<T> Run<T>(Func<T> action)
+    private Task Run(Action action, [CallerMemberName] string operation = "") => Run(() => { action(); return true; }, operation);
+    private async Task<T> Run<T>(Func<T> action, [CallerMemberName] string operation = "")
     {
+        var measure = MeasureOperation;
+        long started = measure is null ? 0 : Stopwatch.GetTimestamp();
         await gate.WaitAsync().ConfigureAwait(false);
+        double waitMs = measure is null ? 0 : Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        long acquired = measure is null ? 0 : Stopwatch.GetTimestamp();
         try { ObjectDisposedException.ThrowIf(disposed, this); return await Task.Run(action).ConfigureAwait(false); }
-        finally { gate.Release(); }
+        finally
+        {
+            gate.Release();
+            measure?.Invoke(operation, waitMs, Stopwatch.GetElapsedTime(acquired).TotalMilliseconds);
+        }
     }
     public void Dispose() { gate.Wait(); try { disposed = true; } finally { gate.Release(); } }
 }

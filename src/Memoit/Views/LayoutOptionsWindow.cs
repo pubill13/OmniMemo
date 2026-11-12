@@ -26,6 +26,7 @@ public sealed class LayoutOptionsWindow : Window
     private readonly CheckBox autoStart = new() { Content = "Windows 로그인 시 OmniMemo 실행" };
     private readonly TextBox x = new(), y = new(), gap = new(), columns = new();
     private readonly TextBox newNoteX = new(), newNoteY = new();
+    private readonly TextBox newNoteWidth = new(), newNoteHeight = new();
     private readonly TextBlock newNoteSummary = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 4) };
     private readonly StackPanel hotkeyRows = new();
@@ -56,12 +57,14 @@ public sealed class LayoutOptionsWindow : Window
         Func<string, IReadOnlyList<Note>>? previewNotes = null)
     {
         this.previewNotes = previewNotes;
-        Title = "OmniMemo · 설정"; Width = 640; Height = 740; MinWidth = 300; MinHeight = 250;
+        Title = "OmniMemo · 설정"; Width = 640; Height = 740; MinWidth = 300; MinHeight = 360;
         Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/OmniMemo;component/Assets/OmniMemo.ico"));
         foreach (var (control, name) in new (DependencyObject, string)[] { (x, "시작 X"), (y, "시작 Y"), (gap, "간격"), (columns, "한 줄에 놓을 메모 수"), (shape, "배치 형태"), (sort, "정렬 기준"), (monitorBox, "모니터"), (corner, "펼친 메모 시작 방향") })
             System.Windows.Automation.AutomationProperties.SetName(control, name);
         System.Windows.Automation.AutomationProperties.SetName(newNoteX, "새 메모 시작 X");
         System.Windows.Automation.AutomationProperties.SetName(newNoteY, "새 메모 시작 Y");
+        System.Windows.Automation.AutomationProperties.SetName(newNoteWidth, "새 메모 기본 가로");
+        System.Windows.Automation.AutomationProperties.SetName(newNoteHeight, "새 메모 기본 세로");
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         if (settings.PanelLeft is double left && settings.PanelTop is double top)
         { WindowStartupLocation = WindowStartupLocation.Manual; Left = left; Top = top; }
@@ -159,6 +162,15 @@ public sealed class LayoutOptionsWindow : Window
     {
         var content = new StackPanel { Margin = new Thickness(0, 4, 0, 8), Background = Brushes.Transparent };
         content.Children.Add(Section("시작")); content.Children.Add(autoStart);
+        content.Children.Add(Section("새 메모 기본 크기"));
+        var sizes = new UniformGridShim();
+        var widthLabel = Label("가로 (DIP, 최소 200)"); widthLabel.TextWrapping = TextWrapping.Wrap;
+        var heightLabel = Label("세로 (DIP, 최소 150)"); heightLabel.TextWrapping = TextWrapping.Wrap;
+        var width = new StackPanel(); width.Children.Add(widthLabel); width.Children.Add(newNoteWidth);
+        var height = new StackPanel(); height.Children.Add(heightLabel); height.Children.Add(newNoteHeight);
+        sizes.Children.Add(width); sizes.Children.Add(height); content.Children.Add(sizes);
+        content.Children.Add(Button("기본 크기로 복원", ResetNewNoteSize));
+        content.Children.Add(new TextBlock { Text = "적용 후 새로 만드는 메모부터 사용합니다. 기존 메모의 크기는 유지합니다. 화면 배율 100%에서 1 DIP는 1픽셀입니다.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray });
         GroupSections(content);
         return new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
@@ -199,6 +211,7 @@ public sealed class LayoutOptionsWindow : Window
         Row("새 메모", "패널이나 트레이에서 새 메모를 누르면 바로 입력할 수 있습니다.");
         Row("접기와 펼치기", "타일을 클릭하거나 Enter 또는 Space를 누르면 펼쳐집니다. 화면 가장자리에서 안쪽으로 보정된 메모는 다시 접으면 원래 타일 자리로 돌아갑니다. 직접 옮기거나 크기를 조절한 뒤에는 현재 위치에 접힙니다.");
         Row("옮기기", "메모 상단의 빈 곳이나 타일을 드래그하세요. 가장자리에 가까워지면 크기를 유지한 채 붙습니다. 크기를 바꾸려면 펼친 창의 테두리를 끌어 조절하세요.");
+        Row("새 메모 기본 크기", "설정 → 일반에서 가로·세로를 지정하고 적용하세요. 이후 만드는 메모부터 반영하며 기존 메모 크기는 유지합니다. 기본값은 320×300 DIP입니다.");
         Row("숨기기", "메모의 ×를 누르면 창을 숨깁니다. 목록에서 다시 열 수 있습니다.");
 
         content.Children.Add(Section("새 메모 위치·색상"));
@@ -265,6 +278,7 @@ public sealed class LayoutOptionsWindow : Window
         content.Children.Add(Section("현재 버전"));
         content.Children.Add(new TextBlock { Text = version, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
         content.Children.Add(Section("최근 변경"));
+        content.Children.Add(HelpText("1.13.4\n일반 설정에서 새 메모 기본 크기를 지정하고 기본값으로 복원할 수 있습니다. 기존 메모 크기는 유지합니다. 자동 저장·첫 백업을 포함한 5분 편집 응답성을 검증했으며 사용자 환경의 멈춤 원인은 아직 미확정입니다."));
         content.Children.Add(HelpText("1.13.3\n새 메모 시작 위치를 모니터별로 따로 지정할 수 있습니다. 삭제 실행 취소 안내창의 여백과 크기 계산을 개선했습니다."));
         content.Children.Add(HelpText("1.13.2\n화면 가장자리에서 개별 타일을 펼치고 다시 접으면 원래 자리로 돌아갑니다. 헤더를 모서리로 드래그해도 메모 크기를 유지합니다."));
         content.Children.Add(HelpText("1.13.1\n새 메모는 접어서 정돈 시작점 근처에 열립니다. 도움말을 기능별로 나누고 데이터 경로를 복사할 수 있게 했습니다."));
@@ -401,6 +415,8 @@ public sealed class LayoutOptionsWindow : Window
         EndCapture();
         refreshing = true;
         draft = settings with { Monitors = new(settings.Monitors), Hotkeys = new(settings.Hotkeys) };
+        newNoteWidth.Text = settings.NewNoteWidth.ToString(CultureInfo.InvariantCulture);
+        newNoteHeight.Text = settings.NewNoteHeight.ToString(CultureInfo.InvariantCulture);
         monitors = available; selectedId = null;
         monitorBox.ItemsSource = monitors;
         monitorBox.SelectedItem = monitors.FirstOrDefault(m => m.Id == settings.SelectedMonitor) ?? monitors.FirstOrDefault();
@@ -563,13 +579,17 @@ public sealed class LayoutOptionsWindow : Window
         try
         {
             HotkeyService.Validate(draft.Hotkeys);
-            var candidate = draft with { AutoArrange = false, SelectedMonitor = selectedId, PanelLeft = Left, PanelTop = Top, Monitors = new(draft.Monitors), Hotkeys = new(draft.Hotkeys) };
+            if (!double.TryParse(newNoteWidth.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var width)
+                || !double.TryParse(newNoteHeight.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var height))
+                throw new InvalidDataException("새 메모 가로·세로에 숫자를 입력해 주세요.");
+            var candidate = draft with { NewNoteWidth = width, NewNoteHeight = height, AutoArrange = false, SelectedMonitor = selectedId, PanelLeft = Left, PanelTop = Top, Monitors = new(draft.Monitors), Hotkeys = new(draft.Hotkeys) };
             candidate.Validate();
             ApplyRequested?.Invoke(candidate, autoStart.IsChecked == true);
         }
         catch (Exception ex) { ShowError(ex.Message); }
     }
     private void ResetNewNoteAnchor() { newNoteX.Text = ""; newNoteY.Text = ""; }
+    private void ResetNewNoteSize() { newNoteWidth.Text = "320"; newNoteHeight.Text = "300"; }
     private void PickAnchor() => PickAnchor(false);
     private void PickAnchor(bool forNewNote)
     {

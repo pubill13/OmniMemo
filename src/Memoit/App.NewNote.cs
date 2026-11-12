@@ -43,7 +43,7 @@ public partial class App
         string color = origin?.Snapshot.Color ?? preferredColor
             ?? (last is not null && notes.ContainsKey(last.Snapshot.Id) && last.Snapshot.DeletedAt is null
                 ? last.Snapshot.Color : null) ?? NoteColors.Values[0];
-        var note = new Note { Color = color };
+        var note = new Note { Color = color, Width = layoutSettings.NewNoteWidth, Height = layoutSettings.NewNoteHeight };
         var scene = windows.Where(p => p.Value.IsVisible && notes[p.Key].Snapshot.DeletedAt is null)
             .Select(p => (Note: notes[p.Key].Snapshot, Bounds: WindowPlacement.GetBounds(p.Value)))
             .Where(p => MonitorCatalog.Nearest(p.Bounds, monitors).Id == monitor.Id).ToArray();

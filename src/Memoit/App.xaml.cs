@@ -27,6 +27,7 @@ public partial class App : Application
     private bool backupInProgress;
     private DateOnly? backupAttempt;
     private bool savedRefreshQueued;
+    internal Action<double>? MeasureRefresh { get; set; }
     private string dataDirectory = "";
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -198,12 +199,14 @@ public partial class App : Application
 
     private void RefreshList()
     {
+        long started = MeasureRefresh is null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
         RefreshPageControls();
         if (list?.IsVisible == true)
             list.SetNotes(notes.Values.Where(n => n.Snapshot.DeletedAt is null).Select(n => n.Snapshot), false);
         if (trashWindow?.IsVisible == true) trashWindow.SetNotes(notes.Values.Select(n => n.Snapshot));
         if (overlayPanel?.IsVisible == true) overlayPanel.SetNotes(notes.Values.Select(n => n.Snapshot));
         if (layoutPanel?.IsVisible == true) layoutPanel.RefreshPreview();
+        MeasureRefresh?.Invoke(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
     private async void OnNoteSaved()

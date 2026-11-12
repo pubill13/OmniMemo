@@ -39,12 +39,14 @@ internal sealed class VerificationApp(string output, bool interactive) : App
             var monitors = MonitorCatalog.All();
             var cursor = System.Windows.Forms.Cursor.Position;
             var monitor = NotePlacement.SelectMonitor(null, new Point(cursor.X, cursor.Y), monitors);
-            var settings = new LayoutSettings { Monitors = new() { [monitor.Id] = new MonitorLayout {
+            var settings = new LayoutSettings { NewNoteWidth = 450, NewNoteHeight = 220, Monitors = new() { [monitor.Id] = new MonitorLayout {
                 X = Math.Max(0, monitor.WorkArea.Width / monitor.Scale - 44), Y = 40 } } };
             SetField("layoutSettings", settings);
             Call("CreateList");
             var source = await New(null, NoteColors.Values[1]);
             var firstBounds = WindowPlacement.GetBounds(source);
+            Require(Math.Abs(firstBounds.Width / monitor.Scale - 450) < 2 && Math.Abs(firstBounds.Height / monitor.Scale - 220) < 2,
+                "Configured size did not reach panel-created note.");
             Require(Math.Abs(firstBounds.Right - monitor.WorkArea.Right) < 3, "Right anchor did not create first note at right edge.");
             Require(MonitorCatalog.ForWindow(source).Id == monitor.Id, "Cursor fallback chose wrong monitor.");
             Require(((NoteViewModel)source.DataContext).Snapshot.Color == NoteColors.Values[1], "Panel selected color lost.");
@@ -58,6 +60,7 @@ internal sealed class VerificationApp(string output, bool interactive) : App
                 if (monitor.WorkArea.Contains(expected))
                     Require((WindowPlacement.GetBounds(next).Location - expected.Location).Length < 2, "Visible note did not cascade by 24 DIP.");
                 Require(MonitorCatalog.ForWindow(next).Id == monitor.Id, "Source monitor inheritance lost.");
+                Require(Math.Abs(next.Width - 450) < 2 && Math.Abs(next.Height - 220) < 2, "Configured size lost on source creation.");
                 Require(((NoteViewModel)next.DataContext).Snapshot.Color == NoteColors.Values[1], "Source color inheritance lost.");
                 foreach (var pair in oldBounds)
                     Require(WindowPlacement.GetBounds(NoteWindows[pair.Key]) == pair.Value, "New note moved an existing note.");
@@ -67,6 +70,14 @@ internal sealed class VerificationApp(string output, bool interactive) : App
             var inherited = await New(null, null);
             Require(((NoteViewModel)inherited.DataContext).Snapshot.Color == NoteColors.Values[1], "Last-active color inheritance lost.");
             Require(MonitorCatalog.ForWindow(inherited).Id == monitor.Id, "Last-active monitor inheritance lost.");
+            Require(Math.Abs(inherited.Width - 450) < 2 && Math.Abs(inherited.Height - 220) < 2, "Configured size lost on external creation.");
+            SetField("layoutSettings", settings with { NewNoteWidth = 360, NewNoteHeight = 240 });
+            var resized = await New(null, null);
+            Require(Math.Abs(resized.Width - 360) < 2 && Math.Abs(resized.Height - 240) < 2, "Changed default did not reach next note.");
+            Require(WindowPlacement.GetBounds(source) == firstBounds, "Changed default resized an existing note.");
+            var stored = await store.LoadAsync();
+            Require(stored.Single(n => n.Id == ((NoteViewModel)resized.DataContext).Snapshot.Id).Width == 360, "Custom size not persisted.");
+            checks.Add("Configured default size applies to panel/source/external creation, persists to SQLite and leaves existing notes unchanged after defaults change.");
             checks.Add("Actual App.NewNoteAsync: right anchor, repeated creation, source/panel/last-active color, cursor/source/last-active monitor, unchanged existing bounds.");
             Require(await NoteViewModel.FlushManyAsync(Notes.Values, store.SaveManyAsync), "Save failed.");
 
@@ -75,6 +86,18 @@ internal sealed class VerificationApp(string output, bool interactive) : App
             help.SelectTab(SettingsTab.Help); help.Show();
             await Settle();
             var tabs = Descendants(help).OfType<TabControl>().Single();
+            help.SelectTab(SettingsTab.General); await Settle(); help.UpdateLayout();
+            Render(help, "general-new-note-size");
+            help.Width = help.MinWidth; help.Height = help.MinHeight;
+            await Settle(); help.UpdateLayout(); Render(help, "general-new-note-size-minimum");
+            var generalScroll = (ScrollViewer)((TabItem)tabs.SelectedItem).Content;
+            Require(generalScroll.ViewportHeight >= 80, "General settings viewport cannot expose its inputs at minimum window size.");
+            Require(generalScroll.ExtentWidth <= generalScroll.ViewportWidth + 1, "General settings has horizontal overflow.");
+            generalScroll.ScrollToBottom(); await Settle();
+            Require(Math.Abs(generalScroll.VerticalOffset - generalScroll.ScrollableHeight) < 1, "General settings could not scroll to its size controls.");
+            Render(help, "general-new-note-size-minimum-bottom");
+            help.Width = 640; help.Height = 740;
+            help.SelectTab(SettingsTab.Help); await Settle();
             var scroll = (ScrollViewer)((TabItem)tabs.SelectedItem).Content;
             foreach (var size in new[] { new Size(640, 740), new Size(help.MinWidth, help.MinHeight) })
             {
