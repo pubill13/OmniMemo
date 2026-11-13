@@ -109,7 +109,7 @@ internal sealed class SaveVerificationApp(string output, bool interactive = fals
                 // Include the first daily backup in the notes-only editing workload.
                 SetField("backupAttempt", null);
             }
-            target.Activate(); target.Editor.Focus(); target.Editor.CaretIndex = target.Editor.Text.Length;
+            target.Activate(); target.Editor.Focus(); target.Editor.CaretOffset = target.Editor.Text.Length;
             await Settle();
             int saves = 0, edits = 0;
             Notes.Values.First().Saved += () => saves++;

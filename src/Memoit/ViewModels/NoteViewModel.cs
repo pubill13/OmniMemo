@@ -2,14 +2,20 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Threading;
 using Memoit.Models;
+using ICSharpCode.AvalonEdit.Document;
 
 namespace Memoit.ViewModels;
 
 /// <summary>Owns the editable snapshot. Saves never replace editor text or selection.</summary>
 public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
 {
+    // Keep small saves synchronous; large UTF-16 copies should not occupy the dispatcher.
+    private const int BackgroundTextThreshold = 65_536;
     private Note note;
-    private string title;
+    private string title = "";
+    private bool bodyChanged;
+    private int titleEnd;
+    public TextDocument Document { get; }
     private readonly Func<Note, Task> save;
     private readonly DispatcherTimer timer;
     private readonly SemaphoreSlim saveGate = new(1, 1);
@@ -24,27 +30,57 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
     public NoteViewModel(Note note, Func<Note, Task> save, bool isNew = false)
     {
         this.note = note;
-        title = note.Title;
+        Document = new TextDocument(note.Body);
+        UpdateTitle();
+        Document.Changed += OnDocumentChanged;
         this.save = save;
         timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         timer.Tick += OnTick;
         if (isNew) Changed();
     }
 
-    public Note Snapshot => note;
+    public Note Snapshot
+    {
+        get
+        {
+            if (bodyChanged) { note = note with { Body = Document.Text }; bodyChanged = false; }
+            return note;
+        }
+    }
     public string Title => title;
     public string Body
     {
-        get => note.Body;
+        get => Snapshot.Body;
         set
         {
-            if (value == note.Body) return;
-            string previousTitle = title;
-            note = note with { Body = value };
-            title = note.Title;
-            Changed(); Notify();
-            if (title != previousTitle) Notify(nameof(Title));
+            if (value == Body) return;
+            Document.Text = value;
         }
+    }
+
+    private void OnDocumentChanged(object? sender, DocumentChangeEventArgs e)
+    {
+        bodyChanged = true;
+        string previousTitle = title;
+        if (e.Offset <= titleEnd) UpdateTitle();
+        Changed(); Notify(nameof(Body));
+        if (title != previousTitle) Notify(nameof(Title));
+    }
+
+    private void UpdateTitle()
+    {
+        foreach (var line in Document.Lines)
+        {
+            int start = line.Offset, end = line.EndOffset;
+            while (start < end && char.IsWhiteSpace(Document.GetCharAt(start))) start++;
+            if (start == end) continue;
+            while (end > start && char.IsWhiteSpace(Document.GetCharAt(end - 1))) end--;
+            title = Document.GetText(start, Math.Min(80, end - start));
+            titleEnd = line.EndOffset;
+            return;
+        }
+        title = "새 메모";
+        titleEnd = Document.TextLength;
     }
     public string Color { get => note.Color; set { if (value != note.Color) { note = note with { Color = value }; Changed(); Notify(); } } }
     public double FontSize { get => note.FontSize; set { if (value != note.FontSize) { note = note with { FontSize = value }; Changed(); Notify(); } } }
@@ -151,11 +187,25 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
         {
             while (IsDirty && !disposed)
             {
-                var snapshot = note;
+                // Capture an immutable document revision before yielding. Flattening large text
+                // belongs off the dispatcher; later edits must not change the saved revision.
+                var metadata = note;
+                var text = Document.CreateSnapshot();
                 long savingRevision = revision;
                 SaveState = "Saving";
                 SaveStatus = "저장 중…";
-                try { await save(snapshot); }
+                try
+                {
+                    var snapshot = bodyChanged && text.TextLength >= BackgroundTextThreshold
+                        ? await Task.Run(() => metadata with { Body = text.Text })
+                        : bodyChanged ? metadata with { Body = text.Text } : metadata;
+                    await save(snapshot);
+                    if (revision == savingRevision)
+                    {
+                        note = note with { Body = snapshot.Body };
+                        bodyChanged = false;
+                    }
+                }
                 catch (Exception ex)
                 {
                     failed = true;
@@ -184,10 +234,17 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
         {
             foreach (var vm in models) { await vm.saveGate.WaitAsync(); acquired.Add(vm); }
             var pending = models.Where(vm => vm.IsDirty && !vm.disposed)
-                .Select(vm => (Vm: vm, Snapshot: vm.note, Revision: vm.revision)).ToArray();
+                .Select(vm => (Vm: vm, Metadata: vm.note, Text: vm.Document.CreateSnapshot(),
+                    BodyChanged: vm.bodyChanged, Revision: vm.revision)).ToArray();
             if (pending.Length == 0) return true;
             foreach (var item in pending) { item.Vm.timer.Stop(); item.Vm.SaveState = "Saving"; item.Vm.SaveStatus = "저장 중…"; }
-            try { await saveMany(pending.Select(item => item.Snapshot).ToArray()); }
+            Note[] snapshots;
+            try
+            {
+                snapshots = await Task.Run(() => pending.Select(item => item.BodyChanged
+                    ? item.Metadata with { Body = item.Text.Text } : item.Metadata).ToArray());
+                await saveMany(snapshots);
+            }
             catch (Exception ex)
             {
                 foreach (var item in pending)
@@ -197,13 +254,19 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
                 }
                 return false;
             }
-            foreach (var item in pending)
+            for (int i = 0; i < pending.Length; i++)
             {
+                var item = pending[i];
                 var vm = item.Vm;
                 vm.savedRevision = item.Revision;
                 vm.failed = false;
                 vm.firstDirty = DateTimeOffset.UtcNow;
-                if (!vm.IsDirty) { vm.SaveState = "Saved"; vm.SaveStatus = "저장됨"; vm.timer.Stop(); }
+                if (!vm.IsDirty)
+                {
+                    vm.note = vm.note with { Body = snapshots[i].Body };
+                    vm.bodyChanged = false;
+                    vm.SaveState = "Saved"; vm.SaveStatus = "저장됨"; vm.timer.Stop();
+                }
                 else if (!vm.disposed) vm.timer.Start();
                 vm.Saved?.Invoke();
             }
@@ -213,5 +276,5 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
     }
 
     private void Notify([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-    public void Dispose() { disposed = true; timer.Stop(); timer.Tick -= OnTick; }
+    public void Dispose() { disposed = true; timer.Stop(); timer.Tick -= OnTick; Document.Changed -= OnDocumentChanged; }
 }

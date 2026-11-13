@@ -130,6 +130,91 @@ public sealed class NoteViewModelTests
         Assert.False(await vm.FlushAsync());
     });
 
+    [Fact]
+    public Task LargeDocumentEditsDoNotAllocateWholeBodyAndSnapshotsStayCurrent() => OnDispatcher(async () =>
+    {
+        string original = "제목\n" + new string('x', 5_000_000);
+        using var vm = new NoteViewModel(new Note { Body = original }, _ => Task.CompletedTask);
+        vm.Document.Insert(vm.Document.TextLength, "준비");
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 20; i++) vm.Document.Insert(vm.Document.TextLength / 2, "가");
+        Assert.True(GC.GetAllocatedBytesForCurrentThread() - before < 1_000_000,
+            "Typing must not allocate a string proportional to the full document.");
+        vm.UpdatePosition(250, 350);
+        Assert.True(vm.IsDirty);
+        Assert.Equal("제목", vm.Title);
+        Assert.True(await vm.FlushAsync());
+        Assert.Equal(vm.Document.Text, vm.Snapshot.Body);
+        Assert.Equal(250, vm.Snapshot.Left);
+        Assert.False(vm.IsDirty);
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task DocumentEditsDuringSaveKeepTheirOwnRevision(bool batch) => OnDispatcher(async () =>
+    {
+        var started = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+        var bodies = new List<string>();
+        async Task Save(Note note)
+        {
+            bodies.Add(note.Body);
+            if (bodies.Count == 1) { started.SetResult(); await release.Task; }
+        }
+        string original = "제목\n" + new string('x', 100_000);
+        using var vm = new NoteViewModel(new Note { Body = original }, Save);
+        vm.Document.Insert(vm.Document.TextLength, "A");
+        Task<bool> saving = batch ? NoteViewModel.FlushManyAsync([vm], async notes => await Save(Assert.Single(notes)))
+            : vm.FlushAsync();
+        await started.Task;
+        vm.Document.Insert(vm.Document.TextLength, "B");
+        vm.Color = "#DCEBFA";
+        release.SetResult();
+        Assert.True(await saving);
+        Assert.True(await vm.FlushAsync());
+        Assert.Equal(original + "A", bodies[0]);
+        Assert.Equal(original + "AB", bodies[^1]);
+        Assert.Equal(original + "AB", vm.Snapshot.Body);
+        Assert.Equal("#DCEBFA", vm.Snapshot.Color);
+    });
+
+    [Fact]
+    public Task FailedLargeDocumentSaveCanRetryLatestText() => OnDispatcher(async () =>
+    {
+        bool fail = true;
+        Note? saved = null;
+        using var vm = new NoteViewModel(new Note { Body = new string('x', 100_000) }, note =>
+        {
+            if (fail) throw new IOException("full");
+            saved = note;
+            return Task.CompletedTask;
+        });
+        vm.Document.Insert(0, "한글😊\r\n");
+        Assert.False(await vm.FlushAsync());
+        vm.Document.Insert(vm.Document.TextLength, "최신");
+        fail = false;
+        Assert.True(await vm.FlushAsync());
+        Assert.Equal(vm.Document.Text, saved!.Body);
+        Assert.False(vm.IsDirty);
+    });
+
+    [Fact]
+    public Task DocumentTitleTracksBlankLinesAndUndo() => OnDispatcher(() =>
+    {
+        using var vm = new NoteViewModel(new Note { Body = " \r\n\t\n 제목  \n본문" }, _ => Task.CompletedTask);
+        Assert.Equal("제목", vm.Title);
+        vm.Document.Insert(0, "새 제목");
+        Assert.Equal("새 제목", vm.Title);
+        vm.Document.UndoStack.Undo();
+        Assert.Equal("제목", vm.Title);
+        vm.Document.Remove(0, vm.Document.TextLength);
+        Assert.Equal("새 메모", vm.Title);
+        vm.Document.Insert(0, new string('가', 100));
+        Assert.Equal(new string('가', 80), vm.Title);
+        return Task.CompletedTask;
+    });
+
     private static Task OnDispatcher(Func<Task> test)
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

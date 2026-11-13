@@ -43,6 +43,11 @@ public partial class NoteWindow : Window
         this.vm = vm;
         InitializeComponent();
         DataContext = vm;
+        Editor.Document = vm.Document;
+        Editor.Options.EnableHyperlinks = false;
+        Editor.Options.EnableEmailHyperlinks = false;
+        Editor.Options.ConvertTabsToSpaces = false;
+        Editor.TextArea.IndentationStrategy = null;
         InitializeFontSizes();
         InitializeFontFamilies();
         Left = vm.Snapshot.Left; Top = vm.Snapshot.Top;

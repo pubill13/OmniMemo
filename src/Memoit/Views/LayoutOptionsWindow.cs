@@ -278,6 +278,7 @@ public sealed class LayoutOptionsWindow : Window
         content.Children.Add(Section("현재 버전"));
         content.Children.Add(new TextBlock { Text = version, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
         content.Children.Add(Section("최근 변경"));
+        content.Children.Add(HelpText("1.13.5\n대용량 메모의 편집·자동 줄바꿈·창 크기 변경 성능을 개선했습니다. 작은 메모의 반응성을 유지하고 입력마다 본문 전체를 복사하던 작업을 제거했습니다. 자동 저장과 기존 데이터 형식은 유지합니다."));
         content.Children.Add(HelpText("1.13.4\n일반 설정에서 새 메모 기본 크기를 지정하고 기본값으로 복원할 수 있습니다. 기존 메모 크기는 유지합니다. 자동 저장·첫 백업을 포함한 5분 편집 응답성을 검증했으며 사용자 환경의 멈춤 원인은 아직 미확정입니다."));
         content.Children.Add(HelpText("1.13.3\n새 메모 시작 위치를 모니터별로 따로 지정할 수 있습니다. 삭제 실행 취소 안내창의 여백과 크기 계산을 개선했습니다."));
         content.Children.Add(HelpText("1.13.2\n화면 가장자리에서 개별 타일을 펼치고 다시 접으면 원래 자리로 돌아갑니다. 헤더를 모서리로 드래그해도 메모 크기를 유지합니다."));

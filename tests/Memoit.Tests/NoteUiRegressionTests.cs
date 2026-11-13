@@ -206,9 +206,9 @@ public sealed class NoteUiRegressionTests
             Assert.Equal(note.Body, window.Editor.Text);
             Assert.Equal(20, window.Editor.FontSize);
             Assert.Equal("Consolas", window.Editor.FontFamily.Source);
-            window.Editor.CaretIndex = 3;
+            window.Editor.CaretOffset = 3;
             window.ToggleCollapsed(); window.ToggleCollapsed(); Pump();
-            Assert.Equal(3, window.Editor.CaretIndex);
+            Assert.Equal(3, window.Editor.CaretOffset);
         }
         finally { window.AllowClose = true; window.Close(); }
     });
@@ -293,6 +293,39 @@ public sealed class NoteUiRegressionTests
             Assert.Equal(Color.FromRgb(193, 61, 61), ((SolidColorBrush)dot.Fill).Color);
             Assert.Contains("테스트 저장 오류", dot.ToolTip.ToString());
             Render(window, "save-error.png");
+        }
+        finally { window.AllowClose = true; window.Close(); }
+    });
+
+    [Fact]
+    public void PlainTextInputPreservesWhitespaceSelectionAndUndoAfterSave() => Sta(() =>
+    {
+        using var vm = new NoteViewModel(new Note { Body = "  한글\r\n둘째 😊" }, _ => Task.CompletedTask);
+        var window = new NoteWindow(vm);
+        try
+        {
+            window.Show(); Pump();
+            Assert.True(window.Editor.WordWrap);
+            Assert.Null(window.Editor.TextArea.IndentationStrategy);
+            Assert.False(window.Editor.Options.ConvertTabsToSpaces);
+            Assert.False(window.Editor.Options.EnableHyperlinks);
+            window.Editor.Select(4, 0);
+            window.Editor.TextArea.PerformTextInput("\n");
+            Assert.Equal("  한글\r\n\r\n둘째 😊", vm.Body);
+            window.Editor.Select(0, 4);
+            window.Editor.TextArea.PerformTextInput("교체😊");
+            Assert.StartsWith("교체😊\r\n", vm.Body);
+            window.Editor.Document.UndoStack.ClearAll();
+            window.Editor.Select(window.Editor.Document.TextLength, 0);
+            string before = vm.Body;
+            window.Editor.TextArea.PerformTextInput("\t추가");
+            int caret = window.Editor.CaretOffset;
+            Assert.True(vm.FlushAsync().GetAwaiter().GetResult());
+            Assert.Equal(caret, window.Editor.CaretOffset);
+            window.Editor.Undo();
+            Assert.Equal(before, vm.Body);
+            window.Editor.Redo();
+            Assert.Equal(before + "\t추가", vm.Body);
         }
         finally { window.AllowClose = true; window.Close(); }
     });

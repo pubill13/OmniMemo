@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/OmniMemo.ico</ApplicationIcon>
-    <Version>1.13.4</Version>
+    <Version>1.13.5</Version>
     <AssemblyName>OmniMemo</AssemblyName>
     <Product>OmniMemo</Product>
     <Title>OmniMemo</Title>
@@ -17,9 +17,11 @@
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
     <Resource Include="Assets/OmniMemo.ico" />
     <Resource Include="Assets/Fonts/*.ttf;Assets/Fonts/*.otf" />
     <Content Include="Assets/Fonts/*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Assets/Licenses/*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
   </ItemGroup>

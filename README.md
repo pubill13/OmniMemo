@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.13.4-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.13.5-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -79,10 +79,12 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.13.4/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.13.5/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.
+
+대용량 메모 편집은 AvalonEdit 6.3.1.120을 사용하며 자동 줄바꿈과 기존 SQLite 저장 형식을 유지합니다. 라이선스는 배포물의 `Assets/Licenses/AvalonEdit-MIT.txt`에 포함합니다. 작은 메모와 대용량 문서의 비교 결과 및 재실행 방법은 [대용량 편집 검증](docs/verification-large-note-editing.md)을 참고하세요.
 
 ```powershell
 powershell.exe -NoProfile -STA -File scripts/BatchTransitionSmoke.ps1 -Executable artifacts/OmniMemo-1.13.3/win-x64/OmniMemo.exe -ShowOverlay
@@ -181,3 +183,9 @@ dotnet run --project scripts/ArrangementVerification -c Release -- --output arti
 - 설정 → 일반에서 새 메모의 기본 가로·세로와 320×300 DIP 기본값 복원을 제공합니다. 이후 만드는 메모부터 적용하고 기존 메모 크기는 유지합니다.
 - 작은 설정 창에서 입력 영역을 스크롤할 수 있도록 최소 높이를 확보했습니다.
 - 테스트 286개와 실제 WPF 생성·저장 검증 통과. 5분 연속 편집·자동 저장·첫 백업 검사에서 1초 이상 멈춤은 재현되지 않았습니다. 사용자 환경의 멈춤 원인은 아직 미확정이며 [검증 기록](docs/verification-new-note-size-responsiveness.md)에 범위와 한계를 남겼습니다.
+
+## 1.13.5 변경 사항
+
+- 대용량 메모의 편집기와 본문 전달 구조를 개선했습니다. 자동 줄바꿈과 기존 외형·저장 형식은 유지합니다.
+- 작은 메모의 입력 중앙값은 약 2.0→1.2ms, 5만 줄·505만 자는 약 9.7→1.4ms였습니다. 같은 대용량 문서에서 너비 변경 후 레이아웃 완료는 약 30초→17ms로 줄었습니다.
+- Release 테스트 292개, 1,010만 자의 자동 저장·백업 중 입력·SQLite 재열기 검증을 통과했습니다. 매우 긴 단일 줄의 줄바꿈 비용은 남아 있고 물리 키보드 한글 IME 조합은 미검증입니다. [검증 범위와 결과](docs/verification-large-note-editing.md)를 참고하세요.
