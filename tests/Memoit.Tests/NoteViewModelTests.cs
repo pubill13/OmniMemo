@@ -9,6 +9,26 @@ namespace Memoit.Tests;
 public sealed class NoteViewModelTests
 {
     [Fact]
+    public Task LongEditingSessionRetainsRecentUndoGroupsAcrossSaves() => OnDispatcher(async () =>
+    {
+        using var vm = new NoteViewModel(new Note(), _ => Task.CompletedTask);
+        var document = vm.Document;
+        for (int i = 0; i < 1_000; i++) document.Insert(document.TextLength, "x");
+        Assert.True(await vm.FlushAsync());
+
+        int retained = 0;
+        while (document.UndoStack.CanUndo)
+        {
+            document.UndoStack.Undo();
+            retained++;
+        }
+        Assert.Equal(100, retained);
+        Assert.Equal(900, document.TextLength);
+        while (document.UndoStack.CanRedo) document.UndoStack.Redo();
+        Assert.Equal(new string('x', 1_000), document.Text);
+    });
+
+    [Fact]
     public Task EditingBodyNotifiesOnlyChangedTitleAndSaveState() => OnDispatcher(async () =>
     {
         using var vm = new NoteViewModel(new Note { Body = "제목\n본문" }, _ => Task.CompletedTask);
@@ -79,6 +99,74 @@ public sealed class NoteViewModelTests
         Assert.Equal(new[] { "첫 입력", "최신 입력" }, bodies);
         Assert.False(vm.IsDirty);
         Assert.Equal("최신 입력", vm.Body);
+    });
+
+    [Fact]
+    public Task FirstEditDuringAnotherNotesBatchSaveIsAutosaved() => OnDispatcher(async () =>
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var saved = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var first = new NoteViewModel(new Note(), _ => Task.CompletedTask);
+        using var second = new NoteViewModel(new Note(), note =>
+        {
+            saved.SetResult(note.Body);
+            return Task.CompletedTask;
+        });
+        first.Body = "batch";
+        var batch = NoteViewModel.FlushManyAsync([first, second], async snapshots =>
+        {
+            Assert.Equal("batch", Assert.Single(snapshots).Body);
+            started.SetResult();
+            await release.Task;
+        });
+        await started.Task;
+        second.Body = "new edit";
+        await Task.Delay(800);
+        Assert.False(saved.Task.IsCompleted);
+        release.SetResult();
+        Assert.True(await batch);
+        Assert.Equal("new edit", await saved.Task.WaitAsync(TimeSpan.FromSeconds(4)));
+        Assert.False(second.IsDirty);
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task SlowAutosaveCoalescesNewEditsAndHonorsFailure(bool fail) => OnDispatcher(async () =>
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var latestSaved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var bodies = new List<string>();
+        using var vm = new NoteViewModel(new Note(), async note =>
+        {
+            bodies.Add(note.Body);
+            if (bodies.Count == 1)
+            {
+                started.SetResult();
+                await release.Task;
+                if (fail) throw new IOException("Write failed");
+            }
+            else latestSaved.SetResult();
+        });
+        vm.Body = "first";
+        await started.Task;
+        vm.Body = "during write";
+        await Task.Delay(800); // Let the debounce timer fire while the first write is blocked.
+        vm.Body = "latest";
+        release.SetResult();
+        await Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+        Assert.Equal(new[] { "first" }, bodies);
+        Assert.True(vm.IsDirty);
+        if (fail)
+        {
+            Assert.Equal("Failed", vm.SaveState);
+            Assert.True(await vm.FlushAsync());
+        }
+        await latestSaved.Task;
+        Assert.Equal(new[] { "first", "latest" }, bodies);
+        Assert.False(vm.IsDirty);
     });
 
     [Fact]

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Threading;
 using Memoit.Models;
+using Memoit.Services;
 using ICSharpCode.AvalonEdit.Document;
 
 namespace Memoit.ViewModels;
@@ -11,11 +12,13 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
 {
     // Keep small saves synchronous; large UTF-16 copies should not occupy the dispatcher.
     private const int BackgroundTextThreshold = 65_536;
+    private const int UndoHistoryLimit = 100;
     private Note note;
     private string title = "";
     private bool bodyChanged;
     private int titleEnd;
     public TextDocument Document { get; }
+    internal ResponsivenessLog? Responsiveness { get; init; }
     private readonly Func<Note, Task> save;
     private readonly DispatcherTimer timer;
     private readonly SemaphoreSlim saveGate = new(1, 1);
@@ -31,6 +34,7 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
     {
         this.note = note;
         Document = new TextDocument(note.Body);
+        Document.UndoStack.SizeLimit = UndoHistoryLimit;
         UpdateTitle();
         Document.Changed += OnDocumentChanged;
         this.save = save;
@@ -43,7 +47,12 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
     {
         get
         {
-            if (bodyChanged) { note = note with { Body = Document.Text }; bodyChanged = false; }
+            if (bodyChanged)
+            {
+                using var operation = Responsiveness?.Track("Editor.ReadDocument");
+                note = note with { Body = Document.Text };
+                bodyChanged = false;
+            }
             return note;
         }
     }
@@ -60,6 +69,7 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnDocumentChanged(object? sender, DocumentChangeEventArgs e)
     {
+        using var operation = Responsiveness?.Track("Editor.DocumentChanged");
         bodyChanged = true;
         string previousTitle = title;
         if (e.Offset <= titleEnd) UpdateTitle();
@@ -176,12 +186,18 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
     {
         var now = DateTimeOffset.UtcNow;
         if (now - lastEdit < TimeSpan.FromMilliseconds(500) && now - firstDirty < TimeSpan.FromSeconds(2)) return;
+        // A batch may hold this editor's gate without saving an edit made after its snapshot.
+        // Keep the timer armed until it can start a write without queueing behind the gate.
+        if (saveGate.CurrentCount == 0) return;
         timer.Stop();
-        await FlushAsync();
+        await FlushAsync(drainChanges: false);
     }
 
-    public async Task<bool> FlushAsync()
+    public Task<bool> FlushAsync() => FlushAsync(drainChanges: true);
+
+    private async Task<bool> FlushAsync(bool drainChanges)
     {
+        using var operation = Responsiveness?.Track("Editor.Flush");
         await saveGate.WaitAsync();
         try
         {
@@ -219,6 +235,11 @@ public sealed class NoteViewModel : INotifyPropertyChanged, IDisposable
                 firstDirty = DateTimeOffset.UtcNow;
                 if (!IsDirty) { SaveStatus = "저장됨"; SaveState = "Saved"; timer.Stop(); }
                 Saved?.Invoke();
+                if (!drainChanges && IsDirty && !disposed)
+                {
+                    timer.Start();
+                    break;
+                }
             }
             return !IsDirty;
         }

@@ -35,11 +35,12 @@ public partial class App
                 case "HideAll": await SetAllVisibleAsync(false); break;
                 case "ShowAll": await SetAllVisibleAsync(true); break;
             }
-        });
+        }, command);
     }
 
     private void SaveLayoutSettings(LayoutSettings value)
     {
+        using var operation = responsiveness?.Track(nameof(SaveLayoutSettings));
         value.Validate();
         HotkeyService.Validate(value.Hotkeys);
         var previous = layoutSettings;
@@ -73,6 +74,7 @@ public partial class App
     private async Task RunArrangementAsync(string command, bool allowBusy = false)
     {
         if (arranging || busy && !allowBusy || shuttingDown) return;
+        using var operation = responsiveness?.Track($"Arrangement.{command}");
         arranging = true;
         try
         {
@@ -229,8 +231,8 @@ public partial class App
         {
             layoutPanel = new LayoutOptionsWindow(layoutSettings, MonitorCatalog.All(), dataDirectory, StartupRegistration.IsEnabled(), GetPreviewNotes);
             layoutPanel.ApplyRequested += ApplyPanelSettings;
-            layoutPanel.BackupRequested += () => RunOperation(BackupAsync);
-            layoutPanel.RestoreRequested += () => RunOperation(RestoreAsync);
+            layoutPanel.BackupRequested += () => RunOperation(BackupAsync, "Backup");
+            layoutPanel.RestoreRequested += () => RunOperation(RestoreAsync, "Restore");
             layoutPanel.CaptureChanged += capture =>
             {
                 try { if (capture) hotkeys?.BeginCapture(); else hotkeys?.EndCapture(); }

@@ -4,7 +4,7 @@ Windows 개인용 로컬 스티커 메모입니다. .NET 10 / WPF / SQLite 기�
 
 ## 실행
 
-GitHub 릴리스의 `OmniMemo-1.13.5-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
+GitHub 릴리스의 `OmniMemo-1.13.6-win-x64.zip`을 풀고 `OmniMemo.exe`를 실행하세요. 런타임이 포함되어 별도 .NET 설치가 필요하지 않습니다. 업데이트할 때는 트레이에서 기존 앱을 종료한 뒤 새 폴더의 실행 파일을 사용하세요.
 
 메모·목록·패널은 작업 표시줄에 표시하지 않습니다. 트레이 아이콘에서 목록·설정·종료를 사용할 수 있습니다. Windows 설정에 따라 아이콘이 숨겨진 아이콘 영역에 있을 수 있습니다.
 
@@ -70,6 +70,14 @@ GitHub 릴리스의 `OmniMemo-1.13.5-win-x64.zip`을 풀고 `OmniMemo.exe`를 �
 
 하루 첫 저장 후 자동 백업하며 최근 7개를 보관합니다. 수동 복원은 현재 데이터 안전 백업 후 전체 교체합니다. 휴지통은 자동 삭제하지 않습니다. 데이터와 백업은 암호화되지 않습니다.
 
+1.13.6부터 편집 중인 메모마다 최근 100단계까지 실행 취소할 수 있습니다. 처리되지 않은 .NET 예외로 앱이 종료될 때는 데이터 폴더의 `last-crash.log`에 발생 시각, 앱 버전, 예외 종류와 호출 스택을 기록합니다. 가장 최근 기록 한 건을 보관하며 메모 본문과 예외 메시지는 기록에서 제외합니다.
+
+### 응답 지연 기록
+
+`%LOCALAPPDATA%\MemoitPersonal\responsiveness.log`에 WPF 입력 우선순위의 처리 지연(약 150ms 이상)과 오래 걸린 편집·목록 갱신·정렬·SQLite 작업을 기록합니다. `OMNIMEMO_DATA_DIR`을 지정했다면 해당 폴더에 저장합니다. `ui-pending`은 감시 시점에 UI가 아직 응답하지 않았다는 뜻이고, `ui-delayed`는 다시 응답할 때까지 걸린 시간입니다. `work-pending`은 UI가 응답 중이어도 1초 이상 진행 중인 작업을 보여 줍니다.
+
+응답없음으로 강제 종료한 경우 해당 시각의 `responsiveness.log`와 이전 기록인 `responsiveness.log.previous`를 확인하세요. 두 파일은 각각 약 256KB 단위로 순환하며, 앱 시작·종료 시각과 프로세스 ID로 실행을 구분할 수 있습니다. 메모 내용과 입력값은 기록하지 않습니다. 예외로 종료됐다면 같은 폴더의 `last-crash.log`에서 예외 종류와 호출 스택을 확인할 수 있습니다.
+
 ## 개발과 검증
 
 Windows 11 x64 / .NET 10 SDK를 사용합니다.
@@ -79,7 +87,7 @@ $env:PATH="$PWD\.tools\dotnet;$env:PATH"
 $env:DOTNET_CLI_HOME="$PWD\.dotnet-home"
 dotnet restore Memoit.slnx
 dotnet test Memoit.slnx -c Release --no-restore
-dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.13.5/win-x64
+dotnet publish src/Memoit/Memoit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/OmniMemo-1.13.6/win-x64
 ```
 
 `OMNIMEMO_DATA_DIR`로 개인 데이터와 격리하여 실행할 수 있습니다. 검증 스크립트는 테스트 데이터와 자체 실행 프로세스만 사용합니다.

@@ -278,6 +278,7 @@ public sealed class LayoutOptionsWindow : Window
         content.Children.Add(Section("현재 버전"));
         content.Children.Add(new TextBlock { Text = version, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
         content.Children.Add(Section("최근 변경"));
+        content.Children.Add(HelpText("1.13.6\n편집 중 메모마다 최근 100단계의 실행 취소를 지원합니다. 저장 중 이어서 입력한 내용은 다음 자동 저장에 모아서 기록합니다. 데이터 폴더의 responsiveness.log에 응답 지연과 진행 중인 작업을, last-crash.log에 처리되지 않은 .NET 예외를 기록합니다."));
         content.Children.Add(HelpText("1.13.5\n대용량 메모의 편집·자동 줄바꿈·창 크기 변경 성능을 개선했습니다. 작은 메모의 반응성을 유지하고 입력마다 본문 전체를 복사하던 작업을 제거했습니다. 자동 저장과 기존 데이터 형식은 유지합니다."));
         content.Children.Add(HelpText("1.13.4\n일반 설정에서 새 메모 기본 크기를 지정하고 기본값으로 복원할 수 있습니다. 기존 메모 크기는 유지합니다. 자동 저장·첫 백업을 포함한 5분 편집 응답성을 검증했으며 사용자 환경의 멈춤 원인은 아직 미확정입니다."));
         content.Children.Add(HelpText("1.13.3\n새 메모 시작 위치를 모니터별로 따로 지정할 수 있습니다. 삭제 실행 취소 안내창의 여백과 크기 계산을 개선했습니다."));

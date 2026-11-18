@@ -10,6 +10,7 @@ public partial class App
     private async void RunStateChange(string command)
     {
         if (arranging || busy || shuttingDown) return;
+        using var operation = responsiveness?.Track($"State.{command}");
         arranging = true;
         try
         {

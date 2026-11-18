@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Threading;
 using Memoit.Models;
@@ -29,6 +30,7 @@ public partial class App : Application
     private bool savedRefreshQueued;
     internal Action<double>? MeasureRefresh { get; set; }
     private string dataDirectory = "";
+    private ResponsivenessLog? responsiveness;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -46,9 +48,12 @@ public partial class App : Application
                 Shutdown();
                 return;
             }
+            AppDomain.CurrentDomain.UnhandledException += RecordFatalException;
+            responsiveness = new ResponsivenessLog(Dispatcher, dataDirectory);
+            using var startup = responsiveness.Track("Startup");
             string database = Path.Combine(dataDirectory, "notes.db");
             bool firstRun = !File.Exists(database);
-            store = new NoteStore(database);
+            store = new NoteStore(database) { Responsiveness = responsiveness };
             await store.InitializeAsync();
             try
             {
@@ -95,20 +100,20 @@ public partial class App : Application
     {
         list = new Views.MainWindow();
         MainWindow = list;
-        list.NewNoteRequested += () => RunOperation(NewNoteAsync);
+        list.NewNoteRequested += () => RunOperation(NewNoteAsync, "NewNote");
         list.OpenNoteRequested += id => RunOperation(async () =>
         {
             if (notes.TryGetValue(id, out var vm) && vm.Snapshot.DeletedAt is null)
             { vm.SetVisible(true); RevealPage(id); ShowNote(vm); await vm.FlushAsync(); }
-        });
-        list.DeleteRequested += id => RunOperation(() => DeleteSelectedAsync([id]));
-        list.DeleteSelectedRequested += ids => RunOperation(() => DeleteSelectedAsync(ids));
+        }, "OpenNote");
+        list.DeleteRequested += id => RunOperation(() => DeleteSelectedAsync([id]), "DeleteNote");
+        list.DeleteSelectedRequested += ids => RunOperation(() => DeleteSelectedAsync(ids), "DeleteSelectedNotes");
         list.HideRequested += id => RunOperation(async () =>
         {
             if (!notes.TryGetValue(id, out var vm)) return;
             vm.SetVisible(false);
             if (await vm.FlushAsync() && windows.Remove(id, out var window)) { window.Hide(); windows[id] = window; }
-        });
+        }, "HideNote");
         list.SettingsRequested += () => { if (!busy) ShowSettings(); };
         list.TrashRequested += ShowTrashWindow;
         list.RefreshRequested += RefreshList;
@@ -121,7 +126,7 @@ public partial class App : Application
             trayIcon = (System.Drawing.Icon)icon.Clone();
         tray = new Forms.NotifyIcon { Text = "OmniMemo · 개인용 메모", Icon = trayIcon, Visible = true };
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("새 메모", null, (_, _) => RunOperation(NewNoteAsync));
+        menu.Items.Add("새 메모", null, (_, _) => RunOperation(NewNoteAsync, "NewNote"));
         menu.Items.Add("메모 목록", null, (_, _) => { if (!busy) ShowList(); });
         menu.Items.Add("모두 숨기기", null, (_, _) => ExecuteCommand("HideAll"));
         menu.Items.Add("모두 보이기", null, (_, _) => ExecuteCommand("ShowAll"));
@@ -134,7 +139,7 @@ public partial class App : Application
         };
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("설정", null, (_, _) => { if (!busy) ShowSettings(); });
-        menu.Items.Add("종료", null, (_, _) => RunOperation(ExitAsync));
+        menu.Items.Add("종료", null, (_, _) => RunOperation(ExitAsync, "Exit"));
         tray.ContextMenuStrip = menu;
         tray.DoubleClick += (_, _) => { if (!busy && !shuttingDown) ShowOverlayPanel(true); };
         tray.BalloonTipClicked += (_, _) => { if (!busy) ShowSettings(); };
@@ -142,7 +147,8 @@ public partial class App : Application
 
     private NoteViewModel AddModel(Note note, bool isNew = false)
     {
-        var vm = new NoteViewModel(note, store.SaveAsync, isNew);
+        using var operation = responsiveness?.Track("CreateNoteModel");
+        var vm = new NoteViewModel(note, store.SaveAsync, isNew) { Responsiveness = responsiveness };
         vm.Saved += OnNoteSaved;
 
         notes.Add(note.Id, vm);
@@ -151,11 +157,12 @@ public partial class App : Application
 
     private void ShowNote(NoteViewModel vm, bool activate = true)
     {
+        using var operation = responsiveness?.Track(nameof(ShowNote));
         if (!windows.TryGetValue(vm.Snapshot.Id, out var window))
         {
             window = new NoteWindow(vm) { ShowActivated = activate };
             var target = window;
-            window.NewNoteRequested += () => RunOperation(() => NewNoteAsync(target));
+            window.NewNoteRequested += () => RunOperation(() => NewNoteAsync(target), "NewNote");
             window.CollapseGesture = layoutSettings.Hotkeys.GetValueOrDefault("ToggleCurrent", "");
             window.LayoutOptionsRequested += () => ExecuteCommand("TogglePanel");
             window.ArrangeTilesRequested += byColor => ExecuteCommand(byColor ? "SortColor" : "SortCreated");
@@ -165,8 +172,8 @@ public partial class App : Application
                 vm.SetVisible(false);
                 if (await vm.FlushAsync()) target.Hide();
                 else { vm.SetVisible(true); Error("저장에 실패해 메모를 숨기지 않았습니다."); }
-            });
-            window.DeleteRequested += () => RunOperation(() => DeleteNotesAsync([vm.Snapshot.Id], false));
+            }, "HideNote");
+            window.DeleteRequested += () => RunOperation(() => DeleteNotesAsync([vm.Snapshot.Id], false), "DeleteNote");
             window.Activated += (_, _) => RecordNoteActivation(target);
             window.CollapsedStateChanged += () => DetachFromPages(vm.Snapshot.Id);
             window.SourceInitialized += (_, _) => ApplyInitialNotePlacement(target, vm.Snapshot.Id);
@@ -191,6 +198,7 @@ public partial class App : Application
     private void ShowList(bool search = false)
     {
         if (list is null) return;
+        using var operation = responsiveness?.Track(nameof(ShowList));
         list.SetNotes(notes.Values.Where(n => n.Snapshot.DeletedAt is null).Select(n => n.Snapshot), false);
         list.Show(); list.WindowState = WindowState.Normal;
         WindowPlacement.KeepOnScreen(list); list.Activate();
@@ -199,6 +207,7 @@ public partial class App : Application
 
     private void RefreshList()
     {
+        using var operation = responsiveness?.Track(nameof(RefreshList));
         long started = MeasureRefresh is null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
         RefreshPageControls();
         if (list?.IsVisible == true)
@@ -315,9 +324,10 @@ public partial class App : Application
         windows.Clear();
     }
 
-    private async void RunOperation(Func<Task> action)
+    private async void RunOperation(Func<Task> action, [CallerMemberName] string caller = "")
     {
         if (busy || shuttingDown) return;
+        using var operation = responsiveness?.Track($"Command.{caller}");
         busy = true;
         foreach (Window window in Windows) window.IsEnabled = false;
         try { await action(); }
@@ -354,14 +364,36 @@ public partial class App : Application
 
     private static void Error(string message, Exception? ex = null) => Dialogs.Show(message + (ex is null ? "" : "\n\n" + ex.Message), "OmniMemo", MessageBoxButton.OK, MessageBoxImage.Error);
 
+    private void RecordFatalException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is not Exception exception) return;
+        try
+        {
+            // Exception messages can include user input. Keep only types and stack frames.
+            using var log = File.CreateText(Path.Combine(dataDirectory, "last-crash.log"));
+            log.WriteLine($"{DateTimeOffset.Now:O} OmniMemo {typeof(App).Assembly.GetName().Version}");
+            for (Exception? cause = exception; cause is not null; cause = cause.InnerException)
+            {
+                log.WriteLine(cause.GetType().FullName);
+                log.WriteLine(new System.Diagnostics.StackTrace(cause, false));
+            }
+        }
+        catch (Exception)
+        {
+            // The runtime is terminating. A failed diagnostic write must preserve the original fault.
+        }
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
+        AppDomain.CurrentDomain.UnhandledException -= RecordFatalException;
         SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
         hotkeys?.Dispose();
         tray?.Dispose();
         trayIcon?.Dispose();
         foreach (var vm in notes.Values) vm.Dispose();
         store?.Dispose();
+        responsiveness?.Stop(e.ApplicationExitCode);
         instance?.Dispose();
         base.OnExit(e);
     }

@@ -15,6 +15,7 @@ public sealed class NoteStore(string databasePath) : IDisposable
     private readonly SemaphoreSlim gate = new(1, 1);
     private bool disposed;
     internal Action<string, double, double>? MeasureOperation { get; set; }
+    internal ResponsivenessLog? Responsiveness { get; init; }
     private const string LegacyColumns = "id, body, color, font_size, font_family, is_collapsed, left_pos, top_pos, width, height, is_visible, is_pinned, created_at, updated_at, deleted_at";
     private const string Columns = LegacyColumns + ", collapsed_left, collapsed_top, expanded_left, expanded_top";
 
@@ -256,15 +257,31 @@ public sealed class NoteStore(string databasePath) : IDisposable
     {
         var measure = MeasureOperation;
         long started = measure is null ? 0 : Stopwatch.GetTimestamp();
-        await gate.WaitAsync().ConfigureAwait(false);
+        using (Responsiveness?.Track($"SQLite.{operation}.WaitForGate"))
+            await gate.WaitAsync().ConfigureAwait(false);
         double waitMs = measure is null ? 0 : Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         long acquired = measure is null ? 0 : Stopwatch.GetTimestamp();
-        try { ObjectDisposedException.ThrowIf(disposed, this); return await Task.Run(action).ConfigureAwait(false); }
+        try
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            using var scheduled = Responsiveness?.Track($"SQLite.{operation}");
+            return await Task.Run(() =>
+            {
+                using var executing = Responsiveness?.Track($"SQLite.{operation}.Execute");
+                return action();
+            }).ConfigureAwait(false);
+        }
         finally
         {
             gate.Release();
             measure?.Invoke(operation, waitMs, Stopwatch.GetElapsedTime(acquired).TotalMilliseconds);
         }
     }
-    public void Dispose() { gate.Wait(); try { disposed = true; } finally { gate.Release(); } }
+    public void Dispose()
+    {
+        using var operation = Responsiveness?.Track("SQLite.Dispose");
+        gate.Wait();
+        try { disposed = true; }
+        finally { gate.Release(); }
+    }
 }
